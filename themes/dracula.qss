@@ -1,0 +1,94 @@
+QWidget {
+ background: #282a36;
+ color: #f8f8f2;
+ font-family: Segoe UI;
+ font-size: 11pt;
+}
+QFrame#TopBar, QFrame#Card {
+ background: #1e1f29;
+ border: 1px solid #44475a;
+ border-radius: 14px;
+}
+QLabel#TopTitle { 
+    font-size: 15pt; 
+    font-weight: 800; 
+    color: #f8f8f2; 
+    }
+
+QLabel#TopHint { 
+    color: #b3b8d4; 
+    }
+
+QLabel#SectionTitle { 
+    font-size: 12pt; 
+    font-weight: 800; 
+    color: #bd93f9; 
+    }
+
+QLabel#Counter { 
+    font-weight: 700; 
+    color: #50fa7b; 
+    }
+
+QLineEdit, QTextEdit, QComboBox {
+ background: #16161e;
+ border: 1px solid #44475a;
+ border-radius: 10px;
+ padding: 8px 10px;
+ color: #f8f8f2;
+}
+QTextEdit { padding: 10px; }
+QPushButton {
+ background: #44475a;
+ border: 1px solid #44475a;
+ border-radius: 12px;
+ padding: 10px 16px;
+ font-weight: 700;
+}
+
+QPushButton:hover { background: #6272a4; }
+QPushButton#Primary { background: #7aa2f7; border: 1px solid #7aa2f7; color: #0b1220; }
+QPushButton#Danger { background: #ff5555; border: 1px solid #ff5555; color: #0b1220; }
+QTableWidget {
+ background: #16161e;
+ border: 1px solid #44475a;
+ border-radius: 12px;
+ gridline-color: #44475a;
+ alternate-background-color: #1b1b24;
+}
+QTableWidget::item { background: transparent; padding: 6px; }
+QTableWidget::item:selected { background: #3d3f54; }
+QHeaderView::section {
+ background: #1e1f29;
+ color: #bd93f9;
+ border: none;
+ padding: 10px;
+ font-weight: 700;
+}
+QTabWidget::pane {
+ border: 1px solid #44475a;
+ background: #1e1f29;
+ border-radius: 12px;
+ top: -1px;
+}
+QTabBar::tab {
+ background: #16161e;
+ color: #f8f8f2;
+ padding: 8px 12px;
+ border: 1px solid #44475a;
+ border-bottom: none;
+ border-top-left-radius: 10px;
+ border-top-right-radius: 10px;
+ margin-right: 6px;
+}
+QTabBar::tab:selected {
+ background: #1e1f29;
+ color: #50fa7b;
+}
+
+parts_txt = (a.parts_used or "").strip()
+parts_preview = parts_txt if len(parts_txt) <= 50 else parts_txt[:50] + "…"
+
+item_parts = QTableWidgetItem(parts_preview)
+item_parts.setToolTip(parts_txt)
+self.history_table.setItem(row, 3, item_parts)

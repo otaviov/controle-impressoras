@@ -1,0 +1,19 @@
+QWidget { font-family: Segoe UI; font-size: 11pt; background: #f8fafc; color: #0f172a; }
+QFrame#TopBar { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; }
+QFrame#Card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; }
+QLabel#TopTitle { font-size: 15pt; font-weight: 800; color: #0f172a; }
+QLabel#TopHint { color: #475569; }
+QLabel#SectionTitle { font-size: 12pt; font-weight: 800; color: #0f172a; }
+
+QLineEdit, QTextEdit, QComboBox {
+  background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 8px 10px; color: #0f172a;
+}
+QTextEdit { padding: 10px; min-height: 120px; }
+
+QTableWidget { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; gridline-color: #e2e8f0; }
+QHeaderView::section { background: #f1f5f9; color: #0f172a; border: none; padding: 10px; font-weight: 700; }
+
+QPushButton { background: #e2e8f0; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 12px; padding: 10px 16px; font-weight: 700; }
+QPushButton:hover { background: #cbd5e1; }
+QPushButton#Primary { background: #2563eb; color: #ffffff; border: 1px solid #1d4ed8; }
+QPushButton#Danger { background: #dc2626; color: #ffffff; border: 1px solid #b91c1c; }

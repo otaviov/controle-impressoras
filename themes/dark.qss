@@ -1,0 +1,138 @@
+QWidget {
+    background-color: #0f172a;
+    color: #e5e7eb;
+    font-family: Segoe UI;
+    font-size: 10pt;
+}
+
+QFrame#Card {
+    background-color: #020617;
+    border-radius: 14px;
+    border: 1px solid #1e293b;
+}
+
+QLineEdit, QTextEdit, QComboBox {
+    background-color: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 6px;
+}
+
+QPushButton {
+    background-color: #1e293b;
+    border-radius: 10px;
+    padding: 8px 14px;
+}
+QPushButton:hover {
+    background-color: #334155;
+}
+
+QPushButton#Primary {
+    background-color: #2563eb;
+}
+
+QPushButton#Danger {
+    background-color: #dc2626;
+}
+
+QTableWidget {
+    background-color: #020617;
+    border-radius: 12px;
+    alternate-background-color: #0f172a;
+    gridline-color: transparent;
+}
+
+/* ===== FIX “PARTES BRANCAS” DO QTabWidget ===== */
+QTabWidget::pane {
+    background: transparent;          /* remove branco do pane */
+    border: 0;                        /* remove borda padrão branca */
+    margin-top: 8px;
+}
+
+QTabBar {
+    background: transparent;
+}
+
+QTabBar::tab {
+    background: #0b1220;              /* cor da aba */
+    color: #cbd5e1;
+    border: 1px solid #1e293b;
+    border-bottom: 0;                 /* integra com o “card” */
+    padding: 8px 14px;
+    margin-right: 8px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    min-width: 110px;
+}
+
+QTabBar::tab:hover {
+    background: #111827;
+}
+
+QTabBar::tab:selected {
+    background: #020617;              /* mesma cor do Card */
+    color: #e5e7eb;
+    border: 1px solid #1e293b;
+    border-bottom: 0;
+}
+
+/* deixa o conteúdo das abas com cara de “card” */
+QTabWidget QWidget#qt_tabwidget_stackedwidget {
+    background: transparent;
+}
+
+/* tira outline/retângulo feio de foco (às vezes aparece branco) */
+QTabBar::tab:focus {
+    outline: none;
+}
+
+QTabWidget {
+    background: transparent;
+}
+
+/* ===== TOP BAR (remove “faixa branca” e dá tamanho no título) ===== */
+QFrame#TopBar {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 #0b1220, stop:1 #020617);
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 10px;
+}
+
+QLabel#TopTitle {
+    font-size: 18pt;          /* aumenta o título */
+    font-weight: 700;
+    color: #e5e7eb;
+}
+
+QLabel#TopHint {
+    font-size: 9.5pt;
+    color: #94a3b8;
+}
+
+/* ===== HEADER DA TABELA (remove branco do cabeçalho) ===== */
+QHeaderView::section {
+    background-color: #0b1220;
+    color: #e5e7eb;
+    border: 0;
+    padding: 10px;
+    font-weight: 600;
+}
+
+/* ===== TABELA (garante fundo escuro em tudo) ===== */
+QTableWidget {
+    background-color: #020617;
+    alternate-background-color: #0b1220;
+    color: #e5e7eb;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+}
+
+QTableWidget::item {
+    padding: 6px;
+}
+
+QTableWidget::item:selected {
+    background: #1e293b;
+}
+
