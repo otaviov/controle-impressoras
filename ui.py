@@ -2,30 +2,17 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QFormLayout,
-    QLineEdit,
-    QTextEdit,
-    QPushButton,
-    QMessageBox,
-    QComboBox,
-    QLabel,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QFrame,
-    QDialog,
-    QDialogButtonBox,
-    QFileDialog,
-    QTabWidget,
-    QAbstractItemView,
+    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
+    QLineEdit, QTextEdit, QPushButton, QMessageBox,
+    QComboBox, QLabel, QTableWidget, QTableWidgetItem,
+    QHeaderView, QFrame, QDialog, QDialogButtonBox,
+    QFileDialog, QTabWidget, QAbstractItemView
 )
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -33,11 +20,12 @@ from sqlalchemy.orm import Session
 
 from models import Printer, Activity, simple_uuid
 
-# PDF 
+# PDF
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+
 
 
 STATUSES = ["Operacional", "Em manutenção", "Parada", "Aguardando peça", "Em uso"]
@@ -373,16 +361,38 @@ class MainWindow(QWidget):
         self.history_table.setRowCount(0)
         self.lbl_counter.setText("Manutenções: 0")
 
+    def brasil_now():
+        return datetime.now(ZoneInfo("America/Sao_Paulo"))
+
     def save(self):
         pat = self.patrimonio.text().strip()
         mod = self.modelo.text().strip()
         ser = self.serial.text().strip()
 
         if not (pat or mod or ser):
-            QMessageBox.warning(self, "Atenção", "Preencha pelo menos Patrimônio OU Modelo OU Serial.")
+            QMessageBox.warning(
+                self,
+                "Atenção",
+                "Preencha pelo menos Patrimônio OU Modelo OU Serial."
+            )
             return
 
-        now = datetime.utcnow()
+        if pat:
+            existente = (
+                self.session.query(Printer)
+                .filter(Printer.patrimonio == pat)
+                .first()
+            )
+
+            if existente and (not self.current_id or existente.id != self.current_id):
+                QMessageBox.warning(
+                    self,
+                    "Atenção",
+                    "Já existe uma impressora com esse patrimônio."
+                )
+                return
+
+        now = self.brasil_now()
 
         if self.current_id:
             p = self.session.get(Printer, self.current_id)
@@ -404,10 +414,9 @@ class MainWindow(QWidget):
         self.session.commit()
 
         self.current_id = p.id
-        self.refresh_table()
-        self.update_counter()
-        self.load_history()
+
         QMessageBox.information(self, "OK", "Salvo!")
+
 
     def delete(self):
         if not self.current_id:

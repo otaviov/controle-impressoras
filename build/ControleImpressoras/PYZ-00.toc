@@ -2829,4 +2829,20 @@
   ('zipimport',
    'C:\\Users\\Suporte '
    'Tecnico\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\zipimport.py',
+   'PYMODULE'),
+  ('zoneinfo',
+   'C:\\Users\\Suporte '
+   'Tecnico\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\zoneinfo\\__init__.py',
+   'PYMODULE'),
+  ('zoneinfo._common',
+   'C:\\Users\\Suporte '
+   'Tecnico\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\zoneinfo\\_common.py',
+   'PYMODULE'),
+  ('zoneinfo._tzpath',
+   'C:\\Users\\Suporte '
+   'Tecnico\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\zoneinfo\\_tzpath.py',
+   'PYMODULE'),
+  ('zoneinfo._zoneinfo',
+   'C:\\Users\\Suporte '
+   'Tecnico\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\zoneinfo\\_zoneinfo.py',
    'PYMODULE')])

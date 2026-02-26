@@ -9,7 +9,7 @@ class Base(DeclarativeBase):
 class Printer(Base):
     __tablename__ = "printers"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    patrimonio: Mapped[str] = mapped_column(String(50), default="")
+    patrimonio: Mapped[str] = mapped_column (String(80), unique=True, nullable=False)
     modelo: Mapped[str] = mapped_column(String(80), default="")
     serial: Mapped[str] = mapped_column(String(80), default="")
     status: Mapped[str] = mapped_column(String(30), default="Operacional")
