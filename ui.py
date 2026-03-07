@@ -361,13 +361,16 @@ class MainWindow(QWidget):
         self.history_table.setRowCount(0)
         self.lbl_counter.setText("Manutenções: 0")
 
-    def brasil_now():
+    def brasil_now(self):
         return datetime.now(ZoneInfo("America/Sao_Paulo"))
 
     def save(self):
+
         pat = self.patrimonio.text().strip()
         mod = self.modelo.text().strip()
         ser = self.serial.text().strip()
+
+        print("CURRENT ID:", self.current_id)
 
         if not (pat or mod or ser):
             QMessageBox.warning(
@@ -401,6 +404,7 @@ class MainWindow(QWidget):
                 return
         else:
             p = Printer(id=simple_uuid(), created_at=now)
+            self.session.add(p)
 
         p.patrimonio = pat
         p.modelo = mod
@@ -410,13 +414,15 @@ class MainWindow(QWidget):
         p.observacao = self.obs.toPlainText().strip()
         p.updated_at = now
 
-        self.session.add(p)
         self.session.commit()
 
         self.current_id = p.id
 
-        QMessageBox.information(self, "OK", "Salvo!")
+        self.refresh_table()
+        self.update_counter()
+        self.load_history()
 
+        QMessageBox.information(self, "OK", "Salvo!")
 
     def delete(self):
         if not self.current_id:
@@ -874,4 +880,3 @@ class MainWindow(QWidget):
         QMessageBox.information(self, "OK", f"PDF salvo em:\n{path}")
 
         self.showMaximized()
-
