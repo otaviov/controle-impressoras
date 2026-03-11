@@ -28,7 +28,7 @@ from reportlab.lib import colors
 
 
 
-STATUSES = ["Operacional", "Em manutenção", "Parada", "Aguardando peça", "Em uso"]
+STATUSES = ["Operacional", "Em manutenção", "Parada", "Aguardando peça", "Em uso", "Sucata"]
 
 
 class MainWindow(QWidget):
@@ -238,7 +238,7 @@ class MainWindow(QWidget):
 
         history.addWidget(self.history_table)
 
-                # RELATÓRIOS
+        # RELATÓRIOS
         reports = QVBoxLayout(self.tab_reports)
         reports.setContentsMargins(20, 20, 20, 20)
         reports.setSpacing(20)
@@ -256,8 +256,8 @@ class MainWindow(QWidget):
         layout_printer = QVBoxLayout(box_printer)
         layout_printer.setSpacing(10)
 
-        self.btn_export_csv = QPushButton("Exportar histórico (CSV)")
-        self.btn_export_pdf = QPushButton("Exportar relatório (PDF)")
+        self.btn_export_csv = QPushButton("Baixar Relatório (CSV)")
+        self.btn_export_pdf = QPushButton("Baixar Relatório (PDF)")
 
         self.btn_export_csv.setMinimumHeight(36)
         self.btn_export_pdf.setMinimumHeight(36)
@@ -268,12 +268,12 @@ class MainWindow(QWidget):
         reports.addWidget(box_printer)
 
         # ---------- RELATÓRIOS COMPLETOS ----------
-        box_all = QGroupBox("Relatórios Completos do Sistema")
+        box_all = QGroupBox("Relatórios Completos do Sistema (Todas Impressoras)")
         layout_all = QVBoxLayout(box_all)
         layout_all.setSpacing(10)
 
-        self.btn_export_all_csv = QPushButton("Baixar planilha completa (todas impressoras)")
-        self.btn_export_all_pdf = QPushButton("Baixar PDF completo (todas impressoras)")
+        self.btn_export_all_csv = QPushButton("Baixar Relatório Completo (CSV)")
+        self.btn_export_all_pdf = QPushButton("Baixar Relatório Completo (PDF)")
 
         self.btn_export_all_csv.setMinimumHeight(36)
         self.btn_export_all_pdf.setMinimumHeight(36)
