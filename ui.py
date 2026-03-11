@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTextEdit, QPushButton, QMessageBox,
     QComboBox, QLabel, QTableWidget, QTableWidgetItem,
     QHeaderView, QFrame, QDialog, QDialogButtonBox,
-    QFileDialog, QTabWidget, QAbstractItemView
+    QFileDialog, QTabWidget, QAbstractItemView, QGroupBox
 )
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -238,30 +238,66 @@ class MainWindow(QWidget):
 
         history.addWidget(self.history_table)
 
-        # RELATÓRIOS
+                # RELATÓRIOS
         reports = QVBoxLayout(self.tab_reports)
-        reports.setContentsMargins(10, 10, 10, 10)
-        reports.setSpacing(10)
+        reports.setContentsMargins(20, 20, 20, 20)
+        reports.setSpacing(20)
 
-        reports.addWidget(self._section_title("Exportação"))
+        reports.addWidget(self._section_title("Exportação de Relatórios"))
 
-        rep_btns = QHBoxLayout()
-        rep_btns.setSpacing(12)
+        desc = QLabel(
+            "Exporte relatórios da impressora selecionada ou gere relatórios completos do sistema."
+        )
+        desc.setWordWrap(True)
+        reports.addWidget(desc)
 
-        self.btn_export_csv = QPushButton("Exportar CSV (histórico)")
-        self.btn_export_pdf = QPushButton("Exportar PDF (relatório completo)")
+        # ---------- RELATÓRIO DA IMPRESSORA ----------
+        box_printer = QGroupBox("Relatórios da Impressora Selecionada")
+        layout_printer = QVBoxLayout(box_printer)
+        layout_printer.setSpacing(10)
 
+        self.btn_export_csv = QPushButton("Exportar histórico (CSV)")
+        self.btn_export_pdf = QPushButton("Exportar relatório (PDF)")
+
+        self.btn_export_csv.setMinimumHeight(36)
+        self.btn_export_pdf.setMinimumHeight(36)
+
+        layout_printer.addWidget(self.btn_export_csv)
+        layout_printer.addWidget(self.btn_export_pdf)
+
+        reports.addWidget(box_printer)
+
+        # ---------- RELATÓRIOS COMPLETOS ----------
+        box_all = QGroupBox("Relatórios Completos do Sistema")
+        layout_all = QVBoxLayout(box_all)
+        layout_all.setSpacing(10)
+
+        self.btn_export_all_csv = QPushButton("Baixar planilha completa (todas impressoras)")
+        self.btn_export_all_pdf = QPushButton("Baixar PDF completo (todas impressoras)")
+
+        self.btn_export_all_csv.setMinimumHeight(36)
+        self.btn_export_all_pdf.setMinimumHeight(36)
+
+        layout_all.addWidget(self.btn_export_all_csv)
+        layout_all.addWidget(self.btn_export_all_pdf)
+
+        reports.addWidget(box_all)
+
+        # conexões
         self.btn_export_csv.clicked.connect(self.export_history_csv)
         self.btn_export_pdf.clicked.connect(self.export_pdf)
 
-        rep_btns.addWidget(self.btn_export_csv)
-        rep_btns.addWidget(self.btn_export_pdf)
-        rep_btns.addStretch()
-        reports.addLayout(rep_btns)
+        self.btn_export_all_csv.clicked.connect(self.export_all_csv)
+        self.btn_export_all_pdf.clicked.connect(self.export_all_pdf)
 
-        self.lbl_report_hint = QLabel("Selecione uma impressora na tabela para gerar relatório.")
+        # aviso
+        self.lbl_report_hint = QLabel(
+            "Selecione uma impressora na tabela para gerar relatório individual."
+        )
         self.lbl_report_hint.setObjectName("TopHint")
         reports.addWidget(self.lbl_report_hint)
+
+        reports.addStretch()
 
         # temas + data
         self._populate_themes()
@@ -271,8 +307,18 @@ class MainWindow(QWidget):
     # ---------------- UI ----------------
     def _section_title(self, text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setObjectName("SectionTitle")
+        #lbl.setObjectName("SectionTitle")
+        lbl.setAlignment(Qt.AlignCenter) # para centralizar
+        font = lbl.font()
+        font.setPointSize(16) # aumentar a fonte
+        font.setBold(True)
+        lbl.setFont(font)
+
+        lbl.setContentsMargins(0, 0, 0, 0) # Remove o espaço entre o titulo e o QLabel
+        lbl.setMinimumHeight(30)
+        lbl.setMaximumHeight(30)
         return lbl
+
 
     def _populate_themes(self):
         self.theme_combo.blockSignals(True)
@@ -878,5 +924,97 @@ class MainWindow(QWidget):
 
         doc.build(elems)
         QMessageBox.information(self, "OK", f"PDF salvo em:\n{path}")
+
+    # ---------------- Export ALL CSV ----------------
+    def export_all_csv(self):
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salvar planilha completa",
+            "impressoras_completo.csv",
+            "CSV Files (*.csv)"
+    )
+
+        if not path:
+            return
+
+        printers = self.session.query(Printer).all()
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+
+            writer = csv.writer(f)
+
+            writer.writerow([
+                "Patrimonio",
+                "Modelo",
+                "Serial",
+                "Status",
+                "Local",
+                "Observacao"
+            ])
+
+            for p in printers:
+
+                writer.writerow([
+                    p.patrimonio,
+                    p.modelo,
+                    p.serial,
+                    p.status,
+                    p.local_atual,
+                    p.observacao
+                ])
+
+        QMessageBox.information(self, "OK", "Planilha completa exportada!")
+
+    # ---------------- Export ALL CSV ----------------
+    def export_all_pdf(self):
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salvar relatório completo",
+            "relatorio_completo_impressoras.pdf",
+            "PDF Files (*.pdf)"
+        )
+
+        if not path:
+            return
+
+        printers = self.session.query(Printer).all()
+
+        styles = getSampleStyleSheet()
+
+        elements = []
+
+        elements.append(Paragraph("Relatório Completo de Impressoras", styles["Title"]))
+        elements.append(Spacer(1, 20))
+
+        data = [
+            ["Patrimônio", "Modelo", "Serial", "Status", "Local"]
+        ]
+
+        for p in printers:
+
+            data.append([
+                p.patrimonio or "",
+                p.modelo or "",
+                p.serial or "",
+                p.status or "",
+                p.local_atual or ""
+            ])
+
+        table = Table(data)
+
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.grey),
+            ("GRID", (0,0), (-1,-1), 1, colors.black),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ]))
+
+        elements.append(table)
+
+        doc = SimpleDocTemplate(path, pagesize=A4)
+        doc.build(elements)
+
+        QMessageBox.information(self, "OK", "PDF completo exportado!")
 
         self.showMaximized()
