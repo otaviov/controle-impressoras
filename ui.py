@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 
 
+from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -28,7 +29,7 @@ from reportlab.lib import colors
 
 
 
-STATUSES = ["Operacional", "Em manutenção", "Parada", "Aguardando peça", "Em uso", "Sucata"]
+STATUSES = ["Operacional", "Manutenção", "Parada", "Aguardando peça", "Em uso", "Sucata"]
 
 
 class MainWindow(QWidget):
@@ -372,6 +373,35 @@ class MainWindow(QWidget):
                 item = QTableWidgetItem(val or "")
                 item.setData(Qt.UserRole, p.id)
                 self.table.setItem(row, col, item)
+
+            # CORES AUTOMATICAS PARA OS STATUS
+            status = (p.status or ""). lower()
+            cor_fundo = None
+            cor_texto = QColor(255, 255, 255)  # branco padrão
+
+            if "Operacional" in status or "operacional" in status: 
+                cor_fundo = QColor(46, 204, 113) # Verde
+                cor_texto = QColor(0,0,0)
+            elif "Manut" in status or "manut" in status:
+                cor_fundo = QColor(255, 238, 140) # Amarelo
+                cor_texto = QColor(0,0,0)
+            elif "Parada" in status or "parada" in status:
+                cor_fundo = QColor(231, 76, 60) # Vermelho
+                cor_texto = QColor(0,0,0)
+            elif "Sucata" in status or "sucata" in status: 
+                cor_fundo = QColor(120, 120, 120) # Cinza
+            elif "Uso" in status or "uso" in status:
+                cor_fundo = QColor(85, 169, 220) # Azul
+                cor_texto = QColor(0,0,0)
+            elif "Aguardando" in status or "aguardando" in status:
+                cor_fundo = QColor(255, 165, 0) # Laranja
+                cor_texto = QColor(0,0,0)
+
+            if cor_fundo:
+                for col in range(self.table.columnCount()):
+                    item = self.table.item(row, col)
+                    item.setBackground(cor_fundo)
+                    item.setForeground(cor_texto)
 
         self.table.resizeRowsToContents()
 
