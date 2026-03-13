@@ -886,16 +886,12 @@ class MainWindow(QWidget):
             return
 
         p = self.session.get(Printer, self.current_id)
-
         if not p:
             QMessageBox.warning(self, "Atenção", "Impressora não encontrada.")
             return
 
-        tecnico, ok = QInputDialog.getText(
-            self,
-            "Técnico responsável", "Nome do técnico responsável"
-        )
-
+        # Pergunta o nome do técnico
+        tecnico, ok = QInputDialog.getText(self, "Técnico responsável", "Nome do técnico responsável")
         if not ok: 
             return
 
@@ -904,10 +900,11 @@ class MainWindow(QWidget):
         if not path:
             return
 
+        # Busca atividades e contagem de manutenção
         acts = (
             self.session.query(Activity)
             .filter(Activity.printer_id == self.current_id)
-            .order_by(Activity.event_at.asc())
+            .order_by(Activity.event_at.desc()) # Ordenado por data mais recente primeiro
             .all()
         )
 
@@ -918,6 +915,10 @@ class MainWindow(QWidget):
         )
 
         styles = getSampleStyleSheet()
+        
+        # Cores Personalizadas
+        cor_primaria = colors.HexColor("#1A3C6C") # Azul Marinho Corporativo
+        cor_fundo_zebra = colors.HexColor("#F8F9FA") # Cinza quase branco
 
         doc = SimpleDocTemplate(
             path, 
@@ -925,16 +926,23 @@ class MainWindow(QWidget):
             leftMargin=28, 
             rightMargin=28, 
             topMargin=28, 
-            bottomMargin=28
+            bottomMargin=45 # Aumentado para o rodapé novo
         )
 
         elems = []
 
-        elems.append(Spacer(1, 40))
-        elems.append(Paragraph(f"Relatório de Impressora - Patrimônio: {p.patrimonio}", styles["Title"]))
-        elems.append(Spacer(1, 12))
+        # ESPAÇAMENTO PARA A LOGO (Para não colar no título)
+        elems.append(Spacer(1, 40)) 
 
-        header = [
+        # TÍTULO ESTILIZADO
+        style_title = styles["Title"]
+        style_title.textColor = cor_primaria
+        style_title.fontSize = 18
+        elems.append(Paragraph(f"Relatório de Impressora - Patrimônio: {p.patrimonio}", style_title))
+        elems.append(Spacer(1, 20))
+
+        # TABELA DE DETALHES (Header do Relatório)
+        header_data = [
             ["Patrimônio", p.patrimonio or "-"],
             ["Modelo", p.modelo or "-"],
             ["Serial", p.serial or "-"],
@@ -943,62 +951,66 @@ class MainWindow(QWidget):
             ["Contador de Manutenções", str(maint_count)],
         ]
 
-        t_header = Table(header, colWidths=[130, 360])
-
-        t_header.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (0, -1), colors.whitesmoke),
-                    ("BOX", (0, 0), (-1, -1), 0.8, colors.grey),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("PADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
-        )
+        t_header = Table(header_data, colWidths=[140, 380])
+        t_header.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), cor_fundo_zebra),
+            ('TEXTCOLOR', (0, 0), (0, -1), cor_primaria),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
         elems.append(t_header)
-        elems.append(Spacer(1, 14))
+        elems.append(Spacer(1, 20))
 
+        # OBSERVAÇÃO GERAL
         if (p.observacao or "").strip():
-            elems.append(Paragraph("Observação geral:", styles["Heading3"]))
+            elems.append(Paragraph("<b>Observação geral:</b>", styles["Normal"]))
             elems.append(Paragraph((p.observacao or "").replace("\n", "<br/>"), styles["BodyText"]))
-            elems.append(Spacer(1, 10))
+            elems.append(Spacer(1, 15))
 
-        elems.append(Paragraph("Histórico de atividades:", styles["Heading3"]))
-        elems.append(Spacer(1, 6))
+        # TABELA DE HISTÓRICO 
+        elems.append(Paragraph("<b>Histórico de atividades:</b>", styles["Normal"]))
+        elems.append(Spacer(1, 8))
 
-        data = [["Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"]]
+        data_hist = [["Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"]]
 
         for a in acts:
-            data.append(
-                [
-                    a.event_at.strftime("%d/%m/%Y %H:%M"),
-                    "Manutenção" if a.kind == "MANUTENCAO" else "Movimentação",
-                    (a.notes or "")[:1200],
-                    (a.parts_used or "")[:400],
-                    a.from_location or "",
-                    a.to_location or "",
-                ]
-            )
+            # descrição para não quebrar a tabela 
+            desc = Paragraph((a.notes or "")[:1200], styles["BodyText"])
+            pecas = Paragraph((a.parts_used or "")[:400], styles["BodyText"])
+            
+            data_hist.append([
+                a.event_at.strftime("%d/%m/%Y %H:%M"),
+                "Manutenção" if a.kind == "MANUTENCAO" else "Movimentação",
+                desc,
+                pecas,
+                a.from_location or "",
+                a.to_location or "",
+            ])
 
-        t = Table(data, colWidths=[75, 70, 170, 90, 55, 55])
+        # Larguras ajustadas para as colunas
+        t_hist = Table(data_hist, colWidths=[75, 75, 175, 90, 52, 52], repeatRows=1)
 
-        t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("BOX", (0, 0), (-1, -1), 0.8, colors.grey),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("PADDING", (0, 0), (-1, -1), 5),
-                ]
-            )
-        )
+        t_hist.setStyle(TableStyle([
+            # Cabeçalho da tabela
+            ('BACKGROUND', (0, 0), (-1, 0), cor_primaria),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            
+            # Corpo da tabela (Efeito Zebra)
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, cor_fundo_zebra]),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('VALIGN', (0, 0), (-1, -1), "TOP"),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('PADDING', (0, 0), (-1, -1), 5),
+        ]))
 
-        elems.append(t)
-        elems.append(Spacer(1, 40))
+        elems.append(t_hist)
 
+        # CONSTRUÇÃO DO PDF
         doc.build(
             elems,
             onFirstPage=lambda canvas, doc: (
@@ -1008,9 +1020,9 @@ class MainWindow(QWidget):
             onLaterPages=lambda canvas, doc: (
                 self.draw_header(canvas, doc),
                 self.draw_footer(canvas, doc, tecnico)
-                ),
+            ),
         )
-        QMessageBox.information(self, "OK", f"PDF salvo em:\n{path}")
+        QMessageBox.information(self, "Sucesso", f"Relatório PDF gerado com sucesso!")
         
 
     # ---------------- Rodapé Ass Tecnico -------------
