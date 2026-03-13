@@ -1016,48 +1016,49 @@ class MainWindow(QWidget):
     # ---------------- Rodapé Ass Tecnico -------------
     def draw_footer(self, canvas, doc, tecnico):
         canvas.saveState()
-
         largura, altura = A4
-        y = 2 * cm
+        y_assinatura = 2.5 * cm  # Sobe um pouco a assinatura para dar respiro
 
-        # centro da página
+        # --- 1. ÁREA DE ASSINATURA (Original) ---
         centro = largura / 2
-
-        # largura da linha de assinatura
-        linha = 9 * cm
-
-        # inicio e fim da linha centralizada
-        x1 = centro - linha / 2
-        x2 = centro + linha / 2
+        linha_largura = 9 * cm
+        x1 = centro - linha_largura / 2
+        x2 = centro + linha_largura / 2
 
         canvas.setFont("Helvetica", 10)
+        canvas.setStrokeColor(colors.black)
+        canvas.setLineWidth(1)
+        
+        # Linha de assinatura
+        canvas.line(x1, y_assinatura + 18, x2, y_assinatura + 18)
 
-        # linha de assinatura
-        canvas.line(x1, y + 18, x2, y + 18)
+        # Nome do técnico centralizado
+        canvas.drawCentredString(centro, y_assinatura + 4, f"Técnico Responsável: {tecnico}")
 
-        # nome do técnico centralizado com a linha
-        canvas.drawCentredString(
-            centro,
-            y + 4,
-            f"Técnico Responsável: {tecnico}"
-        )
+        # Data abaixo do técnico
+        canvas.setFont("Helvetica", 8)
+        data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        canvas.drawCentredString(centro, y_assinatura - 10, f"Data: {data_atual}")
 
-        # data abaixo do técnico
-        canvas.drawCentredString(
-            centro,
-            y - 10,
-            f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-        ) 
+        # --- 2. DIVISÓRIA ABAIXO DA ASSINATURA ---
+        y_divisoria = 1.2 * cm
+        canvas.setStrokeColor(colors.lightgrey)
+        canvas.setLineWidth(0.5)
+        canvas.line(doc.leftMargin, y_divisoria, largura - doc.rightMargin, y_divisoria)
 
-        # GERADO EM no canto direito da página
-        canvas.setFont("Helvetica", 9)
-        canvas.drawRightString(
-            largura - doc.rightMargin,
-            y - 25,
-            f"Brasil Toner - Recife PE"
-        )
+        # --- 3. INFORMAÇÕES FINAIS (Abaixo da linha) ---
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(colors.gray)
+
+        # Brasil Toner à esquerda
+        canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
+
+        # Contador de páginas à direita
+        num_pagina = canvas.getPageNumber()
+        canvas.drawRightString(largura - doc.rightMargin, y_divisoria - 12, f"Página {num_pagina}")
 
         canvas.restoreState()
+
         # ---------------- Export ALL CSV ----------------
     def export_all_csv(self):
 
