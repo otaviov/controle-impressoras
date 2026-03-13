@@ -30,7 +30,7 @@ from reportlab.lib import colors
 
 
 
-STATUSES = ["Operacional", "Manutenção", "Parada", "Aguardando peça", "Em uso", "Sucata"]
+STATUSES = ["Operacional", "Em Manutenção", "Parada", "Aguardando peça", "Em uso", "Sucata"]
 
 
 class MainWindow(QWidget):
@@ -101,6 +101,7 @@ class MainWindow(QWidget):
         self.table = QTableWidget(0, 5)
         self.table.setObjectName("PrintersTable")
         self.table.setHorizontalHeaderLabels(["Patrimônio", "Modelo", "Serial", "Status", "Local"])
+        self.table.setSortingEnabled(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -346,6 +347,8 @@ class MainWindow(QWidget):
 
     # ---------------- Impressoras ----------------
     def refresh_table(self):
+        self.table.setSortingEnabled(False)
+
         q = (self.search.text() or "").strip().lower()
         printers = self.session.query(Printer).order_by(Printer.updated_at.desc()).all()
 
@@ -403,7 +406,8 @@ class MainWindow(QWidget):
                     item = self.table.item(row, col)
                     item.setBackground(cor_fundo)
                     item.setForeground(cor_texto)
-
+ 
+        self.table.setSortingEnabled(True)
         self.table.resizeRowsToContents()
 
     def on_select_row(self, row: int, col: int):
@@ -518,6 +522,7 @@ class MainWindow(QWidget):
         self.session.commit()
         self.clear_form()
         self.refresh_table()
+
 
     # ---------------- Contador ----------------
     def update_counter(self):
