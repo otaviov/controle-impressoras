@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTextEdit, QPushButton, QMessageBox,
     QComboBox, QLabel, QTableWidget, QTableWidgetItem,
     QHeaderView, QFrame, QDialog, QDialogButtonBox,
-    QFileDialog, QTabWidget, QAbstractItemView, QGroupBox
+    QFileDialog, QTabWidget, QAbstractItemView, QGroupBox, QInputDialog
 )
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,6 +24,7 @@ from models import Printer, Activity, simple_uuid
 # PDF
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
@@ -810,6 +811,7 @@ class MainWindow(QWidget):
         self.load_history()
         QMessageBox.information(self, "OK", "Atividade excluída!")
 
+
     # ---------------- Export CSV ----------------
     def export_history_csv(self):
         if not self.current_id:
@@ -853,6 +855,30 @@ class MainWindow(QWidget):
 
         QMessageBox.information(self, "OK", f"CSV salvo em:\n{path}")
 
+    # --------------- Logo no TOPO --------------
+
+    def draw_header(self, canvas, doc):
+        canvas.saveState()
+
+        largura, altura = A4
+
+        logo_path = "2.PNG"
+
+        largura_logo = 4 * cm
+        altura_logo = 2 * cm
+
+        canvas.drawImage(
+            logo_path,
+            doc.leftMargin,
+            altura - 2.5 * cm,
+            width=largura_logo,
+            height=altura_logo,
+            preserveAspectRatio=True,
+            mask='auto'
+        )
+
+        canvas.restoreState()
+
     # ---------------- Export PDF ----------------
     def export_pdf(self):
         if not self.current_id:
@@ -860,8 +886,17 @@ class MainWindow(QWidget):
             return
 
         p = self.session.get(Printer, self.current_id)
+
         if not p:
             QMessageBox.warning(self, "Atenção", "Impressora não encontrada.")
+            return
+
+        tecnico, ok = QInputDialog.getText(
+            self,
+            "Técnico responsável", "Nome do técnico responsável"
+        )
+
+        if not ok: 
             return
 
         default_name = f"relatorio_{(p.patrimonio or 'sem_tag')}.pdf".replace(" ", "_")
@@ -883,9 +918,19 @@ class MainWindow(QWidget):
         )
 
         styles = getSampleStyleSheet()
-        doc = SimpleDocTemplate(path, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=28)
+
+        doc = SimpleDocTemplate(
+            path, 
+            pagesize=A4, 
+            leftMargin=28, 
+            rightMargin=28, 
+            topMargin=28, 
+            bottomMargin=28
+        )
 
         elems = []
+
+        elems.append(Spacer(1, 40))
         elems.append(Paragraph(f"Relatório de Impressora - Patrimônio: {p.patrimonio}", styles["Title"]))
         elems.append(Spacer(1, 12))
 
@@ -895,10 +940,11 @@ class MainWindow(QWidget):
             ["Serial", p.serial or "-"],
             ["Status", p.status or "-"],
             ["Local atual", p.local_atual or "-"],
-            ["Manutenções (contador)", str(maint_count)],
+            ["Contador de Manutenções", str(maint_count)],
         ]
 
         t_header = Table(header, colWidths=[130, 360])
+
         t_header.setStyle(
             TableStyle(
                 [
@@ -922,6 +968,7 @@ class MainWindow(QWidget):
         elems.append(Spacer(1, 6))
 
         data = [["Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"]]
+
         for a in acts:
             data.append(
                 [
@@ -935,6 +982,7 @@ class MainWindow(QWidget):
             )
 
         t = Table(data, colWidths=[75, 70, 170, 90, 55, 55])
+
         t.setStyle(
             TableStyle(
                 [
@@ -949,13 +997,68 @@ class MainWindow(QWidget):
         )
 
         elems.append(t)
-        elems.append(Spacer(1, 10))
-        elems.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
+        elems.append(Spacer(1, 40))
 
-        doc.build(elems)
+        doc.build(
+            elems,
+            onFirstPage=lambda canvas, doc: (
+                self.draw_header(canvas, doc),
+                self.draw_footer(canvas, doc, tecnico)
+            ),
+            onLaterPages=lambda canvas, doc: (
+                self.draw_header(canvas, doc),
+                self.draw_footer(canvas, doc, tecnico)
+                ),
+        )
         QMessageBox.information(self, "OK", f"PDF salvo em:\n{path}")
+        
 
-    # ---------------- Export ALL CSV ----------------
+    # ---------------- Rodapé Ass Tecnico -------------
+    def draw_footer(self, canvas, doc, tecnico):
+        canvas.saveState()
+
+        largura, altura = A4
+        y = 2 * cm
+
+        # centro da página
+        centro = largura / 2
+
+        # largura da linha de assinatura
+        linha = 9 * cm
+
+        # inicio e fim da linha centralizada
+        x1 = centro - linha / 2
+        x2 = centro + linha / 2
+
+        canvas.setFont("Helvetica", 10)
+
+        # linha de assinatura
+        canvas.line(x1, y + 18, x2, y + 18)
+
+        # nome do técnico centralizado com a linha
+        canvas.drawCentredString(
+            centro,
+            y + 4,
+            f"Técnico Responsável: {tecnico}"
+        )
+
+        # data abaixo do técnico
+        canvas.drawCentredString(
+            centro,
+            y - 10,
+            f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        ) 
+
+        # GERADO EM no canto direito da página
+        canvas.setFont("Helvetica", 9)
+        canvas.drawRightString(
+            largura - doc.rightMargin,
+            y - 25,
+            f"Brasil Toner - Recife PE"
+        )
+
+        canvas.restoreState()
+        # ---------------- Export ALL CSV ----------------
     def export_all_csv(self):
 
         path, _ = QFileDialog.getSaveFileName(
