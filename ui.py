@@ -4,6 +4,8 @@ import csv
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
+import os
+import sys
 
 
 from PySide6.QtGui import QColor
@@ -28,7 +30,15 @@ from reportlab.lib.units import cm
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
+# garantir que o executavel encontre a logo
+def resource_path(relative_path):
+    try:
+        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
 
+    return os.path.join(base_path, relative_path)
 
 STATUSES = ["Operacional", "Em Manutenção", "Parada", "Aguardando peça", "Em uso", "Sucata"]
 
@@ -860,6 +870,7 @@ class MainWindow(QWidget):
 
         QMessageBox.information(self, "OK", f"CSV salvo em:\n{path}")
 
+
     # --------------- Logo no TOPO --------------
 
     def draw_header(self, canvas, doc):
@@ -867,7 +878,7 @@ class MainWindow(QWidget):
 
         largura, altura = A4
 
-        logo_path = "2.PNG"
+        logo_path = resource_path("2.PNG") 
 
         largura_logo = 4 * cm
         altura_logo = 2 * cm
