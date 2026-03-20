@@ -33,7 +33,7 @@ from reportlab.lib import colors
 # garantir que o executavel encontre a logo
 def resource_path(relative_path):
     try:
-        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        # cria uma pasta temporária e armazena
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
@@ -166,6 +166,18 @@ class MainWindow(QWidget):
         self.status.addItems(STATUSES)
 
         self.local = QLineEdit()
+        
+        # Teste de novos campos
+        self.pecas_faltantes = QLineEdit()
+        self.pecas_faltantes.setPlaceholderText("Ex: Flat do Scanner, ADF Motor...")
+
+        self.tecnico_revisao = QLineEdit()
+        self.tecnico_revisao.setPlaceholderText("Nome do técnico que revisou")
+
+        self.data_revisao = QLineEdit()
+        self.data_revisao.setPlaceholderText("DD/MM/AAAA")
+        self.data_revisao.setText(datetime.now().strftime("%d/%m/%Y"))
+
         self.obs = QTextEdit()
         self.obs.setPlaceholderText("Observações gerais da máquina…")
 
@@ -174,6 +186,12 @@ class MainWindow(QWidget):
         form.addRow("Serial", self.serial)
         form.addRow("Status", self.status)
         form.addRow("Local atual", self.local)
+
+        # --- Teste de novos campos ---
+        form.addRow("Peças Faltantes:", self.pecas_faltantes)
+        form.addRow("Técnico Revisor:", self.tecnico_revisao)
+        form.addRow("Data da Revisão:", self.data_revisao)
+
         form.addRow("Observação", self.obs)
 
         details.addLayout(form)
@@ -199,7 +217,7 @@ class MainWindow(QWidget):
 
         details.addLayout(btns)
 
-        # HISTÓRICO
+        # HISTORICO
         history = QVBoxLayout(self.tab_history)
         history.setContentsMargins(10, 10, 10, 10)
         history.setSpacing(10)
@@ -251,7 +269,7 @@ class MainWindow(QWidget):
 
         history.addWidget(self.history_table)
 
-        # RELATÓRIOS
+        # RELATORIOS
         reports = QVBoxLayout(self.tab_reports)
         reports.setContentsMargins(20, 20, 20, 20)
         reports.setSpacing(20)
@@ -264,7 +282,7 @@ class MainWindow(QWidget):
         desc.setWordWrap(True)
         reports.addWidget(desc)
 
-        # ---------- RELATÓRIO DA IMPRESSORA ----------
+        # ---------- RELATORIO DA IMPRESSORA ----------
         box_printer = QGroupBox("Relatórios da Impressora Selecionada")
         layout_printer = QVBoxLayout(box_printer)
         layout_printer.setSpacing(10)
@@ -280,7 +298,7 @@ class MainWindow(QWidget):
 
         reports.addWidget(box_printer)
 
-        # ---------- RELATÓRIOS COMPLETOS ----------
+        # ---------- RELATORIOS COMPLETOS ----------
         box_all = QGroupBox("Relatórios Completos do Sistema (Todas Impressoras)")
         layout_all = QVBoxLayout(box_all)
         layout_all.setSpacing(10)
@@ -436,6 +454,12 @@ class MainWindow(QWidget):
         self.serial.setText(p.serial)
         self.status.setCurrentText(p.status)
         self.local.setText(p.local_atual)
+        self.pecas_faltantes.setText(p.pecas_faltantes or "")
+        self.tecnico_revisao.setText(p.tecnico_revisao or "")
+        if p.ultima_revisao_data:
+            self.data_revisao.setText(p.ultima_revisao_data.strftime("%d/%m/%Y"))
+        else:
+            self.data_revisao.setText(datetime.now().strftime("%d/%m/%Y"))
         self.obs.setPlainText(p.observacao or "")
 
         self.update_counter()
@@ -456,7 +480,6 @@ class MainWindow(QWidget):
         return datetime.now(ZoneInfo("America/Sao_Paulo"))
 
     def save(self):
-
         pat = self.patrimonio.text().strip()
         mod = self.modelo.text().strip()
         ser = self.serial.text().strip()
@@ -488,32 +511,52 @@ class MainWindow(QWidget):
 
         now = self.brasil_now()
 
+        # Busca ou Cria a impressora
         if self.current_id:
             p = self.session.get(Printer, self.current_id)
             if not p:
                 QMessageBox.warning(self, "Atenção", "Registro não encontrado.")
                 return
         else:
+            from models import simple_uuid
             p = Printer(id=simple_uuid(), created_at=now)
             self.session.add(p)
 
+        # --- ATUALIZACAO DOS CAMPOS ---
         p.patrimonio = pat
         p.modelo = mod
         p.serial = ser
         p.status = self.status.currentText()
         p.local_atual = self.local.text().strip()
         p.observacao = self.obs.toPlainText().strip()
+        p.pecas_faltantes = self.pecas_faltantes.text().strip()
+        p.tecnico_revisao = self.tecnico_revisao.text().strip()
+        
+        # Converte o texto "DD/MM/AAAA" para objeto datetime
+        data_texto = self.data_revisao.text().strip()
+        if data_texto:
+            try:
+                p.ultima_revisao_data = datetime.strptime(data_texto, "%d/%m/%Y")
+            except ValueError:
+                QMessageBox.warning(self, "Data Inválida", "Use o formato DD/MM/AAAA na data de revisão.")
+                return
+        else:
+            p.ultima_revisao_data = None
+
         p.updated_at = now
 
-        self.session.commit()
+        try:
+            self.session.commit()
+            self.current_id = p.id
 
-        self.current_id = p.id
+            self.refresh_table()
+            self.update_counter()
+            self.load_history()
 
-        self.refresh_table()
-        self.update_counter()
-        self.load_history()
-
-        QMessageBox.information(self, "OK", "Salvo!")
+            QMessageBox.information(self, "OK", "Salvo com sucesso!")
+        except Exception as e:
+            self.session.rollback()
+            QMessageBox.critical(self, "Erro", f"Erro ao salvar no banco: {str(e)}")
 
     def delete(self):
         if not self.current_id:
@@ -877,8 +920,13 @@ class MainWindow(QWidget):
         canvas.saveState()
 
         largura, altura = A4
-
+        
         logo_path = resource_path("2.PNG") 
+    
+        if os.path.exists(logo_path):
+        # A4[1] é o topo da folha (~29.7cm). 
+        # Vamos colocar a logo a 2cm do topo (A4[1] - 2.5cm)
+            canvas.drawImage(logo_path, 1.5*cm, A4[1]-2.5*cm, width=2.5*cm, preserveAspectRatio=True)
 
         largura_logo = 4 * cm
         altura_logo = 2 * cm
@@ -963,8 +1011,11 @@ class MainWindow(QWidget):
             ["Modelo", p.modelo or "-"],
             ["Serial", p.serial or "-"],
             ["Status", p.status or "-"],
+            ["Peças Faltantes", p.pecas_faltantes or "-"],
             ["Local atual", p.local_atual or "-"],
             ["Contador de Manutenções", str(maint_count)],
+            ["Última Revisão", p.ultima_revisao_data.strftime("%d/%m/%Y") if p.ultima_revisao_data else "-"],
+            ["Técnico Revisor", p.tecnico_revisao or "-"]
         ]
 
         t_header = Table(header_data, colWidths=[140, 380])
@@ -1045,9 +1096,9 @@ class MainWindow(QWidget):
     def draw_footer(self, canvas, doc, tecnico):
         canvas.saveState()
         largura, altura = A4
-        y_assinatura = 2.5 * cm  # Sobe um pouco a assinatura para dar respiro
+        y_assinatura = 2.5 * cm  # Sobe um pouco a assinatura para dar espaço
 
-        # --- 1. ÁREA DE ASSINATURA (Original) ---
+        # --- AREA DE ASSINATURA  ---
         centro = largura / 2
         linha_largura = 9 * cm
         x1 = centro - linha_largura / 2
@@ -1068,20 +1119,20 @@ class MainWindow(QWidget):
         data_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
         canvas.drawCentredString(centro, y_assinatura - 10, f"Data: {data_atual}")
 
-        # --- 2. DIVISÓRIA ABAIXO DA ASSINATURA ---
+        # --- DIVISORIA ABAIXO DA ASSINATURA ---
         y_divisoria = 1.2 * cm
         canvas.setStrokeColor(colors.lightgrey)
         canvas.setLineWidth(0.5)
         canvas.line(doc.leftMargin, y_divisoria, largura - doc.rightMargin, y_divisoria)
 
-        # --- 3. INFORMAÇÕES FINAIS (Abaixo da linha) ---
+        # --- INFORMACOES FINAIS  ---
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.gray)
 
-        # Brasil Toner à esquerda
+        # Brasil Toner a esquerda
         canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
 
-        # Contador de páginas à direita
+        # Contador de páginas a direita
         num_pagina = canvas.getPageNumber()
         canvas.drawRightString(largura - doc.rightMargin, y_divisoria - 12, f"Página {num_pagina}")
 
