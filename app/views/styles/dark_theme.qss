@@ -1,0 +1,83 @@
+/* === FUNDO GERAL === */
+QWidget {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+/* === JANELA DE LOGIN === */
+#loginWindow {
+    background-color: #16213e;
+}
+
+#loginCard {
+    background-color: #0f3460;
+    border-radius: 16px;
+    border: 1px solid #533483;
+}
+
+#loginTitle {
+    color: #e94560;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+#loginSubtitle {
+    color: #a0a0b0;
+    font-size: 14px;
+}
+
+/* === CAMPOS DE INPUT === */
+QLineEdit {
+    background-color: #1a1a2e;
+    color: #ffffff;
+    border: 2px solid #533483;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 15px;
+    margin: 5px 0px;
+}
+
+QLineEdit:focus {
+    border-color: #e94560;
+    background-color: #1a1a2e;
+}
+
+QLineEdit::placeholder {
+    color: #6a6a7a;
+}
+
+/* === BOTÃO PRINCIPAL === */
+#loginButton {
+    background-color: #e94560;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+#loginButton:hover {
+    background-color: #c73e54;
+}
+
+#loginButton:pressed {
+    background-color: #a83245;
+}
+
+/* === LABEL DE ERRO === */
+#errorLabel {
+    color: #ff6b6b;
+    font-size: 13px;
+    font-weight: bold;
+    background-color: transparent;
+    border: none;
+}
+
+/* === VERSÃO === */
+#versionLabel {
+    color: #6a6a7a;
+    font-size: 11px;
+}

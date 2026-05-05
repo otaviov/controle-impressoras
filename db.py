@@ -3,12 +3,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 def get_db_path() -> Path:
-    base = Path.home() / "AppData" / "Local" / "ControleImpressoras"
-    base.mkdir(parents=True, exist_ok=True)
+    # USA A MESMA PASTA DO PROJETO
+    base = Path(__file__).parent  # E:\controle-impressoras
     return base / "app.db"
 
 DB_PATH = get_db_path()
-ENGINE = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+ENGINE = create_engine(f"sqlite:///{DB_PATH}", echo=False, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=ENGINE)
 
 def get_session():
