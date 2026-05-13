@@ -14,7 +14,7 @@ from matplotlib.figure import Figure
 from collections import Counter
 from datetime import datetime as dt
 from sqlalchemy import func
-from models import Printer, Activity, Company, Part, Attachment
+from models import Printer, Activity, Company, Part, Attachment, Technician
 import os
 from pathlib import Path
 
@@ -55,7 +55,7 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(sep)
         sidebar_layout.addSpacing(8)
         
-        menus = [("📊", "Dashboard", 0), ("🖨️", "Impressoras", 1), ("📋", "Ordens de Serviço", 2), ("👥", "Empresas/Clientes", 3), ("🔧", "Peças", 4), ("🚚", "Transferências", 5), ("📈", "Relatórios", 6)]
+        menus = [("📊", "Dashboard", 0), ("🖨️", "Impressoras", 1), ("📋", "Ordens de Serviço", 2), ("👥", "Empresas/Clientes", 3), ("🔧", "Peças", 4), ("🚚", "Transferências", 5), ("👨‍🔧", "Técnicos", 6), ("📈", "Relatórios", 7)]
         for icon, text, index in menus:
             btn = self._criar_botao_menu(icon, text)
             btn.clicked.connect(lambda checked, i=index: self._trocar_pagina(i))
@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self._criar_pagina_clientes())
         self.content_area.addWidget(self._criar_pagina_pecas())
         self.content_area.addWidget(self._criar_pagina_transferencias())
+        self.content_area.addWidget(self._criar_pagina_tecnicos())
         self.content_area.addWidget(self._criar_pagina_relatorios())
         main_layout.addWidget(sidebar)
         main_layout.addWidget(self.content_area)
@@ -438,7 +439,7 @@ class MainWindow(QMainWindow):
     def _nova_impressora(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Nova Impressora")
-        dialog.setFixedSize(500, 480)
+        dialog.setFixedSize(500, 520)
         dialog.setStyleSheet("QDialog { background-color: #1a1a2e; color: #e0e0e0; } QLabel { color: #c0c0d0; font-size: 12px; } QLineEdit, QTextEdit { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; } QComboBox { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; } QPushButton { background-color: #e94560; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }")
         layout = QFormLayout(dialog)
         layout.setSpacing(8)
@@ -480,18 +481,28 @@ class MainWindow(QMainWindow):
         ip_input = QLineEdit()
         ip_input.setPlaceholderText("192.168.0.100")
         layout.addRow("IP Rede:", ip_input)
+        
+        # Técnico - ComboBox digitável
+        tec_combo = QComboBox()
+        tec_combo.setEditable(True)
+        tec_combo.addItem("")
+        tecnicos = self.session.query(Technician).filter(Technician.ativo == True).order_by(Technician.nome_exibicao).all()
+        for t in tecnicos:
+            tec_combo.addItem(t.nome_exibicao)
+        layout.addRow("Técnico:", tec_combo)
+        
         obs_input = QTextEdit()
         obs_input.setMaximumHeight(60)
         obs_input.setPlaceholderText("Observações gerais...")
         layout.addRow("Observação:", obs_input)
         
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        botoes.accepted.connect(lambda: self._salvar_impressora(dialog, patrimonio_input, modelo_input, marca_input, serial_input, tipo_combo, local_combo, status_combo, ip_input, obs_input))
+        botoes.accepted.connect(lambda: self._salvar_impressora(dialog, patrimonio_input, modelo_input, marca_input, serial_input, tipo_combo, local_combo, status_combo, ip_input, tec_combo, obs_input))
         botoes.rejected.connect(dialog.reject)
         layout.addRow(botoes)
         dialog.exec()
     
-    def _salvar_impressora(self, dialog, pat, mod, marca, serial, tipo, local, status, ip, obs):
+    def _salvar_impressora(self, dialog, pat, mod, marca, serial, tipo, local, status, ip, tec, obs):
         patrimonio = pat.text().strip()
         if not patrimonio:
             return
@@ -507,7 +518,19 @@ class MainWindow(QMainWindow):
             return
         
         from models import simple_uid
-        printer = Printer(id=simple_uid(), patrimonio=patrimonio, modelo=mod.text().strip(), marca=marca.text().strip(), serial=serial.text().strip(), tipo=tipo.currentText(), local_atual=self._limpar_local(local.currentText()), status=status.currentText(), ip_rede=ip.text().strip(), observacao=obs.toPlainText().strip())
+        printer = Printer(
+            id=simple_uid(),
+            patrimonio=patrimonio,
+            modelo=mod.text().strip(),
+            marca=marca.text().strip(),
+            serial=serial.text().strip(),
+            tipo=tipo.currentText(),
+            local_atual=self._limpar_local(local.currentText()),
+            status=status.currentText(),
+            ip_rede=ip.text().strip(),
+            tecnico=tec.currentText().strip(),
+            observacao=obs.toPlainText().strip()
+        )
         self.session.add(printer)
         self.session.commit()
         self.carregar_dados()
@@ -620,9 +643,15 @@ class MainWindow(QMainWindow):
         
         # Técnico
         dados_layout.addWidget(QLabel("Técnico:"), 4, 0)
-        tec_input = QLineEdit(printer.tecnico or "")
-        tec_input.setReadOnly(True)
-        dados_layout.addWidget(tec_input, 4, 1)
+        tec_combo = QComboBox()
+        tec_combo.setEditable(True)
+        tec_combo.addItem("")
+        tecnicos = self.session.query(Technician).filter(Technician.ativo == True).order_by(Technician.nome_exibicao).all()
+        for t in tecnicos:
+            tec_combo.addItem(t.nome_exibicao)
+        tec_combo.setCurrentText(printer.tecnico or "")
+        tec_combo.setEnabled(False)
+        dados_layout.addWidget(tec_combo, 4, 1)
         
         # Última Revisão
         # Busca a data da última manutenção
@@ -633,10 +662,12 @@ class MainWindow(QMainWindow):
         
         dados_layout.addWidget(QLabel("Última Revisão:"), 4, 2)
         rev_text = ""
-        if ultima_manutencao and ultima_manutencao.event_at:
-            rev_text = ultima_manutencao.event_at.strftime("%d/%m/%Y")
-        elif printer.proxima_revisao:
+        if printer.proxima_revisao:
             rev_text = printer.proxima_revisao.strftime("%d/%m/%Y")
+        elif ultima_manutencao and ultima_manutencao.event_at:
+            rev_text = ultima_manutencao.event_at.strftime("%d/%m/%Y")
+        if not rev_text:
+            rev_text = dt.now().strftime("%d/%m/%Y")
         rev_input = QLineEdit(rev_text)
         rev_input.setPlaceholderText("dd/mm/aaaa")
         rev_input.setReadOnly(True)
@@ -731,7 +762,7 @@ class MainWindow(QMainWindow):
         btn_fechar.clicked.connect(dialog.accept)
         
         # Lista de widgets para habilitar/desabilitar
-        widgets_editaveis = [pat_input, status_combo, modelo_input, marca_input, serial_input, tipo_combo, local_combo, ip_input, tec_input, rev_input, obs_input, pecas_input]
+        widgets_editaveis = [pat_input, status_combo, modelo_input, marca_input, serial_input, tipo_combo, local_combo, ip_input, tec_combo, rev_input, obs_input, pecas_input]
         
         def entrar_modo_edicao():
             btn_editar.setVisible(False)
@@ -763,7 +794,7 @@ class MainWindow(QMainWindow):
         
         btn_editar.clicked.connect(entrar_modo_edicao)
         btn_cancelar.clicked.connect(sair_modo_edicao)
-        btn_salvar.clicked.connect(lambda: self._salvar_edicao_impressora(dialog, printer, pat_input, status_combo, modelo_input, marca_input, serial_input, tipo_combo, local_combo, ip_input, tec_input, rev_input, obs_input, pecas_input, sair_modo_edicao))
+        btn_salvar.clicked.connect(lambda: self._salvar_edicao_impressora(dialog, printer, pat_input, status_combo, modelo_input, marca_input, serial_input, tipo_combo, local_combo, ip_input, tec_combo, rev_input, obs_input, pecas_input, sair_modo_edicao))
         
         # Ordem dos botões: Editar | Salvar | Cancelar | Fechar
         btn_layout.addWidget(btn_editar)
@@ -781,11 +812,9 @@ class MainWindow(QMainWindow):
         # Atualiza patrimônio
         novo_pat = pat_input.text().strip()
         if novo_pat and novo_pat != printer.patrimonio:
-            # Verifica se já existe
             existente = self.session.query(Printer).filter(Printer.patrimonio == novo_pat).first()
             if existente:
-                QMessageBox.warning(dialog, "Patrimônio Duplicado",
-                    f"Já existe uma impressora com o patrimônio '{novo_pat}'!")
+                QMessageBox.warning(dialog, "Patrimônio Duplicado", f"Já existe uma impressora com o patrimônio '{novo_pat}'!")
                 return
             printer.patrimonio = novo_pat
         
@@ -796,16 +825,11 @@ class MainWindow(QMainWindow):
         printer.tipo = tipo.currentText()
         printer.local_atual = self._limpar_local(local.currentText())
         printer.ip_rede = ip.text().strip()
-        printer.tecnico = tecnico.text().strip()
+        printer.tecnico = tecnico.currentText().strip()
         
-        rev_text = revisao.text().strip()
-        if rev_text:
-            try:
-                printer.proxima_revisao = dt.strptime(rev_text, "%d/%m/%Y")
-            except:
-                pass
-        else:
-            printer.proxima_revisao = None
+        # Atualiza a data da última revisão para HOJE automaticamente
+        printer.proxima_revisao = dt.now()
+        printer.updated_at = dt.now()
         
         printer.observacao = obs.toPlainText().strip()
         printer.pecas_faltantes = pecas.toPlainText().strip()
@@ -3135,7 +3159,118 @@ class MainWindow(QMainWindow):
         
         self.session.add(anexo)
         self.session.commit()
-        
+
         QMessageBox.information(self, "Sucesso", f"Arquivo '{original_name}' anexado com sucesso!")
 
+
+    def _criar_pagina_tecnicos(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        header = QHBoxLayout()
+        titulo = QLabel("👨‍🔧 Técnicos")
+        titulo.setStyleSheet("color: #e94560; font-size: 20px; font-weight: bold; background: transparent;")
+        header.addWidget(titulo)
+        header.addStretch()
+        
+        btn_novo = QPushButton("➕ Novo Técnico")
+        btn_novo.setCursor(Qt.PointingHandCursor)
+        btn_novo.setStyleSheet("QPushButton { background-color: #a6e3a1; color: #1a1a2e; border: none; border-radius: 6px; padding: 8px 16px; font-size: 12px; font-weight: bold; } QPushButton:hover { background-color: #94d89f; }")
+        btn_novo.clicked.connect(self._novo_tecnico)
+        header.addWidget(btn_novo)
+        layout.addLayout(header)
+        layout.addSpacing(10)
+        
+        self.tabela_tecnicos = QTableWidget()
+        self.tabela_tecnicos.setColumnCount(5)
+        self.tabela_tecnicos.setHorizontalHeaderLabels(["Nome Completo", "Exibição", "Telefone", "Email", "Ativo"])
+        self.tabela_tecnicos.setStyleSheet("QTableWidget { background-color: #0f3460; color: #e0e0e0; border: 1px solid #533483; border-radius: 10px; gridline-color: #1a1a3e; font-size: 13px; } QTableWidget::item { padding: 8px; } QHeaderView::section { background-color: #16213e; color: #89b4fa; font-weight: bold; padding: 10px 8px; border: none; border-bottom: 2px solid #e94560; font-size: 12px; }")
+        self.tabela_tecnicos.horizontalHeader().setStretchLastSection(True)
+        self.tabela_tecnicos.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabela_tecnicos.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabela_tecnicos.verticalHeader().setVisible(False)
+        self.tabela_tecnicos.cellDoubleClicked.connect(self._editar_tecnico)
+        layout.addWidget(self.tabela_tecnicos)
+        
+        self._carregar_tabela_tecnicos()
+        return page
+    
+    def _carregar_tabela_tecnicos(self):
+        tecnicos = self.session.query(Technician).order_by(Technician.nome_completo).all()
+        self.tabela_tecnicos.setRowCount(len(tecnicos))
+        for i, t in enumerate(tecnicos):
+            self.tabela_tecnicos.setItem(i, 0, QTableWidgetItem(t.nome_completo))
+            self.tabela_tecnicos.setItem(i, 1, QTableWidgetItem(t.nome_exibicao))
+            self.tabela_tecnicos.setItem(i, 2, QTableWidgetItem(t.telefone or "-"))
+            self.tabela_tecnicos.setItem(i, 3, QTableWidgetItem(t.email or "-"))
+            ativo_item = QTableWidgetItem("✅" if t.ativo else "❌")
+            ativo_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela_tecnicos.setItem(i, 4, ativo_item)
+        self.tabela_tecnicos.resizeColumnsToContents()
+    
+    def _novo_tecnico(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Novo Técnico")
+        dialog.setFixedSize(400, 250)
+        dialog.setStyleSheet("QDialog { background-color: #1a1a2e; } QLabel { color: #c0c0d0; } QLineEdit { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; } QPushButton { background-color: #e94560; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }")
+        layout = QFormLayout(dialog)
+        
+        nome_input = QLineEdit()
+        nome_input.setPlaceholderText("Nome completo")
+        layout.addRow("Nome Completo:", nome_input)
+        
+        exib_input = QLineEdit()
+        exib_input.setPlaceholderText("Como aparece no sistema")
+        layout.addRow("Nome Exibição:", exib_input)
+        
+        tel_input = QLineEdit()
+        tel_input.setPlaceholderText("(00) 00000-0000")
+        layout.addRow("Telefone:", tel_input)
+        
+        email_input = QLineEdit()
+        email_input.setPlaceholderText("email@exemplo.com")
+        layout.addRow("Email:", email_input)
+        
+        botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        botoes.accepted.connect(lambda: self._salvar_tecnico(dialog, nome_input, exib_input, tel_input, email_input))
+        botoes.rejected.connect(dialog.reject)
+        layout.addRow(botoes)
+        dialog.exec()
+    
+    def _salvar_tecnico(self, dialog, nome, exib, tel, email):
+        nome_text = nome.text().strip()
+        if not nome_text: return
+        t = Technician(nome_completo=nome_text, nome_exibicao=exib.text().strip() or nome_text.split()[0], telefone=tel.text().strip(), email=email.text().strip())
+        self.session.add(t); self.session.commit()
+        self._carregar_tabela_tecnicos(); dialog.accept()
+    
+    def _editar_tecnico(self, row, col):
+        nome = self.tabela_tecnicos.item(row, 0).text()
+        t = self.session.query(Technician).filter(Technician.nome_completo == nome).first()
+        if not t: return
+        
+        dialog = QDialog(self); dialog.setWindowTitle(f"Editar: {t.nome_completo}"); dialog.setFixedSize(400, 250)
+        dialog.setStyleSheet("QDialog { background-color: #1a1a2e; } QLabel { color: #c0c0d0; } QLineEdit { background-color: #0f3460; color: white; border: 2px solid #533483; padding: 8px; }")
+        layout = QFormLayout(dialog)
+        nome_input = QLineEdit(t.nome_completo); layout.addRow("Nome:", nome_input)
+        exib_input = QLineEdit(t.nome_exibicao); layout.addRow("Exibição:", exib_input)
+        tel_input = QLineEdit(t.telefone or ""); layout.addRow("Telefone:", tel_input)
+        email_input = QLineEdit(t.email or ""); layout.addRow("Email:", email_input)
+        
+        btn_layout = QHBoxLayout()
+        btn_salvar = QPushButton("💾 Salvar"); btn_salvar.setStyleSheet("QPushButton { background-color: #a6e3a1; color: #1a1a2e; }")
+        btn_salvar.clicked.connect(lambda: [setattr(t, 'nome_completo', nome_input.text().strip()), setattr(t, 'nome_exibicao', exib_input.text().strip()), setattr(t, 'telefone', tel_input.text().strip()), setattr(t, 'email', email_input.text().strip()), self.session.commit(), self._carregar_tabela_tecnicos(), dialog.accept()])
+        btn_layout.addWidget(btn_salvar)
+        btn_excluir = QPushButton("🗑️ Excluir"); btn_excluir.setStyleSheet("QPushButton { background-color: #f38ba8; color: #1a1a2e; }")
+        btn_excluir.clicked.connect(lambda: self._excluir_tecnico(dialog, t))
+        btn_layout.addWidget(btn_excluir)
+        layout.addRow(btn_layout)
+        dialog.exec()
+    
+    def _excluir_tecnico(self, dialog, t):
+        if QMessageBox.question(dialog, "Confirmar", f"Excluir {t.nome_completo}?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+            self.session.delete(t); self.session.commit()
+            self._carregar_tabela_tecnicos(); dialog.accept()
+    
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import datetime
 import random
 import string
-from sqlalchemy import String, Text, DateTime, Integer, Float
+from sqlalchemy import String, Text, DateTime, Integer, Float, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Base(DeclarativeBase):
@@ -106,6 +106,17 @@ class Attachment(Base):
     categoria: Mapped[str] = mapped_column(String(50), default="recibo")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     uploader_id: Mapped[int] = mapped_column(Integer, nullable=True)
+
+class Technician(Base):
+    __tablename__ = "technicians"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome_completo: Mapped[str] = mapped_column(String(150), nullable=False)
+    nome_exibicao: Mapped[str] = mapped_column(String(80), default="")
+    telefone: Mapped[str] = mapped_column(String(20), default="")
+    email: Mapped[str] = mapped_column(String(120), default="")
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 
 def simple_uid() -> str:
     chars = string.ascii_lowercase + string.digits
