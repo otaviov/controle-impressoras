@@ -14,9 +14,10 @@ from matplotlib.figure import Figure
 from collections import Counter
 from datetime import datetime as dt
 from sqlalchemy import func
-from models import Printer, Activity, Company, Part, Attachment, Technician
+from models import Printer, Activity, Company, Part, Attachment, Technician, User
 import os
 from pathlib import Path
+from config import DB_PATH
 
 
 class MainWindow(QMainWindow):
@@ -56,6 +57,10 @@ class MainWindow(QMainWindow):
         sidebar_layout.addSpacing(8)
         
         menus = [("📊", "Dashboard", 0), ("🖨️", "Impressoras", 1), ("📋", "Ordens de Serviço", 2), ("👥", "Empresas/Clientes", 3), ("🔧", "Peças", 4), ("🚚", "Transferências", 5), ("👨‍🔧", "Técnicos", 6), ("📈", "Relatórios", 7)]
+
+        if self.user.get("perfil") != "admin":
+            menus.append(("⚙️", "Configurações", 8))
+
         for icon, text, index in menus:
             btn = self._criar_botao_menu(icon, text)
             btn.clicked.connect(lambda checked, i=index: self._trocar_pagina(i))
@@ -89,6 +94,10 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self._criar_pagina_transferencias())
         self.content_area.addWidget(self._criar_pagina_tecnicos())
         self.content_area.addWidget(self._criar_pagina_relatorios())
+
+        if self.user.get('perfil') == 'admin':
+            self.content_area.addWidget(self._criar_pagina_config())  
+
         main_layout.addWidget(sidebar)
         main_layout.addWidget(self.content_area)
         self._trocar_pagina(0)
@@ -3346,5 +3355,207 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(dialog, "Confirmar", f"Excluir {t.nome_completo}?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
             self.session.delete(t); self.session.commit()
             self._carregar_tabela_tecnicos(); dialog.accept()
+
+    def _criar_pagina_config(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(15)
+        
+        titulo = QLabel("⚙️ Configurações do Sistema")
+        titulo.setStyleSheet("color: #e94560; font-size: 22px; font-weight: bold; background: transparent;")
+        layout.addWidget(titulo)
+        
+        sub = QLabel("Gerenciamento de usuários (apenas administradores)")
+        sub.setStyleSheet("color: #a0a0b0; font-size: 13px; background: transparent;")
+        layout.addWidget(sub)
+        layout.addSpacing(15)
+        
+        # ====== USUÁRIOS ======
+        grupo_users = QGroupBox("👥 Usuários do Sistema")
+        grupo_users.setStyleSheet("QGroupBox { color: #89b4fa; font-weight: bold; border: 2px solid #533483; border-radius: 10px; margin-top: 10px; padding: 20px 15px 15px 15px; font-size: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 8px; background-color: #1a1a2e; }")
+        users_layout = QVBoxLayout(grupo_users)
+        
+        # Tabela de usuários
+        self.tabela_users = QTableWidget()
+        self.tabela_users.setColumnCount(5)
+        self.tabela_users.setHorizontalHeaderLabels(["Nome", "Usuário", "Email", "Perfil", "Ativo"])
+        self.tabela_users.setStyleSheet("QTableWidget { background-color: #0f3460; color: #e0e0e0; border: 1px solid #533483; border-radius: 8px; gridline-color: #1a1a3e; font-size: 13px; } QTableWidget::item { padding: 8px; } QHeaderView::section { background-color: #16213e; color: #89b4fa; font-weight: bold; padding: 10px 8px; border: none; border-bottom: 2px solid #e94560; }")
+        self.tabela_users.horizontalHeader().setStretchLastSection(True)
+        self.tabela_users.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabela_users.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabela_users.verticalHeader().setVisible(False)
+        users_layout.addWidget(self.tabela_users)
+        
+        # Botões
+        user_btn_layout = QHBoxLayout()
+        user_btn_layout.setSpacing(10)
+        
+        btn_novo_user = QPushButton("➕ Novo Usuário")
+        btn_novo_user.setCursor(Qt.PointingHandCursor)
+        btn_novo_user.setStyleSheet("QPushButton { background-color: #a6e3a1; color: #1a1a2e; border-radius: 6px; padding: 10px 20px; font-weight: bold; } QPushButton:hover { background-color: #94d89f; }")
+        btn_novo_user.clicked.connect(self._novo_usuario)
+        user_btn_layout.addWidget(btn_novo_user)
+        
+        btn_editar_user = QPushButton("✏️ Editar Usuário")
+        btn_editar_user.setCursor(Qt.PointingHandCursor)
+        btn_editar_user.setStyleSheet("QPushButton { background-color: #f9e2af; color: #1a1a2e; border-radius: 6px; padding: 10px 20px; font-weight: bold; } QPushButton:hover { background-color: #f5d78c; }")
+        btn_editar_user.clicked.connect(self._editar_usuario)
+        user_btn_layout.addWidget(btn_editar_user)
+        
+        user_btn_layout.addStretch()
+        users_layout.addLayout(user_btn_layout)
+        layout.addWidget(grupo_users)
+        
+        # ====== BACKUP ======
+        grupo_backup = QGroupBox("💾 Backup do Banco de Dados")
+        grupo_backup.setStyleSheet("QGroupBox { color: #89b4fa; font-weight: bold; border: 2px solid #533483; border-radius: 10px; margin-top: 10px; padding: 20px 15px 15px 15px; font-size: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 8px; background-color: #1a1a2e; }")
+        backup_layout = QHBoxLayout(grupo_backup)
+        
+        btn_backup = QPushButton("📦 Fazer Backup Agora")
+        btn_backup.setCursor(Qt.PointingHandCursor)
+        btn_backup.setStyleSheet("QPushButton { background-color: #89b4fa; color: #1a1a2e; border-radius: 6px; padding: 10px 20px; font-weight: bold; } QPushButton:hover { background-color: #74a4ea; }")
+        btn_backup.clicked.connect(self._fazer_backup)
+        backup_layout.addWidget(btn_backup)
+        
+        self.lbl_backup = QLabel("")
+        self.lbl_backup.setStyleSheet("color: #a0a0b0; font-size: 12px;")
+        backup_layout.addWidget(self.lbl_backup)
+        backup_layout.addStretch()
+        layout.addWidget(grupo_backup)
+        
+        layout.addStretch()
+        
+        self._carregar_tabela_users()
+        return page
+    
+    def _carregar_tabela_users(self):
+        """Carrega a tabela de usuários"""
+        from models import User
+        users = self.session.query(User).order_by(User.nome).all()
+        self.tabela_users.setRowCount(len(users))
+        for i, u in enumerate(users):
+            self.tabela_users.setItem(i, 0, QTableWidgetItem(u.nome))
+            self.tabela_users.setItem(i, 1, QTableWidgetItem(u.username or u.email))
+            self.tabela_users.setItem(i, 2, QTableWidgetItem(u.email))
+            perfil_item = QTableWidgetItem(u.perfil)
+            if u.perfil == 'admin':
+                perfil_item.setForeground(QColor("#e94560"))
+            elif u.perfil == 'tecnico':
+                perfil_item.setForeground(QColor("#89b4fa"))
+            self.tabela_users.setItem(i, 3, perfil_item)
+            ativo_item = QTableWidgetItem("✅" if u.ativo else "❌")
+            ativo_item.setTextAlignment(Qt.AlignCenter)
+            self.tabela_users.setItem(i, 4, ativo_item)
+        self.tabela_users.resizeColumnsToContents()
+    
+    def _novo_usuario(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Novo Usuário")
+        dialog.setFixedSize(400, 300)
+        dialog.setStyleSheet("QDialog { background-color: #1a1a2e; } QLabel { color: #c0c0d0; } QLineEdit, QComboBox { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; } QPushButton { background-color: #e94560; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }")
+        layout = QFormLayout(dialog)
+        
+        nome_input = QLineEdit(); nome_input.setPlaceholderText("Nome completo")
+        layout.addRow("Nome:", nome_input)
+        user_input = QLineEdit(); user_input.setPlaceholderText("Nome de usuário")
+        layout.addRow("Usuário:", user_input)
+        email_input = QLineEdit(); email_input.setPlaceholderText("email@exemplo.com")
+        layout.addRow("Email:", email_input)
+        senha_input = QLineEdit(); senha_input.setEchoMode(QLineEdit.Password); senha_input.setPlaceholderText("Senha")
+        layout.addRow("Senha:", senha_input)
+        
+        perfil_combo = QComboBox(); perfil_combo.addItems(["admin", "tecnico", "visualizador"])
+        layout.addRow("Perfil:", perfil_combo)
+        
+        botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        botoes.accepted.connect(lambda: self._salvar_usuario(dialog, nome_input, user_input, email_input, senha_input, perfil_combo))
+        botoes.rejected.connect(dialog.reject)
+        layout.addRow(botoes)
+        dialog.exec()
+    
+    def _salvar_usuario(self, dialog, nome, username, email, senha, perfil):
+        from models import User
+        from app.utils.security import hash_password
+        
+        if not nome.text().strip() or not username.text().strip() or not senha.text():
+            QMessageBox.warning(dialog, "Erro", "Preencha todos os campos obrigatórios!")
+            return
+        
+        u = User(
+            nome=nome.text().strip(),
+            username=username.text().strip(),
+            email=email.text().strip(),
+            senha_hash=hash_password(senha.text()),
+            perfil=perfil.currentText(),
+            ativo=True
+        )
+        self.session.add(u)
+        self.session.commit()
+        self._carregar_tabela_users()
+        dialog.accept()
+    
+    def _editar_usuario(self):
+        row = self.tabela_users.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Aviso", "Selecione um usuário na tabela!")
+            return
+        
+        username = self.tabela_users.item(row, 1).text()
+        from models import User
+        u = self.session.query(User).filter((User.username == username) | (User.email == username)).first()
+        if not u:
+            return
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Editar Usuário: {u.nome}")
+        dialog.setFixedSize(400, 300)
+        dialog.setStyleSheet("QDialog { background-color: #1a1a2e; } QLabel { color: #c0c0d0; } QLineEdit, QComboBox { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; }")
+        layout = QFormLayout(dialog)
+        
+        nome_input = QLineEdit(u.nome); layout.addRow("Nome:", nome_input)
+        user_input = QLineEdit(u.username or ""); user_input.setReadOnly(True); layout.addRow("Usuário:", user_input)
+        email_input = QLineEdit(u.email); layout.addRow("Email:", email_input)
+        senha_input = QLineEdit(); senha_input.setEchoMode(QLineEdit.Password); senha_input.setPlaceholderText("Deixe em branco para não alterar")
+        layout.addRow("Nova Senha:", senha_input)
+        
+        perfil_combo = QComboBox(); perfil_combo.addItems(["admin", "tecnico", "visualizador"])
+        perfil_combo.setCurrentText(u.perfil); layout.addRow("Perfil:", perfil_combo)
+        
+        ativo_combo = QComboBox(); ativo_combo.addItems(["Sim", "Não"])
+        ativo_combo.setCurrentText("Sim" if u.ativo else "Não"); layout.addRow("Ativo:", ativo_combo)
+        
+        btn_layout = QHBoxLayout()
+        btn_salvar = QPushButton("💾 Salvar"); btn_salvar.setStyleSheet("QPushButton { background-color: #a6e3a1; color: #1a1a2e; }")
+        btn_salvar.clicked.connect(lambda: self._salvar_edicao_usuario(dialog, u, nome_input, email_input, senha_input, perfil_combo, ativo_combo))
+        btn_layout.addWidget(btn_salvar)
+        layout.addRow(btn_layout)
+        dialog.exec()
+    
+    def _salvar_edicao_usuario(self, dialog, u, nome, email, senha, perfil, ativo):
+        from app.utils.security import hash_password
+        
+        u.nome = nome.text().strip()
+        u.email = email.text().strip()
+        if senha.text():
+            u.senha_hash = hash_password(senha.text())
+        u.perfil = perfil.currentText()
+        u.ativo = ativo.currentText() == "Sim"
+        self.session.commit()
+        self._carregar_tabela_users()
+        dialog.accept()
+    
+    def _fazer_backup(self):
+        import shutil
+        from datetime import datetime
+        
+        backup_dir = Path(__file__).parent.parent.parent / "backups"
+        backup_dir.mkdir(exist_ok=True)
+        
+        nome = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        destino = backup_dir / nome
+        
+        shutil.copy2(DB_PATH, destino)
+        self.lbl_backup.setText(f"✅ Backup salvo: {nome}")
     
 
