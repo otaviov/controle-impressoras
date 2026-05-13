@@ -219,6 +219,7 @@ class LoginDialog(QDialog):
                 "SELECT id, nome, username, senha_hash, perfil, ativo FROM users WHERE username = ?",
                 (username,)
             )
+            
             user = cursor.fetchone()
             conn.close()
             
@@ -242,7 +243,7 @@ class LoginDialog(QDialog):
                 "username": user_name,
                 "perfil": perfil
             }
-            
+
             conn = sqlite3.connect(str(self.db_path))
             cursor = conn.cursor()
             cursor.execute("UPDATE users SET ultimo_login = datetime('now') WHERE id = ?", (user_id,))

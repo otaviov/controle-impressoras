@@ -56,9 +56,19 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(sep)
         sidebar_layout.addSpacing(8)
         
-        menus = [("📊", "Dashboard", 0), ("🖨️", "Impressoras", 1), ("📋", "Ordens de Serviço", 2), ("👥", "Empresas/Clientes", 3), ("🔧", "Peças", 4), ("🚚", "Transferências", 5), ("👨‍🔧", "Técnicos", 6), ("📈", "Relatórios", 7)]
-
-        if self.user.get("perfil") != "admin":
+        menus = [
+            ("📊", "Dashboard", 0),
+            ("🖨️", "Impressoras", 1),
+            ("📋", "Ordens de Serviço", 2),
+            ("👥", "Empresas/Clientes", 3),
+            ("🔧", "Peças", 4),
+            ("🚚", "Transferências", 5),
+            ("👨‍🔧", "Técnicos", 6),
+            ("📈", "Relatórios", 7),
+        ]
+        
+        # Só admin vê Configurações
+        if self.user.get('perfil') == 'admin':
             menus.append(("⚙️", "Configurações", 8))
 
         for icon, text, index in menus:
@@ -84,19 +94,21 @@ class MainWindow(QMainWindow):
         btn_sair.clicked.connect(self.close)
         sidebar_layout.addWidget(btn_sair)
         
+        # Cria content_area PRIMEIRO
         self.content_area = QStackedWidget()
         self.content_area.setStyleSheet("background-color: #1a1a2e;")
-        self.content_area.addWidget(self._criar_pagina_dashboard())
-        self.content_area.addWidget(self._criar_pagina_impressoras())
-        self.content_area.addWidget(self._criar_pagina_os())
-        self.content_area.addWidget(self._criar_pagina_clientes())
-        self.content_area.addWidget(self._criar_pagina_pecas())
-        self.content_area.addWidget(self._criar_pagina_transferencias())
-        self.content_area.addWidget(self._criar_pagina_tecnicos())
-        self.content_area.addWidget(self._criar_pagina_relatorios())
-
+        self.content_area.addWidget(self._criar_pagina_dashboard())      # 0
+        self.content_area.addWidget(self._criar_pagina_impressoras())    # 1
+        self.content_area.addWidget(self._criar_pagina_os())             # 2
+        self.content_area.addWidget(self._criar_pagina_clientes())       # 3
+        self.content_area.addWidget(self._criar_pagina_pecas())          # 4
+        self.content_area.addWidget(self._criar_pagina_transferencias()) # 5
+        self.content_area.addWidget(self._criar_pagina_tecnicos())       # 6
+        self.content_area.addWidget(self._criar_pagina_relatorios())     # 7
+        
+        # Só admin vê Configurações
         if self.user.get('perfil') == 'admin':
-            self.content_area.addWidget(self._criar_pagina_config())  
+            self.content_area.addWidget(self._criar_pagina_config())     # 8
 
         main_layout.addWidget(sidebar)
         main_layout.addWidget(self.content_area)
@@ -3478,22 +3490,47 @@ class MainWindow(QMainWindow):
         from models import User
         from app.utils.security import hash_password
         
-        if not nome.text().strip() or not username.text().strip() or not senha.text():
-            QMessageBox.warning(dialog, "Erro", "Preencha todos os campos obrigatórios!")
+        nome_text = nome.text().strip()
+        user_text = username.text().strip()
+        email_text = email.text().strip()
+        senha_text = senha.text()
+        
+        if not nome_text or not user_text or not senha_text:
+            QMessageBox.warning(dialog, "Erro", "Preencha nome, usuário e senha!")
             return
         
-        u = User(
-            nome=nome.text().strip(),
-            username=username.text().strip(),
-            email=email.text().strip(),
-            senha_hash=hash_password(senha.text()),
-            perfil=perfil.currentText(),
-            ativo=True
-        )
-        self.session.add(u)
-        self.session.commit()
-        self._carregar_tabela_users()
-        dialog.accept()
+        # Se email vazio, gera um email único baseado no username
+        if not email_text:
+            email_text = f"{user_text}@sistema.local"
+        
+        # Verifica se já existe email ou username
+        existente = self.session.query(User).filter(
+            (User.email == email_text) | (User.username == user_text)
+        ).first()
+        
+        if existente:
+            QMessageBox.warning(dialog, "Erro", 
+                f"Já existe um usuário com este email ou username!\n"
+                f"Email: {existente.email}\n"
+                f"Usuário: {existente.username}")
+            return
+        
+        try:
+            u = User(
+                nome=nome_text,
+                username=user_text,
+                email=email_text,
+                senha_hash=hash_password(senha_text),
+                perfil=perfil.currentText(),
+                ativo=True
+            )
+            self.session.add(u)
+            self.session.commit()
+            self._carregar_tabela_users()
+            dialog.accept()
+        except Exception as e:
+            self.session.rollback()
+            QMessageBox.critical(dialog, "Erro", f"Erro ao salvar usuário:\n{str(e)}")
     
     def _editar_usuario(self):
         row = self.tabela_users.currentRow()
