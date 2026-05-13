@@ -352,9 +352,16 @@ class MainWindow(QMainWindow):
             value_label.setText(valor)
     
     def _atualizar_card_mini(self, card, valor):
-        value_label = card.findChild(QLabel, "miniValue")
-        if value_label:
-            value_label.setText(valor)
+        value_label = card.findChild(QLabel)
+        if value_label and hasattr(value_label, 'objectName'):
+            if 'miniValue' in value_label.objectName():
+                value_label.setText(valor)
+                return
+        # Procura todos os QLabel
+        for child in card.findChildren(QLabel):
+            if 'miniValue' in (child.objectName() or ''):
+                child.setText(valor)
+                return
     
     def _criar_pagina_dashboard(self):
         page = QWidget()
@@ -864,14 +871,14 @@ class MainWindow(QMainWindow):
 
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(10)
-        self.card_total_os = self._criar_card_mini("📋", "Total OS", "0", "#89b4fa")
-        self.card_manutencoes = self._criar_card_mini("🔧", "Manutenções", "0", "#f9e2af")
-        self.card_movimentacoes = self._criar_card_mini("🚚", "Movimentações", "0", "#a6e3a1")
-        self.card_pecas = self._criar_card_mini("🔩", "Peças Usadas", "0", "#cba6f7")
+        self.card_total_os = self._criar_card_mini_clicavel("📋", "Total OS", "0", "#89b4fa", "TODAS")
+        self.card_em_andamento = self._criar_card_mini_clicavel("🔄", "Em Andamento", "0", "#f9e2af", "Em Andamento")
+        self.card_pendentes = self._criar_card_mini_clicavel("⏳", "Pendentes", "0", "#f38ba8", "Pendente")
+        self.card_concluidas = self._criar_card_mini_clicavel("✅", "Concluídas", "0", "#a6e3a1", "Concluida")
         cards_layout.addWidget(self.card_total_os)
-        cards_layout.addWidget(self.card_manutencoes)
-        cards_layout.addWidget(self.card_movimentacoes)
-        cards_layout.addWidget(self.card_pecas)
+        cards_layout.addWidget(self.card_em_andamento)
+        cards_layout.addWidget(self.card_pendentes)
+        cards_layout.addWidget(self.card_concluidas)
         layout.addLayout(cards_layout)
         layout.addSpacing(10)
         self.tabela_os = QTableWidget()
@@ -887,6 +894,86 @@ class MainWindow(QMainWindow):
         self._carregar_tabela_os()
         self._atualizar_cards_os()
         return page
+
+    def _criar_card_mini_clicavel(self, icon, title, value, color, status_filtro):
+        """Cria um card mini que ao clicar filtra a tabela de OS"""
+        card = QFrame()
+        card.setStyleSheet(f"QFrame {{ background-color: #0f3460; border-radius: 10px; border: 1px solid #533483; padding: 12px; }} QFrame:hover {{ border-color: {color}; }}")
+        card.setMinimumHeight(80)
+        card.setCursor(Qt.PointingHandCursor)
+        
+        layout = QVBoxLayout(card)
+        layout.setSpacing(4)
+        header = QHBoxLayout()
+        icon_label = QLabel(icon)
+        icon_label.setStyleSheet("font-size: 18px; background: transparent;")
+        header.addWidget(icon_label)
+        header.addStretch()
+        value_label = QLabel(value)
+        value_label.setStyleSheet(f"color: {color}; font-size: 22px; font-weight: bold; background: transparent;")
+        value_label.setObjectName("miniValue_" + status_filtro)
+        header.addWidget(value_label)
+        layout.addLayout(header)
+        title_label = QLabel(title)
+        title_label.setStyleSheet("color: #a0a0b0; font-size: 10px; background: transparent;")
+        layout.addWidget(title_label)
+        
+        # Guarda referência
+        if status_filtro == "TODAS":
+            self.card_total_os = card
+        elif status_filtro == "Em Andamento":
+            self.card_em_andamento = card
+        elif status_filtro == "Pendente":
+            self.card_pendentes = card
+        elif status_filtro == "Concluida":
+            self.card_concluidas = card
+        
+        # Conecta evento de clique
+        def on_click(event):
+            self._filtrar_os_por_status(status_filtro)
+            event.accept()  # Impede propagação
+        
+        card.mousePressEvent = on_click
+        return card
+
+    def _filtrar_os_por_status(self, status):
+        """Filtra a tabela de OS por status"""
+        if status == "TODAS":
+            self._carregar_tabela_os()
+        else:
+            query = self.session.query(Activity).order_by(Activity.event_at.desc())
+            query = query.filter(Activity.status_atividade.in_([status, status.lower(), status.capitalize()]))
+            atividades = query.limit(200).all()
+            
+            self.tabela_os.setRowCount(len(atividades))
+            for i, a in enumerate(atividades):
+                self.tabela_os.setItem(i, 0, QTableWidgetItem(a.event_at.strftime("%d/%m/%Y %H:%M") if a.event_at else "-"))
+                printer = self.session.query(Printer).filter(Printer.id == a.printer_id).first()
+                self.tabela_os.setItem(i, 1, QTableWidgetItem(printer.patrimonio if printer else "?"))
+                if a.kind == "MANUTENCAO":
+                    tipo_texto = "🔧 Manutenção"
+                    cor = QColor("#f9e2af")
+                else:
+                    tipo_texto = "🚚 Movimentação"
+                    cor = QColor("#89b4fa")
+                tipo_item = QTableWidgetItem(tipo_texto)
+                tipo_item.setForeground(cor)
+                self.tabela_os.setItem(i, 2, tipo_item)
+                self.tabela_os.setItem(i, 3, QTableWidgetItem(a.notes or "-"))
+                self.tabela_os.setItem(i, 4, QTableWidgetItem(a.parts_used or "-"))
+                self.tabela_os.setItem(i, 5, QTableWidgetItem(a.from_location or "-"))
+                self.tabela_os.setItem(i, 6, QTableWidgetItem(a.to_location or "-"))
+                self.tabela_os.setItem(i, 7, QTableWidgetItem("-"))
+            
+            header = self.tabela_os.horizontalHeader()
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(3, QHeaderView.Stretch)
+            header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
 
     def _filtrar_os_busca(self, texto):
         """Filtra a tabela de OS por patrimônio"""
@@ -976,13 +1063,14 @@ class MainWindow(QMainWindow):
     
     def _atualizar_cards_os(self):
         total = self.session.query(Activity).count()
-        manut = self.session.query(Activity).filter(Activity.kind == "MANUTENCAO").count()
-        mov = self.session.query(Activity).filter(Activity.kind == "MOVIMENTACAO").count()
-        com_pecas = self.session.query(Activity).filter(Activity.parts_used != "").count()
+        em_andamento = self.session.query(Activity).filter(Activity.status_atividade.in_(["Em Andamento", "em_andamento"])).count()
+        pendentes = self.session.query(Activity).filter(Activity.status_atividade.in_(["Pendente", "pendente"])).count()
+        concluidas = total - em_andamento - pendentes
+        
         self._atualizar_card_mini(self.card_total_os, str(total))
-        self._atualizar_card_mini(self.card_manutencoes, str(manut))
-        self._atualizar_card_mini(self.card_movimentacoes, str(mov))
-        self._atualizar_card_mini(self.card_pecas, str(com_pecas))
+        self._atualizar_card_mini(self.card_em_andamento, str(em_andamento))
+        self._atualizar_card_mini(self.card_pendentes, str(pendentes))
+        self._atualizar_card_mini(self.card_concluidas, str(concluidas))
     
     def _filtrar_os(self, tipo):
         self._carregar_tabela_os(tipo)
@@ -2631,7 +2719,7 @@ class MainWindow(QMainWindow):
         # Descrição
         desc_input = QTextEdit()
         desc_input.setMaximumHeight(100)
-        desc_input.setPlaceholderText("O  que foi feito, diagnóstico, etc...")
+        desc_input.setPlaceholderText("O que foi feito, diagnóstico, etc...")
         layout.addRow("Descrição:", desc_input)
         
         # Peças usadas
@@ -2639,35 +2727,39 @@ class MainWindow(QMainWindow):
         pecas_input.setPlaceholderText("Ex: Fusor, Placa Fonte, Cabo Flat...")
         layout.addRow("Peças Trocadas:", pecas_input)
         
-        # Origem (para movimentação)
-        origem_input = QLineEdit()
-        origem_input.setPlaceholderText("Local de origem (para movimentação)")
-        layout.addRow("Origem:", origem_input)
+        # === ORIGEM - ComboBox editável ===
+        origem_combo = QComboBox()
+        origem_combo.setEditable(True)
+        origem_combo.addItem("")
+        empresas = self.session.query(Company).order_by(Company.nome).all()
+        for emp in empresas:
+            origem_combo.addItem(emp.nome)
+        layout.addRow("Origem:", origem_combo)
         
-        # Destino (para movimentação)
-        destino_input = QLineEdit()
-        destino_input.setPlaceholderText("Local de destino (para movimentação)")
-        layout.addRow("Destino:", destino_input)
+        # === DESTINO - ComboBox editável ===
+        destino_combo = QComboBox()
+        destino_combo.setEditable(True)
+        destino_combo.addItem("")
+        for emp in empresas:
+            destino_combo.addItem(emp.nome)
+        layout.addRow("Destino:", destino_combo)
         
-        # Status da atividade
+        # Status
         status_combo = QComboBox()
         status_combo.addItems(["Concluida", "Pendente", "Em Andamento"])
         layout.addRow("Status:", status_combo)
 
-        # Anexos 
-        anexo_btn = QPushButton("📎 Anexar Recibo (após salvar)")
-        anexo_btn.setCursor(Qt.PointingHandCursor)
-        anexo_btn.setStyleSheet("QPushButton { background-color: #89b4fa; color: #1a1a2e; border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }")
-        layout.addRow(anexo_btn)
-        
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        botoes.accepted.connect(lambda: self._salvar_os(dialog, printer_combo, tipo_combo, data_input, desc_input, pecas_input, origem_input, destino_input, status_combo))
-        botoes.rejected.connect(dia.log.reject)
+        botoes.accepted.connect(lambda: self._salvar_os(dialog, printer_combo, tipo_combo, data_input, desc_input, pecas_input, origem_combo, destino_combo, status_combo))
+        botoes.rejected.connect(dialog.reject)
+        # Impede duplo clique
+        botoes.accepted.disconnect()
+        botoes.accepted.connect(lambda: self._salvar_os(dialog, printer_combo, tipo_combo, data_input, desc_input, pecas_input, origem_combo, destino_combo, status_combo))
         layout.addRow(botoes)
         
         dialog.exec()
 
-    def _salvar_os(self, dialog, printer_combo, tipo_combo, data_input, desc_input, pecas_input, origem_input, destino_input, status_combo):
+    def _salvar_os(self, dialog, printer_combo, tipo_combo, data_input, desc_input, pecas_input, origem_combo, destino_combo, status_combo):
         printer_text = printer_combo.currentText().strip()
         if not printer_text:
             return
@@ -2675,7 +2767,7 @@ class MainWindow(QMainWindow):
         if " - " in printer_text:
             pat = printer_text.split(" - ")[0].strip()
         else:
-            pat = printer_text  # Foi digitado manualmente
+            pat = printer_text
         
         printer = self.session.query(Printer).filter(Printer.patrimonio == pat).first()
         
@@ -2683,7 +2775,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(dialog, "Erro", f"Impressora '{pat}' não encontrada!")
             return
         
-        # Data do evento
         data_evento = dt.now()
         data_text = data_input.text().strip()
         if data_text:
@@ -2701,17 +2792,13 @@ class MainWindow(QMainWindow):
             event_at=data_evento,
             notes=desc_input.toPlainText().strip(),
             parts_used=pecas_input.text().strip(),
-            from_location=origem_input.text().strip(),
-            to_location=destino_input.text().strip(),
+            from_location=origem_combo.currentText().strip(),
+            to_location=destino_combo.currentText().strip(),
             status_atividade=status_combo.currentText()
         )
         
         self.session.add(atividade)
         self.session.commit()
-        
-        # Conecta o botão de anexo
-        atividade_id = atividade.id
-        anexo_btn.clicked.connect(lambda: self._anexar_arquivo("activity", atividade_id))
         self._carregar_tabela_os()
         self._atualizar_cards_os()
         dialog.accept()

@@ -239,7 +239,7 @@ class RelatorioDialog(QDialog):
         tipo_rel = 'impressoras' if self.rb_impressoras.isChecked() else 'atividades'
         
         sufixo = f"_{patrimonio}" if patrimonio else ""
-        nome_padrao = f"relatorio_{tipo_rel}{sufixo}_{dt.now().strftime('%Y%m%d_%H%M%S')}.{formato}"
+        nome_padrao = f"relatorio_{tipo_rel}{sufixo}_{dt.now().strftime('%Y%m%d_%H%M')}.{formato}"
         
         filepath, _ = QFileDialog.getSaveFileName(self, "Salvar Relatório", nome_padrao, f"{'PDF' if formato == 'pdf' else 'Excel'} (*.{formato})")
         if not filepath: return
@@ -276,13 +276,52 @@ class RelatorioDialog(QDialog):
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable
+        from reportlab.lib.enums import TA_CENTER
         from models import Activity
         
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=45)
         styles = getSampleStyleSheet()
         cor_primaria = colors.HexColor("#1A3C6C")
         cor_fundo_zebra = colors.HexColor("#F8F9FA")
+        
+        def draw_footer(canvas, doc):
+            canvas.saveState()
+            largura, altura = A4
+            
+            # Linha de assinatura (acima)
+            y_assinatura = 2.5 * cm
+            centro = largura / 2
+            linha_largura = 9 * cm
+            x1 = centro - linha_largura / 2
+            x2 = centro + linha_largura / 2
+            
+            # Linha para assinar
+            canvas.setStrokeColor(colors.black)
+            canvas.setLineWidth(1)
+            canvas.line(x1, y_assinatura + 18, x2, y_assinatura + 18)
+            
+            # Texto centralizado abaixo da linha
+            canvas.setFont("Helvetica", 10)
+            canvas.drawCentredString(centro, y_assinatura + 4, "Técnico Responsável")
+            
+            # Data centralizada
+            canvas.setFont("Helvetica", 8)
+            canvas.drawCentredString(centro, y_assinatura - 12, f"Data: {dt.now().strftime('%d/%m/%Y %H:%M')}")
+            
+            # Rodapé inferior
+            y_divisoria = 1.2 * cm
+            canvas.setStrokeColor(colors.lightgrey)
+            canvas.setLineWidth(0.5)
+            canvas.line(doc.leftMargin, y_divisoria, largura - doc.rightMargin, y_divisoria)
+            
+            canvas.setFont("Helvetica", 8)
+            canvas.setFillColor(colors.gray)
+            canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
+            num_pagina = canvas.getPageNumber()
+            canvas.drawRightString(largura - doc.rightMargin, y_divisoria - 12, f"Página {num_pagina}")
+            canvas.restoreState()
+        
         elements = []
         
         for idx, p in enumerate(printers):
@@ -355,19 +394,8 @@ class RelatorioDialog(QDialog):
                 ('PADDING', (0, 0), (-1, -1), 5),
             ]))
             elements.append(t_hist)
-            elements.append(Spacer(1, 20))
-            
-            from reportlab.platypus.flowables import HRFlowable
-            from reportlab.lib.enums import TA_CENTER
-            line = HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e94560'))
-            elements.append(line)
-            elements.append(Spacer(1, 8))
-            elements.append(Paragraph(
-                f"Gerado em: {dt.now().strftime('%d/%m/%Y %H:%M')} | Controle de Impressoras Pro v2.0",
-                ParagraphStyle('Footer', parent=styles['Normal'], fontSize=7, textColor=colors.gray, alignment=TA_CENTER)
-            ))
             
             if idx < len(printers) - 1:
                 elements.append(PageBreak())
         
-        doc.build(elements)
+        doc.build(elements, onFirstPage=draw_footer, onLaterPages=draw_footer)
