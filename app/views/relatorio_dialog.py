@@ -109,7 +109,7 @@ class RelatorioDialog(QDialog):
         
         filtro_layout.addWidget(QLabel("Status da Impressora:"))
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["Todos", "Operacional", "Em uso", "Em manutenção", "Manutenção", "Parada", "Aguardando peça", "Sucata"])
+        self.status_combo.addItems(["Todos", "Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         self.status_combo.currentTextChanged.connect(self._atualizar_patrimonios)
         filtro_layout.addWidget(self.status_combo)
         
@@ -184,7 +184,7 @@ class RelatorioDialog(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll)
         self._atualizar_patrimonios()
-
+    
     def _atualizar_patrimonios(self):
         from models import Printer
         status = self.status_combo.currentText()
@@ -239,7 +239,7 @@ class RelatorioDialog(QDialog):
         tipo_rel = 'impressoras' if self.rb_impressoras.isChecked() else 'atividades'
         
         sufixo = f"_{patrimonio}" if patrimonio else ""
-        nome_padrao = f"relatorio_{tipo_rel}{sufixo}_{dt.now().strftime('%Y%m%d_%H%M')}.{formato}"
+        nome_padrao = f"relatorio_{tipo_rel}{sufixo}_{dt.now().strftime('%Y%m%d_%H%M%S')}.{formato}"
         
         filepath, _ = QFileDialog.getSaveFileName(self, "Salvar Relatório", nome_padrao, f"{'PDF' if formato == 'pdf' else 'Excel'} (*.{formato})")
         if not filepath: return
@@ -270,15 +270,18 @@ class RelatorioDialog(QDialog):
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório:\n\n{str(e)}")
-
+    
     def _gerar_pdf_detalhado(self, printers, filepath):
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image, HRFlowable
         from reportlab.lib.enums import TA_CENTER
         from models import Activity
+        
+        # Caminho da logo
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logo.png")
         
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=45)
         styles = getSampleStyleSheet()
@@ -289,23 +292,20 @@ class RelatorioDialog(QDialog):
             canvas.saveState()
             largura, altura = A4
             
-            # Linha de assinatura (acima)
+            # Linha de assinatura
             y_assinatura = 2.5 * cm
             centro = largura / 2
             linha_largura = 9 * cm
             x1 = centro - linha_largura / 2
             x2 = centro + linha_largura / 2
             
-            # Linha para assinar
             canvas.setStrokeColor(colors.black)
             canvas.setLineWidth(1)
             canvas.line(x1, y_assinatura + 18, x2, y_assinatura + 18)
             
-            # Texto centralizado abaixo da linha
             canvas.setFont("Helvetica", 10)
             canvas.drawCentredString(centro, y_assinatura + 4, "Técnico Responsável")
             
-            # Data centralizada
             canvas.setFont("Helvetica", 8)
             canvas.drawCentredString(centro, y_assinatura - 12, f"Data: {dt.now().strftime('%d/%m/%Y %H:%M')}")
             
@@ -317,7 +317,11 @@ class RelatorioDialog(QDialog):
             
             canvas.setFont("Helvetica", 8)
             canvas.setFillColor(colors.gray)
+            
+            # canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
             canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
+
+            
             num_pagina = canvas.getPageNumber()
             canvas.drawRightString(largura - doc.rightMargin, y_divisoria - 12, f"Página {num_pagina}")
             canvas.restoreState()
@@ -325,7 +329,13 @@ class RelatorioDialog(QDialog):
         elements = []
         
         for idx, p in enumerate(printers):
-            elements.append(Spacer(1, 40))
+            if os.path.exists(logo_path):
+                img = Image(logo_path, width=4*cm, preserveAspectRatio=True)
+                img.hAlign = 'LEFT'
+                elements.append(img)
+                elements.append(Spacer(1, 12))
+            else:
+                elements.append(Spacer(1, 40))
             
             style_title = styles["Title"]
             style_title.textColor = cor_primaria
