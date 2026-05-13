@@ -1129,7 +1129,7 @@ class MainWindow(QMainWindow):
         return page
 
     def _editar_empresa(self, row, col):
-        """Abre diálogo para editar uma empresa"""
+        """Abre diálogo para editar uma empresa com aba de impressoras vinculadas"""
         nome_empresa = self.tabela_clientes.item(row, 0).text()
         empresa = self.session.query(Company).filter(Company.nome == nome_empresa).first()
         
@@ -1138,61 +1138,61 @@ class MainWindow(QMainWindow):
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"✏️ Editar Empresa: {empresa.nome}")
-        dialog.setFixedSize(500, 450)
+        dialog.setMinimumSize(600, 500)
         dialog.setStyleSheet("""
             QDialog { background-color: #1a1a2e; color: #e0e0e0; }
             QLabel { color: #c0c0d0; font-size: 12px; }
             QLineEdit { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; font-size: 13px; }
             QComboBox { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 8px; }
             QPushButton { border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; font-size: 12px; }
+            QTabWidget::pane { border: 1px solid #533483; background-color: #1a1a2e; border-radius: 8px; }
+            QTabBar::tab { background-color: #0f3460; color: #a0a0b0; padding: 10px 20px; border: 1px solid #533483; border-bottom: none; border-top-left-radius: 8px; border-top-right-radius: 8px; font-size: 13px; }
+            QTabBar::tab:selected { background-color: #1a1a2e; color: #e94560; font-weight: bold; }
+            QTableWidget { background-color: #0f3460; color: #e0e0e0; border: 1px solid #533483; border-radius: 8px; gridline-color: #1a1a3e; font-size: 12px; }
+            QTableWidget::item { padding: 6px; }
+            QHeaderView::section { background-color: #16213e; color: #89b4fa; font-weight: bold; padding: 8px; border: none; border-bottom: 1px solid #533483; }
         """)
         
-        layout = QFormLayout(dialog)
+        tabs = QTabWidget()
+        
+        # ========== TAB DADOS DA EMPRESA ==========
+        tab_dados = QWidget()
+        layout = QFormLayout(tab_dados)
         layout.setSpacing(8)
         
-        # Nome
         nome_input = QLineEdit(empresa.nome or "")
         layout.addRow("Nome:", nome_input)
         
-        # CNPJ
         cnpj_input = QLineEdit(empresa.cnpj or "")
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
         layout.addRow("CNPJ:", cnpj_input)
         
-        # Tipo
         tipo_combo = QComboBox()
         tipo_combo.addItems(["Cliente", "Filial", "Parceiro"])
         tipo_combo.setCurrentText(empresa.tipo or "cliente")
         layout.addRow("Tipo:", tipo_combo)
         
-        # Telefone
         tel_input = QLineEdit(empresa.telefone or "")
         tel_input.setPlaceholderText("(00) 00000-0000")
         layout.addRow("Telefone:", tel_input)
         
-        # Email
         email_input = QLineEdit(empresa.email or "")
         email_input.setPlaceholderText("email@empresa.com")
         layout.addRow("Email:", email_input)
         
-        # Endereço
         end_input = QLineEdit(empresa.endereco or "")
         end_input.setPlaceholderText("Rua/Av, número")
         layout.addRow("Endereço:", end_input)
         
-        # Cidade
         cidade_input = QLineEdit(empresa.cidade or "")
         cidade_input.setPlaceholderText("Cidade")
         layout.addRow("Cidade:", cidade_input)
         
-        # UF
         uf_input = QLineEdit(empresa.uf or "")
         uf_input.setPlaceholderText("UF")
         uf_input.setMaxLength(2)
         layout.addRow("UF:", uf_input)
         
-        # Observação
-        from PySide6.QtWidgets import QTextEdit
         obs_input = QTextEdit()
         obs_input.setMaximumHeight(60)
         obs_input.setPlainText(empresa.observacao or "")
@@ -1224,7 +1224,81 @@ class MainWindow(QMainWindow):
         btn_layout.addWidget(btn_cancelar)
         
         layout.addRow(btn_layout)
+        tabs.addTab(tab_dados, "📋 Dados")
+        
+        # ========== TAB IMPRESSORAS VINCULADAS ==========
+        tab_impressoras = QWidget()
+        imp_layout = QVBoxLayout(tab_impressoras)
+        
+        impressoras = self.session.query(Printer).filter(
+            Printer.local_atual == empresa.nome
+        ).order_by(Printer.patrimonio).all()
+        
+        imp_label = QLabel(f"🖨️ Impressoras em '{empresa.nome}' ({len(impressoras)})")
+        imp_label.setStyleSheet("color: #89b4fa; font-weight: bold; font-size: 14px;")
+        imp_layout.addWidget(imp_label)
+        
+        if impressoras:
+            imp_tabela = QTableWidget()
+            imp_tabela.setColumnCount(5)
+            imp_tabela.setHorizontalHeaderLabels(["Patrimônio", "Modelo", "Serial", "Status", "Última Revisão"])
+            imp_tabela.setRowCount(len(impressoras))
+            
+            for i, p in enumerate(impressoras):
+                imp_tabela.setItem(i, 0, QTableWidgetItem(p.patrimonio))
+                imp_tabela.setItem(i, 1, QTableWidgetItem(p.modelo))
+                imp_tabela.setItem(i, 2, QTableWidgetItem(p.serial or "-"))
+                
+                status_item = QTableWidgetItem(p.status)
+                if p.status in ["Operacional", "Em uso"]:
+                    status_item.setForeground(QColor("#a6e3a1"))
+                elif p.status in ["Em manutenção", "Manutenção", "Aguardando peça"]:
+                    status_item.setForeground(QColor("#f9e2af"))
+                elif p.status in ["Parada", "Sucata"]:
+                    status_item.setForeground(QColor("#f38ba8"))
+                imp_tabela.setItem(i, 3, status_item)
+                
+                rev_text = p.proxima_revisao.strftime("%d/%m/%Y") if p.proxima_revisao else "-"
+                imp_tabela.setItem(i, 4, QTableWidgetItem(rev_text))
+            
+            imp_tabela.horizontalHeader().setStretchLastSection(True)
+            imp_tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
+            imp_tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            imp_tabela.verticalHeader().setVisible(False)
+            imp_tabela.resizeColumnsToContents()
+            
+            # Duplo clique abre detalhes da impressora
+            imp_tabela.cellDoubleClicked.connect(lambda r, c: self._abrir_detalhes_impressora_por_patrimonio(
+                imp_tabela.item(r, 0).text(), dialog
+            ))
+            
+            imp_layout.addWidget(imp_tabela)
+        else:
+            sem = QLabel("Nenhuma impressora vinculada a esta empresa.")
+            sem.setStyleSheet("color: #a0a0b0; font-size: 13px; padding: 30px;")
+            sem.setAlignment(Qt.AlignCenter)
+            imp_layout.addWidget(sem)
+        
+        tabs.addTab(tab_impressoras, "🖨️ Impressoras")
+        
+        main_layout = QVBoxLayout(dialog)
+        main_layout.addWidget(tabs)
         dialog.exec()
+
+    def _abrir_detalhes_impressora_por_patrimonio(self, patrimonio, parent_dialog):
+        """Abre detalhes da impressora pelo patrimônio"""
+        printer = self.session.query(Printer).filter(Printer.patrimonio == patrimonio).first()
+        if not printer:
+            return
+        
+        # Fecha o diálogo atual
+        parent_dialog.accept()
+        
+        # Encontra a impressora na tabela principal e abre
+        for row in range(self.tabela.rowCount()):
+            if self.tabela.item(row, 0).text() == patrimonio:
+                self._abrir_detalhes_impressora(row, 0)
+                break
 
     def _salvar_edicao_empresa(self, dialog, empresa, nome, cnpj, tipo, telefone, email, endereco, cidade, uf, obs):
         nome_antigo = empresa.nome
