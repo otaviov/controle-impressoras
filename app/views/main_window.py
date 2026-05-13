@@ -475,7 +475,7 @@ class MainWindow(QMainWindow):
         layout.addRow("Local Atual:", local_combo)
         
         status_combo = QComboBox()
-        status_combo.addItems(["Operacional", "Em uso", "Em manutenção", "Manutenção", "Parada", "Aguardando peça", "Sucata"])
+        status_combo.addItems(["Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         layout.addRow("Status:", status_combo)
         ip_input = QLineEdit()
         ip_input.setPlaceholderText("192.168.0.100")
@@ -557,7 +557,7 @@ class MainWindow(QMainWindow):
         # Status
         dados_layout.addWidget(QLabel("Status:"), 0, 2)
         status_combo = QComboBox()
-        status_combo.addItems(["Operacional", "Em uso", "Em manutenção", "Manutenção", "Parada", "Aguardando peça", "Sucata"])
+        status_combo.addItems(["Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         status_combo.setCurrentText(printer.status or "Operacional")
         status_combo.setEnabled(False)
         dados_layout.addWidget(status_combo, 0, 3)
