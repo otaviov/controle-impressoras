@@ -12,6 +12,13 @@ print(f"📁 Banco: {DB_PATH}")
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Controle de Impressoras Pro")
+
+    # Carrega tema premium
+    import os
+    _theme_path = os.path.join(os.path.dirname(__file__), "themes", "dark_premium.qss")
+    if os.path.exists(_theme_path):
+        with open(_theme_path, "r", encoding="utf-8") as _f:
+            app.setStyleSheet(_f.read())
     
     # Tela de Login
     from app.views.login_dialog import LoginDialog

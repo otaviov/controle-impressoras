@@ -74,11 +74,24 @@ class LoginDialog(QDialog):
         card_layout.setSpacing(7)
         card_layout.setAlignment(Qt.AlignCenter)
         
-        # ÍCONE
-        icon = QLabel("🖨️")
-        icon.setAlignment(Qt.AlignCenter)
-        icon.setStyleSheet("font-size: 40px; background: transparent; border: none;")
-        card_layout.addWidget(icon)
+        # Logo Brasil Toner
+        import os
+        from PySide6.QtGui import QPixmap
+        _logo_path = Path(__file__).parent.parent.parent / "1.PNG"
+        if not _logo_path.exists():
+            _logo_path = Path(__file__).parent.parent.parent / "1.png"
+        if _logo_path.exists():
+            logo_lbl = QLabel()
+            pix = QPixmap(str(_logo_path)).scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_lbl.setPixmap(pix)
+            logo_lbl.setAlignment(Qt.AlignCenter)
+            logo_lbl.setStyleSheet("background: transparent; border: none;")
+            card_layout.addWidget(logo_lbl)
+        else:
+            icon = QLabel("🖨️")
+            icon.setAlignment(Qt.AlignCenter)
+            icon.setStyleSheet("font-size: 40px; background: transparent; border: none;")
+            card_layout.addWidget(icon)
         
         # TITULO 
         title = QLabel("Impressoras Brasil Toner")

@@ -46,13 +46,39 @@ class MainWindow(QMainWindow):
         sidebar_layout.setContentsMargins(10, 15, 10, 15)
         sidebar_layout.setSpacing(3)
         
-        logo = QLabel("🖨️  CONTROLE DE\n   IMPRESSORAS")
-        logo.setStyleSheet("color: #e94560; font-size: 14px; font-weight: bold; background: transparent; padding: 10px 5px;")
-        sidebar_layout.addWidget(logo)
+        # Logo Brasil Toner
+        import os
+        logo_frame = QFrame()
+        logo_frame.setStyleSheet("background: transparent; border: none;")
+        logo_frame_layout = QHBoxLayout(logo_frame)
+        logo_frame_layout.setContentsMargins(10, 10, 10, 14)
+        logo_frame_layout.setSpacing(10)
+        _logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "1.PNG")
+        if not os.path.exists(_logo_path):
+            _logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "1.png")
+        if os.path.exists(_logo_path):
+            from PySide6.QtGui import QPixmap
+            logo_img = QLabel()
+            pix = QPixmap(_logo_path).scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_img.setPixmap(pix)
+            logo_img.setStyleSheet("background: transparent; border: none;")
+            logo_frame_layout.addWidget(logo_img)
+        logo_text_widget = QLabel("CONTROLE DE\nIMPRESSORA")
+        logo_text_widget.setStyleSheet(
+            "color: #e2e8f0; font-size: 11px; font-weight: 700;"
+            " background: transparent; letter-spacing: 0.3px; line-height: 1.4;"
+        )
+        logo_frame_layout.addWidget(logo_text_widget)
+        logo_frame_layout.addStretch()
+        sidebar_layout.addWidget(logo_frame)
+        sep_logo = QFrame()
+        sep_logo.setFrameShape(QFrame.HLine)
+        sep_logo.setStyleSheet("background-color: #1a1a2a; max-height: 1px;")
+        sidebar_layout.addWidget(sep_logo)
         
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: #533483; max-height: 1px;")
+        sep.setStyleSheet("background-color: #1a1a2a; max-height: 1px;")
         sidebar_layout.addWidget(sep)
         sidebar_layout.addSpacing(8)
         
@@ -84,9 +110,30 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(sep2)
         sidebar_layout.addSpacing(5)
         
-        user_info = QLabel(f"👤 {self.user['nome']}\n🔒 {self.user['perfil']}")
-        user_info.setStyleSheet("color: #a0a0b0; font-size: 11px; background: transparent; padding: 5px;")
-        sidebar_layout.addWidget(user_info)
+        # Card de usuário no rodapé da sidebar
+        user_frame = QFrame()
+        user_frame.setStyleSheet(
+            "QFrame { background-color: #141422; border: 1px solid #1e1e30;"
+            " border-radius: 8px; padding: 4px; }"
+        )
+        user_frame_layout = QHBoxLayout(user_frame)
+        user_frame_layout.setContentsMargins(8, 6, 8, 6)
+        user_frame_layout.setSpacing(8)
+        avatar = QLabel(self.user["nome"][:2].upper())
+        avatar.setFixedSize(28, 28)
+        avatar.setAlignment(Qt.AlignCenter)
+        avatar.setStyleSheet(
+            "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #7c3aed,stop:1 #e94560);"
+            " color: white; border-radius: 14px; font-size: 10px; font-weight: 700;"
+        )
+        user_frame_layout.addWidget(avatar)
+        user_text = QLabel(f"{self.user['nome']}\n{self.user['perfil'].capitalize()}")
+        user_text.setStyleSheet(
+            "color: #8888aa; font-size: 10px; background: transparent; border: none;"
+        )
+        user_frame_layout.addWidget(user_text)
+        user_frame_layout.addStretch()
+        sidebar_layout.addWidget(user_frame)
         
         btn_sair = QPushButton("🚪 Sair")
         btn_sair.setCursor(Qt.PointingHandCursor)
@@ -118,8 +165,14 @@ class MainWindow(QMainWindow):
         btn = QPushButton(f"{icone}  {texto}")
         btn.setCheckable(True)
         btn.setCursor(Qt.PointingHandCursor)
-        btn.setMinimumHeight(40)
-        btn.setStyleSheet("QPushButton { background: transparent; color: #c0c0d0; border: none; text-align: left; font-size: 13px; padding: 10px 14px; border-radius: 8px; } QPushButton:hover { background-color: #1a1a3e; color: #ffffff; } QPushButton:checked { background-color: #e94560; color: white; font-weight: bold; }")
+        btn.setMinimumHeight(42)
+        btn.setObjectName("menuBtn")
+        btn.setStyleSheet(
+            "QPushButton#menuBtn { background: transparent; color: #4a4a6a; border: none;"
+            " text-align: left; font-size: 12pt; padding: 9px 14px; border-radius: 8px; font-weight: 500; }"
+            " QPushButton#menuBtn:hover { background-color: #141428; color: #8888aa; }"
+            " QPushButton#menuBtn:checked { background-color: #1e1040; color: #a78bfa; font-weight: 700; }"
+        )
         return btn
     
     def _trocar_pagina(self, index):
@@ -1077,11 +1130,21 @@ class MainWindow(QMainWindow):
         if filtro_tipo and filtro_tipo != "TODAS":
             query = query.filter(Activity.kind == filtro_tipo)
         atividades = query.limit(200).all()
+
+        # PERF FIX: carrega todas as impressoras de uma vez (dict id→patrimônio)
+        printer_ids = list({a.printer_id for a in atividades if a.printer_id})
+        printers_map = {}
+        if printer_ids:
+            printers_map = {
+                p.id: p.patrimonio
+                for p in self.session.query(Printer.id, Printer.patrimonio)
+                .filter(Printer.id.in_(printer_ids)).all()
+            }
+
         self.tabela_os.setRowCount(len(atividades))
         for i, a in enumerate(atividades):
             self.tabela_os.setItem(i, 0, QTableWidgetItem(a.event_at.strftime("%d/%m/%Y %H:%M") if a.event_at else "-"))
-            printer = self.session.query(Printer).filter(Printer.id == a.printer_id).first()
-            self.tabela_os.setItem(i, 1, QTableWidgetItem(printer.patrimonio if printer else "?"))
+            self.tabela_os.setItem(i, 1, QTableWidgetItem(printers_map.get(a.printer_id, "?")))
             if a.kind == "MANUTENCAO":
                 tipo_texto = "🔧 Manutenção"
                 cor = QColor("#f9e2af")
@@ -1443,8 +1506,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(cards_layout)
         layout.addSpacing(10)
         self.tabela_pecas = QTableWidget()
-        self.tabela_pecas.setColumnCount(4)
-        self.tabela_pecas.setHorizontalHeaderLabels(["Código", "Nome", "Descrição", "Estoque"])
+        self.tabela_pecas.setColumnCount(5)  # FIX: era 4, faltava coluna Estoque
+        self.tabela_pecas.setHorizontalHeaderLabels(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque"])
         self.tabela_pecas.setStyleSheet("QTableWidget { background-color: #0f3460; color: #e0e0e0; border: 1px solid #533483; border-radius: 10px; gridline-color: #1a1a3e; selection-background-color: #533483; font-size: 13px; } QTableWidget::item { padding: 8px; } QTableWidget::item:hover { background-color: #1a1a4e; } QTableWidget::item:selected { background-color: #533483; color: white; } QHeaderView::section { background-color: #16213e; color: #89b4fa; font-weight: bold; padding: 10px 8px; border: none; border-bottom: 2px solid #e94560; font-size: 12px; }")
         self.tabela_pecas.horizontalHeader().setStretchLastSection(True)
         self.tabela_pecas.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -1567,8 +1630,14 @@ class MainWindow(QMainWindow):
 
     def _editar_peca(self, row, col):
         """Abre diálogo para editar/excluir uma peça"""
-        nome_peca = self.tabela_pecas.item(row, 1).text()
-        peca = self.session.query(Part).filter(Part.nome == nome_peca).first()
+        # FIX: busca por código (coluna 0) pra evitar conflito entre peças com mesmo nome
+        codigo_peca = self.tabela_pecas.item(row, 0).text()
+        nome_peca   = self.tabela_pecas.item(row, 1).text()
+        peca = None
+        if codigo_peca and codigo_peca != '-':
+            peca = self.session.query(Part).filter(Part.codigo == codigo_peca).first()
+        if not peca:
+            peca = self.session.query(Part).filter(Part.nome == nome_peca).first()
         
         if not peca:
             return
@@ -1786,11 +1855,21 @@ class MainWindow(QMainWindow):
     
     def _carregar_tabela_transferencias(self):
         atividades = self.session.query(Activity).filter(Activity.kind == "MOVIMENTACAO").order_by(Activity.event_at.desc()).limit(100).all()
+
+        # PERF FIX: carrega todas as impressoras de uma vez
+        printer_ids = list({a.printer_id for a in atividades if a.printer_id})
+        printers_map = {}
+        if printer_ids:
+            printers_map = {
+                p.id: p.patrimonio
+                for p in self.session.query(Printer.id, Printer.patrimonio)
+                .filter(Printer.id.in_(printer_ids)).all()
+            }
+
         self.tabela_transf.setRowCount(len(atividades))
         for i, a in enumerate(atividades):
             self.tabela_transf.setItem(i, 0, QTableWidgetItem(a.event_at.strftime("%d/%m/%Y %H:%M") if a.event_at else "-"))
-            printer = self.session.query(Printer).filter(Printer.id == a.printer_id).first()
-            pat = printer.patrimonio if printer else "?"
+            pat = printers_map.get(a.printer_id, "?")
             self.tabela_transf.setItem(i, 1, QTableWidgetItem(pat))
             self.tabela_transf.setItem(i, 2, QTableWidgetItem(a.from_location or "-"))
             dest_item = QTableWidgetItem(a.to_location or "-")
@@ -2564,11 +2643,18 @@ class MainWindow(QMainWindow):
             dialog.accept()
     
     def carregar_dados(self):
-        total = self.session.query(Printer).count()
+        from sqlalchemy import func
+        # PERF FIX: 1 query GROUP BY no lugar de 3 COUNT separados
+        status_counts_raw = (
+            self.session.query(Printer.status, func.count(Printer.id))
+            .group_by(Printer.status).all()
+        )
+        status_counts = {s: c for s, c in status_counts_raw}
         status_manutencao = ["Em manutenção", "Manutenção", "Aguardando peça", "Parada"]
-        em_manutencao = self.session.query(Printer).filter(Printer.status.in_(status_manutencao)).count()
         status_operacional = ["Operacional", "Em uso"]
-        operacionais = self.session.query(Printer).filter(Printer.status.in_(status_operacional)).count()
+        total          = sum(status_counts.values())
+        em_manutencao  = sum(status_counts.get(s, 0) for s in status_manutencao)
+        operacionais   = sum(status_counts.get(s, 0) for s in status_operacional)
         total_activities = self.session.query(Activity).count()
         self._atualizar_card(self.card_total, str(total))
         self._atualizar_card(self.card_manut, str(em_manutencao))
@@ -2577,11 +2663,25 @@ class MainWindow(QMainWindow):
         self._carregar_tabela_impressoras()
     
     def _carregar_tabela_impressoras(self, filtro=None):
+        from sqlalchemy import func
         query = self.session.query(Printer)
         if filtro:
             f = f"%{filtro}%"
             query = query.filter(Printer.patrimonio.like(f) | Printer.modelo.like(f) | Printer.serial.like(f) | Printer.local_atual.like(f) | Printer.marca.like(f))
         impressoras = query.order_by(Printer.patrimonio).all()
+
+        # PERF FIX: 1 query GROUP BY no lugar de 1 query por impressora
+        ids = [p.id for p in impressoras]
+        counts_raw = []
+        if ids:
+            counts_raw = (
+                self.session.query(Activity.printer_id, func.count(Activity.id))
+                .filter(Activity.printer_id.in_(ids))
+                .group_by(Activity.printer_id)
+                .all()
+            )
+        counts = {pid: cnt for pid, cnt in counts_raw}
+
         self.tabela.setRowCount(len(impressoras))
         for i, p in enumerate(impressoras):
             self.tabela.setItem(i, 0, QTableWidgetItem(p.patrimonio))
@@ -2600,8 +2700,7 @@ class MainWindow(QMainWindow):
                 status_item.setForeground(QColor("#a0a0b0"))
             self.tabela.setItem(i, 4, status_item)
             self.tabela.setItem(i, 5, QTableWidgetItem(p.local_atual or "-"))
-            num = self.session.query(Activity).filter(Activity.printer_id == p.id).count()
-            self.tabela.setItem(i, 6, QTableWidgetItem(str(num)))
+            self.tabela.setItem(i, 6, QTableWidgetItem(str(counts.get(p.id, 0))))
         self.tabela.resizeColumnsToContents()
         self.tabela.setColumnWidth(5, 200)
     
@@ -2751,16 +2850,42 @@ class MainWindow(QMainWindow):
         fig = Figure(figsize=(5, 4), facecolor='#1a1a2e')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#1a1a2e')
-        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai']
-        manut = [5, 15, 25, 10, 8]
-        mov = [3, 8, 15, 5, 4]
-        ax.plot(meses, manut, 'o-', color='#f9e2af', linewidth=2, markersize=6, label='Manutenções')
-        ax.plot(meses, mov, 's-', color='#89b4fa', linewidth=2, markersize=6, label='Movimentações')
-        ax.fill_between(range(len(meses)), manut, alpha=0.2, color='#f9e2af')
-        ax.fill_between(range(len(meses)), mov, alpha=0.2, color='#89b4fa')
+        # FIX: dados reais do banco nos últimos 6 meses
+        from models import Activity
+        from datetime import datetime as _dt, timedelta
+        import calendar
+        hoje = _dt.now()
+        meses_ref = []
+        labels = []
+        for i in range(5, -1, -1):
+            mes_n = hoje.month - i
+            ano_n = hoje.year
+            while mes_n <= 0:
+                mes_n += 12
+                ano_n -= 1
+            meses_ref.append((ano_n, mes_n))
+            labels.append(calendar.month_abbr[mes_n])
+        manut = []
+        mov = []
+        for ano_n, mes_n in meses_ref:
+            inicio = _dt(ano_n, mes_n, 1)
+            fim = _dt(ano_n + 1, 1, 1) if mes_n == 12 else _dt(ano_n, mes_n + 1, 1)
+            manut.append(self.session.query(Activity).filter(
+                Activity.kind == 'MANUTENCAO',
+                Activity.event_at >= inicio, Activity.event_at < fim).count())
+            mov.append(self.session.query(Activity).filter(
+                Activity.kind == 'MOVIMENTACAO',
+                Activity.event_at >= inicio, Activity.event_at < fim).count())
+        x = list(range(len(labels)))
+        ax.plot(x, manut, 'o-', color='#f9e2af', linewidth=2, markersize=6, label='Manutenções')
+        ax.plot(x, mov,   's-', color='#89b4fa', linewidth=2, markersize=6, label='Movimentações')
+        ax.fill_between(x, manut, alpha=0.2, color='#f9e2af')
+        ax.fill_between(x, mov,   alpha=0.2, color='#89b4fa')
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
         ax.legend(frameon=False, fontsize=8, labelcolor='white')
         ax.tick_params(colors='white')
-        ax.set_title('Atividades por Mês', color='#e94560', fontsize=12, fontweight='bold', pad=15)
+        ax.set_title('Atividades por Mês (últimos 6 meses)', color='#e94560', fontsize=12, fontweight='bold', pad=15)
         ax.spines['bottom'].set_color('#533483')
         ax.spines['left'].set_color('#533483')
         ax.spines['top'].set_visible(False)
