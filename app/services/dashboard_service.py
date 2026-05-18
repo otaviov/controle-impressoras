@@ -1,4 +1,4 @@
-from models import Printer, Activity
+from app.models import Printer, Activity
 from app.views.styles.theme import STATUS_MANUTENCAO, STATUS_OPERACIONAL
 
 

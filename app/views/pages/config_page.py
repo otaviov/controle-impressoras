@@ -1,10 +1,9 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QDialogButtonBox, QMessageBox, QGroupBox)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidgetItem, QDialog, QFormLayout, QLineEdit, QComboBox, QDialogButtonBox, QMessageBox, QFrame)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from pathlib import Path
 import shutil
 from datetime import datetime
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_DIALOG)
+from app.views.styles.theme import (ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_INPUT_READONLY, ESTILO_COMBO, ESTILO_DIALOG)
 from app.views.widgets.table_widget import TabelaPadrao
 from config import DB_PATH
 
@@ -21,24 +20,28 @@ class ConfigPage(QWidget):
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setSpacing(0)
 
-        titulo = QLabel("\u2699\ufe0f Configurações do Sistema")
+        titulo = QLabel("⚙️ Configurações do Sistema")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
         layout.addWidget(titulo)
 
-        subtitulo = QLabel("Gerenciamento de usuários (apenas administradores)")
+        subtitulo = QLabel("Gerenciamento de usuários e manutenção do banco de dados")
         subtitulo.setStyleSheet(ESTILO_SUBTITULO)
         layout.addWidget(subtitulo)
 
-        grupo_usuarios = QGroupBox("\U0001f465 Usuários do Sistema")
-        grupo_usuarios.setStyleSheet("QGroupBox { color: #89b4fa; font-size: 14px; font-weight: bold; border: 1px solid #533483; border-radius: 10px; margin-top: 20px; padding: 20px 15px 15px 15px; } QGroupBox::title { subcontrol-origin: margin; left: 15px; padding: 0 5px; }")
-        layout_grupo = QVBoxLayout(grupo_usuarios)
-        layout_grupo.setSpacing(12)
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("background-color: #45475a; max-height: 1px; margin: 16px 0;")
+        layout.addWidget(sep)
+
+        # ── Seção Usuários ────────────────────────────────────
+        secao_titulo = QLabel("👥 Usuários do Sistema")
+        secao_titulo.setStyleSheet("color: #89b4fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
+        layout.addWidget(secao_titulo)
 
         self.tabela = TabelaPadrao(["Nome", "Usuário", "Email", "Perfil", "Ativo"])
-        self.tabela.setAlternatingRowColors(True)
-        layout_grupo.addWidget(self.tabela)
+        layout.addWidget(self.tabela)
 
         botoes_layout = QHBoxLayout()
         botoes_layout.setSpacing(10)
@@ -48,38 +51,39 @@ class ConfigPage(QWidget):
         self.btn_novo.clicked.connect(self._novo_usuario)
         botoes_layout.addWidget(self.btn_novo)
 
-        self.btn_editar = QPushButton("✏️ Editar Usuário")
+        self.btn_editar = QPushButton("✏️ Editar")
         self.btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
         self.btn_editar.clicked.connect(self._editar_usuario)
         botoes_layout.addWidget(self.btn_editar)
 
         botoes_layout.addStretch()
-        layout_grupo.addLayout(botoes_layout)
+        layout.addLayout(botoes_layout)
 
-        layout.addWidget(grupo_usuarios)
+        layout.addSpacing(20)
 
-        grupo_backup = QGroupBox("\U0001f4be Backup do Banco de Dados")
-        grupo_backup.setStyleSheet("QGroupBox { color: #89b4fa; font-size: 14px; font-weight: bold; border: 1px solid #533483; border-radius: 10px; margin-top: 20px; padding: 20px 15px 15px 15px; } QGroupBox::title { subcontrol-origin: margin; left: 15px; padding: 0 5px; }")
-        layout_backup = QVBoxLayout(grupo_backup)
-        layout_backup.setSpacing(12)
+        # ── Seção Backup ──────────────────────────────────────
+        secao_titulo2 = QLabel("💾 Backup do Banco de Dados")
+        secao_titulo2.setStyleSheet("color: #89b4fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
+        layout.addWidget(secao_titulo2)
 
-        self.btn_backup = QPushButton("\U0001f4e6 Fazer Backup Agora")
-        self.btn_backup.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #89b4fa; color: #1a1a2e;
-                border: none; border-radius: 8px;
-                padding: 10px 20px; font-size: 13px; font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #7aa8f0; }}
+        self.btn_backup = QPushButton("📦 Fazer Backup Agora")
+        self.btn_backup.setMinimumHeight(48)
+        self.btn_backup.setCursor(Qt.PointingHandCursor)
+        self.btn_backup.setStyleSheet("""
+            QPushButton {
+                background-color: #cba6f7; color: #1e1e2e;
+                border: none; border-radius: 10px;
+                padding: 14px 24px; font-size: 14px; font-weight: 700;
+            }
+            QPushButton:hover { background-color: #b4befe; }
         """)
         self.btn_backup.clicked.connect(self._fazer_backup)
-        layout_backup.addWidget(self.btn_backup)
+        layout.addWidget(self.btn_backup)
 
         self.label_backup = QLabel("")
-        self.label_backup.setStyleSheet("color: #a0a0b0; font-size: 12px; background: transparent;")
-        layout_backup.addWidget(self.label_backup)
+        self.label_backup.setStyleSheet("color: #6c7086; font-size: 12px; background: transparent; padding: 6px 0;")
+        layout.addWidget(self.label_backup)
 
-        layout.addWidget(grupo_backup)
         layout.addStretch()
 
     def recarregar(self):
@@ -91,15 +95,11 @@ class ConfigPage(QWidget):
             self.tabela.setItem(i, 1, QTableWidgetItem(u.username))
             self.tabela.setItem(i, 2, QTableWidgetItem(u.email))
 
-            perfil_texto = u.perfil.capitalize()
-            cor_perfil = COR.get("destaque", "#e94560") if u.perfil == "admin" else COR.get("azul", "#89b4fa")
-            perfil_item = self.tabela.item_colorido(perfil_texto, cor_perfil)
-            self.tabela.setItem(i, 3, perfil_item)
+            cor_perfil = "#cba6f7" if u.perfil == "admin" else "#89b4fa"
+            self.tabela.definir_badge(i, 3, u.perfil.capitalize(), cor_perfil)
 
-            ativo_texto = "Sim" if u.ativo else "Não"
-            cor_ativo = COR.get("sucesso", "#a6e3a1") if u.ativo else COR.get("status_inativo", "#6b7280")
-            ativo_item = self.tabela.item_colorido(ativo_texto, cor_ativo)
-            self.tabela.setItem(i, 4, ativo_item)
+            cor_ativo = "#a6e3a1" if u.ativo else "#6c7086"
+            self.tabela.definir_badge(i, 4, "Sim" if u.ativo else "Não", cor_ativo)
 
         self.tabela.redimensionar()
 
@@ -129,11 +129,11 @@ class ConfigPage(QWidget):
             nome_arquivo = f"backup_{timestamp}.db"
             destino = backup_dir / nome_arquivo
             shutil.copy2(str(DB_PATH), str(destino))
-            self.label_backup.setStyleSheet("color: #a6e3a1; font-size: 12px; background: transparent;")
+            self.label_backup.setStyleSheet("color: #a6e3a1; font-size: 12px; background: transparent; padding: 6px 0;")
             self.label_backup.setText(f"Backup criado: {nome_arquivo}")
         except Exception as e:
-            self.label_backup.setStyleSheet("color: #f38ba8; font-size: 12px; background: transparent;")
-            self.label_backup.setText(f"Erro ao criar backup: {e}")
+            self.label_backup.setStyleSheet("color: #f38ba8; font-size: 12px; background: transparent; padding: 6px 0;")
+            self.label_backup.setText(f"Erro: {e}")
 
 
 class _UserDialog(QDialog):
@@ -172,13 +172,7 @@ class _UserDialog(QDialog):
             self.input_username.setText(self.usuario.username)
         if self.modo == "editar":
             self.input_username.setReadOnly(True)
-            self.input_username.setStyleSheet("""
-                QLineEdit {
-                    background-color: #16213e; color: #a0a0b0;
-                    border: 1px solid #313244; border-radius: 6px;
-                    padding: 8px; font-size: 13px;
-                }
-            """)
+            self.input_username.setStyleSheet(ESTILO_INPUT_READONLY)
         form.addRow("Usuário:", self.input_username)
 
         self.input_email = QLineEdit()
@@ -227,26 +221,20 @@ class _UserDialog(QDialog):
 
         if not nome:
             QMessageBox.warning(self, "Validação", "O campo Nome é obrigatório.")
-            self.input_nome.setFocus()
             return
         if not username:
             QMessageBox.warning(self, "Validação", "O campo Usuário é obrigatório.")
-            self.input_username.setFocus()
             return
         if not email:
             QMessageBox.warning(self, "Validação", "O campo Email é obrigatório.")
-            self.input_email.setFocus()
             return
-
         if self.modo == "novo" and not senha:
             QMessageBox.warning(self, "Validação", "O campo Senha é obrigatório.")
-            self.input_senha.setFocus()
             return
 
         if self.modo == "novo":
-            existente = self.user_service.verificar_existente(email, username)
-            if existente:
-                QMessageBox.warning(self, "Validação", "Já existe um usuário com este email ou nome de usuário.")
+            if self.user_service.verificar_existente(email, username):
+                QMessageBox.warning(self, "Validação", "Usuário já existe.")
                 return
             self.user_service.criar(nome, username, email, senha, perfil)
         else:

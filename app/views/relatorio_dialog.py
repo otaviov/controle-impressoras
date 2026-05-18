@@ -7,6 +7,20 @@ from PySide6.QtCore import Qt
 from datetime import datetime as dt
 import os
 
+
+BG = '#1e1e2e'
+CARD = '#313244'
+BORDA = '#585b70'
+TEXTO = '#cdd6f4'
+TEXTO_SEC = '#6c7086'
+AZUL = '#89b4fa'
+VERDE = '#a6e3a1'
+AMARELO = '#f9e2af'
+ROXO = '#cba6f7'
+VERMELHO = '#f38ba8'
+ROXO_BTN = '#cba6f7'
+
+
 class RelatorioDialog(QDialog):
     def __init__(self, session, parent=None):
         super().__init__(parent)
@@ -14,84 +28,83 @@ class RelatorioDialog(QDialog):
         self.setWindowTitle("📊 Gerar Relatório")
         self.setMinimumSize(480, 580)
         self.setMaximumSize(480, 750)
-        self.setStyleSheet("""
-            QDialog { background-color: #1a1a2e; }
-            QLabel { color: #c0c0d0; font-size: 12px; background: transparent; }
-            QGroupBox { 
-                color: #89b4fa; font-weight: bold; 
-                border: 2px solid #533483; border-radius: 10px; 
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: {BG}; }}
+            QLabel {{ color: {TEXTO}; font-size: 12px; background: transparent; }}
+            QGroupBox {{ 
+                color: {AZUL}; font-weight: bold; 
+                border: 1px solid {BORDA}; border-radius: 10px; 
                 margin-top: 12px; padding: 18px 12px 12px 12px; 
-                font-size: 14px; background-color: #1a1a2e;
-            }
-            QGroupBox::title { 
+                font-size: 14px; background-color: {BG};
+            }}
+            QGroupBox::title {{ 
                 subcontrol-origin: margin; left: 12px; padding: 0 8px; 
-                background-color: #1a1a2e; color: #89b4fa;
-            }
-            QRadioButton, QCheckBox { 
-                color: #e0e0e0; font-size: 13px; spacing: 8px; 
+                background-color: {BG}; color: {AZUL};
+            }}
+            QRadioButton, QCheckBox {{ 
+                color: {TEXTO}; font-size: 13px; spacing: 8px; 
                 padding: 4px 2px; background: transparent;
-            }
-            QRadioButton::indicator, QCheckBox::indicator {
+            }}
+            QRadioButton::indicator, QCheckBox::indicator {{
                 width: 16px; height: 16px; 
-                border: 2px solid #89b4fa; 
-                background-color: #0f3460;
-            }
-            QRadioButton::indicator { border-radius: 8px; }
-            QCheckBox::indicator { border-radius: 3px; }
-            QRadioButton::indicator:checked, QCheckBox::indicator:checked {
-                background-color: #e94560; border-color: #e94560;
-            }
-            QComboBox { 
-                background-color: #0f3460; color: white; 
-                border: 2px solid #533483; border-radius: 6px; 
+                border: 2px solid {BORDA}; 
+                background-color: {CARD};
+            }}
+            QRadioButton::indicator {{ border-radius: 8px; }}
+            QCheckBox::indicator {{ border-radius: 3px; }}
+            QRadioButton::indicator:checked, QCheckBox::indicator:checked {{
+                background-color: {ROXO_BTN}; border-color: {ROXO_BTN};
+            }}
+            QComboBox {{ 
+                background-color: {CARD}; color: {TEXTO}; 
+                border: 1px solid {BORDA}; border-radius: 6px; 
                 padding: 7px 12px; font-size: 13px; min-height: 20px;
-            }
-            QComboBox:hover { border-color: #89b4fa; }
-            QComboBox QAbstractItemView {
-                background-color: #0f3460; color: white;
-                selection-background-color: #533483;
-                border: 1px solid #533483; outline: none;
-            }
-            QComboBox QAbstractItemView::item { padding: 6px 12px; }
-            QComboBox QAbstractItemView::item:hover { background-color: #e94560; }
-            QLineEdit { 
-                background-color: #0f3460; color: white; 
-                border: 2px solid #533483; border-radius: 6px; 
+            }}
+            QComboBox:hover {{ border-color: {AZUL}; }}
+            QComboBox QAbstractItemView {{
+                background-color: {CARD}; color: {TEXTO};
+                selection-background-color: {ROXO_BTN};
+                border: 1px solid {BORDA}; outline: none;
+            }}
+            QComboBox QAbstractItemView::item {{ padding: 6px 12px; }}
+            QComboBox QAbstractItemView::item:hover {{ background-color: {ROXO_BTN}; }}
+            QLineEdit {{ 
+                background-color: {CARD}; color: {TEXTO}; 
+                border: 1px solid {BORDA}; border-radius: 6px; 
                 padding: 7px 12px; font-size: 13px;
-            }
-            QLineEdit:hover { border-color: #89b4fa; }
-            QLineEdit:focus { border-color: #e94560; }
-            QPushButton { border: none; border-radius: 6px; padding: 10px 22px; font-size: 14px; font-weight: bold; }
-            QScrollArea { border: none; background-color: #1a1a2e; }
-            QScrollBar:vertical { background: #0f3460; width: 8px; border-radius: 4px; }
-            QScrollBar::handle:vertical { background: #533483; border-radius: 4px; min-height: 25px; }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
+            }}
+            QLineEdit:hover {{ border-color: {AZUL}; }}
+            QLineEdit:focus {{ border-color: {ROXO_BTN}; }}
+            QPushButton {{ border: none; border-radius: 6px; padding: 10px 22px; font-size: 14px; font-weight: bold; }}
+            QScrollArea {{ border: none; background-color: {BG}; }}
+            QScrollBar:vertical {{ background: {CARD}; width: 8px; border-radius: 4px; }}
+            QScrollBar::handle:vertical {{ background: {BORDA}; border-radius: 4px; min-height: 25px; }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
         """)
         self.init_ui()
-    
+
     def init_ui(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { background-color: #1a1a2e; border: none; }")
-        
+        scroll.setStyleSheet(f"QScrollArea {{ background-color: {BG}; border: none; }}")
+
         container = QWidget()
-        container.setStyleSheet("background-color: #1a1a2e;")
+        container.setStyleSheet(f"background-color: {BG};")
         layout = QVBoxLayout(container)
         layout.setSpacing(8)
         layout.setContentsMargins(20, 20, 20, 20)
-        
+
         titulo = QLabel("📊 Configurações do Relatório")
-        titulo.setStyleSheet("color: #e94560; font-size: 18px; font-weight: bold; background: transparent;")
+        titulo.setStyleSheet(f"color: {ROXO}; font-size: 18px; font-weight: bold; background: transparent;")
         titulo.setAlignment(Qt.AlignCenter)
         layout.addWidget(titulo)
-        
+
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: #533483; max-height: 2px;")
+        sep.setStyleSheet(f"background-color: {BORDA}; max-height: 1px;")
         layout.addWidget(sep)
         layout.addSpacing(5)
-        
-        # TIPO DE RELATÓRIO
+
         grupo_tipo = QGroupBox("Tipo de Relatório")
         tipo_layout = QVBoxLayout(grupo_tipo)
         tipo_layout.setSpacing(6)
@@ -101,46 +114,44 @@ class RelatorioDialog(QDialog):
         tipo_layout.addWidget(self.rb_impressoras)
         tipo_layout.addWidget(self.rb_atividades)
         layout.addWidget(grupo_tipo)
-        
-        # FILTROS
+
         grupo_filtro = QGroupBox("🔍 Filtros")
         filtro_layout = QVBoxLayout(grupo_filtro)
         filtro_layout.setSpacing(8)
-        
+
         filtro_layout.addWidget(QLabel("Status da Impressora:"))
         self.status_combo = QComboBox()
         self.status_combo.addItems(["Todos", "Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         self.status_combo.currentTextChanged.connect(self._atualizar_patrimonios)
         filtro_layout.addWidget(self.status_combo)
-        
+
         filtro_layout.addWidget(QLabel("Patrimônio Específico:"))
         self.pat_input = QLineEdit()
         self.pat_input.setPlaceholderText("Deixe em branco ou digite para buscar...")
         self.pat_input.textChanged.connect(self._ao_selecionar_patrimonio)
         filtro_layout.addWidget(self.pat_input)
-        
+
         filtro_layout.addWidget(QLabel("Modelo:"))
         self.modelo_combo = QComboBox()
         self.modelo_combo.addItem("Todos")
-        from models import Printer
+        from app.models import Printer
         modelos = self.session.query(Printer.modelo).filter(Printer.modelo != "").distinct().order_by(Printer.modelo).all()
         for m in modelos:
             if m[0]:
                 self.modelo_combo.addItem(m[0])
         filtro_layout.addWidget(self.modelo_combo)
-        
+
         filtro_layout.addWidget(QLabel("Local / Empresa:"))
         self.local_combo = QComboBox()
         self.local_combo.addItem("Todos")
-        from models import Company
+        from app.models import Company
         empresas = self.session.query(Company).order_by(Company.nome).all()
         for emp in empresas:
             self.local_combo.addItem(emp.nome)
         filtro_layout.addWidget(self.local_combo)
-        
+
         layout.addWidget(grupo_filtro)
-        
-        # FORMATO
+
         grupo_saida = QGroupBox("📁 Formato de Saída")
         saida_layout = QVBoxLayout(grupo_saida)
         saida_layout.setSpacing(6)
@@ -150,8 +161,7 @@ class RelatorioDialog(QDialog):
         saida_layout.addWidget(self.rb_pdf)
         saida_layout.addWidget(self.rb_excel)
         layout.addWidget(grupo_saida)
-        
-        # OPÇÕES
+
         grupo_extra = QGroupBox("⚙️ Opções Adicionais")
         extra_layout = QVBoxLayout(grupo_extra)
         extra_layout.setSpacing(6)
@@ -162,31 +172,33 @@ class RelatorioDialog(QDialog):
         extra_layout.addWidget(self.cb_abrir)
         layout.addWidget(grupo_extra)
         layout.addSpacing(10)
-        
-        # BOTÕES
+
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
-        btn_gerar = QPushButton("🚀 Gerar Relatório")
+        btn_layout.addStretch()
+        btn_gerar = QPushButton("🚀  Gerar Relatório")
         btn_gerar.setCursor(Qt.PointingHandCursor)
-        btn_gerar.setStyleSheet("QPushButton { background-color: #a6e3a1; color: #1a1a2e; } QPushButton:hover { background-color: #94d89f; }")
+        btn_gerar.setMinimumWidth(180)
+        btn_gerar.setStyleSheet(f"QPushButton {{ background-color: {VERDE}; color: #ffffff; padding: 10px 24px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ background-color: #2ea043; }}")
         btn_gerar.clicked.connect(self.gerar_relatorio)
         btn_layout.addWidget(btn_gerar)
         btn_cancelar = QPushButton("Cancelar")
         btn_cancelar.setCursor(Qt.PointingHandCursor)
-        btn_cancelar.setStyleSheet("QPushButton { background-color: #e94560; color: white; } QPushButton:hover { background-color: #d63850; }")
+        btn_cancelar.setStyleSheet(f"QPushButton {{ background-color: #45475a; color: {TEXTO}; padding: 10px 24px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ background-color: #585b70; }}")
         btn_cancelar.clicked.connect(self.reject)
         btn_layout.addWidget(btn_cancelar)
+        btn_layout.addStretch()
         layout.addLayout(btn_layout)
         layout.addSpacing(10)
-        
+
         scroll.setWidget(container)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll)
         self._atualizar_patrimonios()
-    
+
     def _atualizar_patrimonios(self):
-        from models import Printer
+        from app.models import Printer
         status = self.status_combo.currentText()
         query = self.session.query(Printer)
         if status != "Todos":
@@ -196,9 +208,9 @@ class RelatorioDialog(QDialog):
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.pat_input.setCompleter(completer)
-    
+
     def _ao_selecionar_patrimonio(self, texto):
-        from models import Printer
+        from app.models import Printer
         status = self.status_combo.currentText()
         query = self.session.query(Printer)
         if status != "Todos":
@@ -210,7 +222,7 @@ class RelatorioDialog(QDialog):
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.pat_input.setCompleter(completer)
-        
+
         if texto.strip():
             printer = self.session.query(Printer).filter(Printer.patrimonio == texto.strip()).first()
             if printer:
@@ -223,12 +235,12 @@ class RelatorioDialog(QDialog):
                 if printer.status:
                     idx = self.status_combo.findText(printer.status)
                     if idx >= 0: self.status_combo.setCurrentIndex(idx)
-    
+
     def gerar_relatorio(self):
         from PySide6.QtWidgets import QFileDialog, QMessageBox
         from app.services.relatorio_service import RelatorioService
-        from models import Printer, Activity
-        
+        from app.models import Printer, Activity
+
         status_filtro = self.status_combo.currentText()
         patrimonio = self.pat_input.text().strip()
         modelo = self.modelo_combo.currentText()
@@ -237,13 +249,13 @@ class RelatorioDialog(QDialog):
         detalhado = self.cb_detalhado.isChecked()
         abrir = self.cb_abrir.isChecked()
         tipo_rel = 'impressoras' if self.rb_impressoras.isChecked() else 'atividades'
-        
+
         sufixo = f"_{patrimonio}" if patrimonio else ""
         nome_padrao = f"relatorio_{tipo_rel}{sufixo}_{dt.now().strftime('%Y%m%d_%H%M%S')}.{formato}"
-        
+
         filepath, _ = QFileDialog.getSaveFileName(self, "Salvar Relatório", nome_padrao, f"{'PDF' if formato == 'pdf' else 'Excel'} (*.{formato})")
         if not filepath: return
-        
+
         try:
             if tipo_rel == 'impressoras':
                 query = self.session.query(Printer)
@@ -270,7 +282,7 @@ class RelatorioDialog(QDialog):
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório:\n\n{str(e)}")
-    
+
     def _gerar_pdf_detalhado(self, printers, filepath):
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -278,56 +290,51 @@ class RelatorioDialog(QDialog):
         from reportlab.lib.units import cm
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image, HRFlowable
         from reportlab.lib.enums import TA_CENTER
-        from models import Activity
-        
-        # Caminho da logo
+        from app.models import Activity
+
         logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logo.png")
-        
+
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=45)
         styles = getSampleStyleSheet()
         cor_primaria = colors.HexColor("#1A3C6C")
         cor_fundo_zebra = colors.HexColor("#F8F9FA")
-        
+
         def draw_footer(canvas, doc):
             canvas.saveState()
             largura, altura = A4
-            
-            # Linha de assinatura
+
             y_assinatura = 2.5 * cm
             centro = largura / 2
             linha_largura = 9 * cm
             x1 = centro - linha_largura / 2
             x2 = centro + linha_largura / 2
-            
+
             canvas.setStrokeColor(colors.black)
             canvas.setLineWidth(1)
             canvas.line(x1, y_assinatura + 18, x2, y_assinatura + 18)
-            
+
             canvas.setFont("Helvetica", 10)
             canvas.drawCentredString(centro, y_assinatura + 4, "Técnico Responsável")
-            
+
             canvas.setFont("Helvetica", 8)
             canvas.drawCentredString(centro, y_assinatura - 12, f"Data: {dt.now().strftime('%d/%m/%Y %H:%M')}")
-            
-            # Rodapé inferior
+
             y_divisoria = 1.2 * cm
             canvas.setStrokeColor(colors.lightgrey)
             canvas.setLineWidth(0.5)
             canvas.line(doc.leftMargin, y_divisoria, largura - doc.rightMargin, y_divisoria)
-            
+
             canvas.setFont("Helvetica", 8)
             canvas.setFillColor(colors.gray)
-            
-            # canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
+
             canvas.drawString(doc.leftMargin, y_divisoria - 12, "Brasil Toner - Recife PE")
 
-            
             num_pagina = canvas.getPageNumber()
             canvas.drawRightString(largura - doc.rightMargin, y_divisoria - 12, f"Página {num_pagina}")
             canvas.restoreState()
-        
+
         elements = []
-        
+
         for idx, p in enumerate(printers):
             if os.path.exists(logo_path):
                 img = Image(logo_path, width=4*cm, preserveAspectRatio=True)
@@ -336,15 +343,15 @@ class RelatorioDialog(QDialog):
                 elements.append(Spacer(1, 12))
             else:
                 elements.append(Spacer(1, 40))
-            
+
             style_title = styles["Title"]
             style_title.textColor = cor_primaria
             style_title.fontSize = 18
             elements.append(Paragraph(f"Relatório de Impressora - Patrimônio: {p.patrimonio}", style_title))
             elements.append(Spacer(1, 20))
-            
+
             maint_count = self.session.query(Activity).filter(Activity.printer_id == p.id, Activity.kind == "MANUTENCAO").count()
-            
+
             header_data = [
                 ["Patrimônio", p.patrimonio or "-"],
                 ["Modelo", p.modelo or "-"],
@@ -356,7 +363,7 @@ class RelatorioDialog(QDialog):
                 ["Última Revisão", p.proxima_revisao.strftime("%d/%m/%Y") if p.proxima_revisao else "-"],
                 ["Técnico Revisor", p.tecnico or "-"]
             ]
-            
+
             t_header = Table(header_data, colWidths=[140, 380])
             t_header.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (0, -1), cor_fundo_zebra),
@@ -368,17 +375,17 @@ class RelatorioDialog(QDialog):
             ]))
             elements.append(t_header)
             elements.append(Spacer(1, 20))
-            
+
             if (p.observacao or "").strip():
                 elements.append(Paragraph("<b>Observação geral:</b>", styles["Normal"]))
                 elements.append(Paragraph((p.observacao or "").replace("\n", "<br/>"), styles["BodyText"]))
                 elements.append(Spacer(1, 15))
-            
+
             elements.append(Paragraph("<b>Histórico de atividades:</b>", styles["Normal"]))
             elements.append(Spacer(1, 8))
-            
+
             atividades = self.session.query(Activity).filter(Activity.printer_id == p.id).order_by(Activity.event_at.desc()).limit(15).all()
-            
+
             data_hist = [["Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"]]
             for a in atividades:
                 desc = Paragraph((a.notes or "")[:1200], styles["BodyText"])
@@ -389,7 +396,7 @@ class RelatorioDialog(QDialog):
                     desc, pecas,
                     a.from_location or "-", a.to_location or "-",
                 ])
-            
+
             t_hist = Table(data_hist, colWidths=[75, 75, 170, 90, 55, 55], repeatRows=1)
             t_hist.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), cor_primaria),
@@ -404,8 +411,8 @@ class RelatorioDialog(QDialog):
                 ('PADDING', (0, 0), (-1, -1), 5),
             ]))
             elements.append(t_hist)
-            
+
             if idx < len(printers) - 1:
                 elements.append(PageBreak())
-        
+
         doc.build(elements, onFirstPage=draw_footer, onLaterPages=draw_footer)

@@ -9,6 +9,5 @@ DB_PATH = BASE_DIR / "app.db"
 BACKUP_DIR = BASE_DIR / "backups"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
-print(f"Database path: {DB_PATH}")
-print(f"Backups: {BACKUP_DIR}")
+print(f"DB: {DB_PATH}")
 

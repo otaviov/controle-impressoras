@@ -7,29 +7,29 @@ class SearchBar(QFrame):
         super().__init__(parent)
         self.setStyleSheet("""
             QFrame {
-                background-color: #0d0d1a;
-                border: 1px solid #1e1e30;
+                background-color: #313244;
+                border: 1px solid #585b70;
                 border-radius: 10px;
             }
-            QFrame:focus-within { border-color: #7c3aed; }
+            QFrame:focus-within { border-color: #cba6f7; }
         """)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 12, 0)
+        layout.setContentsMargins(14, 0, 14, 0)
         layout.setSpacing(8)
 
         icon = QLabel("🔍")
-        icon.setStyleSheet("font-size: 13px; background: transparent; color: #3a3a5a;")
+        icon.setStyleSheet("font-size: 14px; background: transparent; color: #6c7086;")
         layout.addWidget(icon)
 
         self.input = QLineEdit()
         self.input.setPlaceholderText(placeholder)
-        self.input.setMinimumHeight(38)
+        self.input.setMinimumHeight(40)
         self.input.setStyleSheet("""
             QLineEdit {
-                background: transparent; color: #c4c4e0;
+                background: transparent; color: #cdd6f4;
                 border: none; font-size: 11pt;
             }
-            QLineEdit::placeholder { color: #2a2a42; }
+            QLineEdit::placeholder { color: #585b70; }
         """)
         layout.addWidget(self.input)
 

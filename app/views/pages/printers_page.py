@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from datetime import datetime as dt
-from models import Printer, simple_uid
+from app.models import Printer, simple_uid
 from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, ESTILO_INPUT, ESTILO_COMBO, ESTILO_BOTAO_PRIMARIO, ESTILO_BOTAO_SECUNDARIO, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, STATUS_CORES, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_INPUT_READONLY, estilos_dialogo_tabs, ESTILO_LABEL_CAMPO)
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
@@ -80,11 +80,8 @@ class PrintersPage(QWidget):
             self.tabela.setItem(i, 2, QTableWidgetItem(p.serial or "-"))
             self.tabela.setItem(i, 3, QTableWidgetItem(p.marca or "-"))
 
-            status_item = QTableWidgetItem(p.status)
-            status_item.setTextAlignment(Qt.AlignCenter)
-            cor = STATUS_CORES.get(p.status, "#4a4a6a")
-            status_item.setForeground(QColor(cor))
-            self.tabela.setItem(i, 4, status_item)
+            cor = STATUS_CORES.get(p.status, "#6c7086")
+            self.tabela.definir_badge(i, 4, p.status, cor)
 
             self.tabela.setItem(i, 5, QTableWidgetItem(p.local_atual or "-"))
 
@@ -214,14 +211,15 @@ class PrintersPage(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"\U0001f5a8 Impressora {printer.patrimonio} - {printer.modelo}")
         dialog.setMinimumSize(750, 550)
+        from app.views.styles.theme import ESTILO_INPUT_READONLY
         dialog.setStyleSheet(ESTILO_DIALOG + """
-            QLineEdit, QTextEdit { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 6px; font-size: 13px; }
-            QLineEdit[readOnly="true"], QTextEdit[readOnly="true"] { background-color: #16213e; color: #a0a0b0; border: 1px solid #313244; }
-            QComboBox { background-color: #0f3460; color: white; border: 2px solid #533483; border-radius: 6px; padding: 6px; }
-            QComboBox:disabled { background-color: #16213e; color: #a0a0b0; }
-            QTableWidget { background-color: #0f3460; color: #e0e0e0; border: 1px solid #533483; border-radius: 8px; gridline-color: #1a1a3e; font-size: 12px; }
+            QLineEdit, QTextEdit { background-color: #313244; color: #cdd6f4; border: 1px solid #585b70; border-radius: 6px; padding: 6px; font-size: 13px; }
+            QLineEdit[readOnly="true"], QTextEdit[readOnly="true"] { background-color: #1e1e2e; color: #6c7086; border: 1px solid #45475a; }
+            QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #585b70; border-radius: 6px; padding: 6px; }
+            QComboBox:disabled { background-color: #1e1e2e; color: #6c7086; }
+            QTableWidget { background-color: #313244; color: #cdd6f4; border: 1px solid #585b70; border-radius: 8px; gridline-color: #45475a; font-size: 12px; }
             QTableWidget::item { padding: 6px; }
-            QHeaderView::section { background-color: #16213e; color: #89b4fa; font-weight: bold; padding: 8px; border: none; border-bottom: 1px solid #533483; }
+            QHeaderView::section { background-color: #1e1e2e; color: #89b4fa; font-weight: bold; padding: 8px; border: none; border-bottom: 1px solid #585b70; }
         """ + estilos_dialogo_tabs() + """
             QPushButton { border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: bold; }
         """)
@@ -389,6 +387,8 @@ class PrintersPage(QWidget):
         hist_tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
         hist_tabela.verticalHeader().setVisible(False)
         hist_tabela.resizeColumnsToContents()
+        hist_tabela.resizeRowsToContents()
+        hist_tabela.verticalHeader().setDefaultSectionSize(30)
         hist_tabela.cellDoubleClicked.connect(lambda r, c: self._editar_atividade(r, atividades, printer, dialog))
         hist_layout.addWidget(hist_tabela)
 

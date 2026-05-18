@@ -1,4 +1,4 @@
-from models import Part
+from app.models import Part
 
 
 class PartService:

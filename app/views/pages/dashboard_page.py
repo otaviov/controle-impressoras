@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QPushButton)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QPushButton, QFrame)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from app.views.styles.theme import COR, ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, STATUS_MANUTENCAO, STATUS_OPERACIONAL, STATUS_CORES
@@ -17,32 +17,46 @@ class DashboardPage(QWidget):
         self.dashboard_service = dashboard_service
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(0)
 
+        # ── Header ──────────────────────────────────────────────
+        header_layout = QHBoxLayout()
         titulo = QLabel("📊 Dashboard")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
-        layout.addWidget(titulo)
+        header_layout.addWidget(titulo)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
 
-        subtitulo = QLabel("Visão geral do sistema")
+        subtitulo = QLabel("Visão geral do sistema de controle de impressoras")
         subtitulo.setStyleSheet(ESTILO_SUBTITULO)
         layout.addWidget(subtitulo)
 
-        layout.addSpacing(15)
+        layout.addSpacing(20)
 
+        # ── Cards ───────────────────────────────────────────────
         cards_layout = QHBoxLayout()
-        cards_layout.setSpacing(15)
+        cards_layout.setSpacing(16)
 
-        self.card_total = CardWidget("🖨️", "Total Impressoras", "0", COR["azul"], callback=lambda: self.signal_trocar_pagina.emit(1))
-        self.card_manut = CardWidget("⚠️", "Em Manutenção", "0", COR["aviso"], callback=lambda: self.ao_clicar_status("manutencao"))
-        self.card_op = CardWidget("✅", "Operacionais", "0", COR["sucesso"], callback=lambda: self.ao_clicar_status("operacional"))
-        self.card_os = CardWidget("📋", "Atividades", "0", COR["roxo_claro"], callback=lambda: self.signal_trocar_pagina.emit(2))
+        self.card_total = CardWidget("🖨️", "Total Impressoras", "0", "#89b4fa",
+            gradiente="azul",
+            callback=lambda: self.signal_trocar_pagina.emit(1))
+        self.card_manut = CardWidget("⚠️", "Em Manutenção", "0", "#f9e2af",
+            gradiente="amarelo",
+            callback=lambda: self.ao_clicar_status("manutencao"))
+        self.card_op = CardWidget("✅", "Operacionais", "0", "#a6e3a1",
+            gradiente="verde",
+            callback=lambda: self.ao_clicar_status("operacional"))
+        self.card_os = CardWidget("📋", "Atividades", "0", "#cba6f7",
+            gradiente="roxo",
+            callback=lambda: self.signal_trocar_pagina.emit(2))
 
         cards_layout.addWidget(self.card_total)
         cards_layout.addWidget(self.card_manut)
         cards_layout.addWidget(self.card_op)
         cards_layout.addWidget(self.card_os)
-
         layout.addLayout(cards_layout)
+
         layout.addStretch()
 
     def recarregar(self):
@@ -66,35 +80,58 @@ class DashboardPage(QWidget):
 
         dialog = QDialog(self)
         dialog.setWindowTitle(titulo)
-        dialog.setMinimumSize(800, 500)
+        dialog.setMinimumSize(800, 520)
         dialog.setStyleSheet("""
-            QDialog { background-color: #1a1a2e; color: #e0e0e0; }
-            QLabel { color: #e0e0e0; font-size: 18px; font-weight: bold; background: transparent; }
-            QTableWidget { background-color: #0f3460; color: #e0e0e0; border: 1px solid #533483; border-radius: 10px; gridline-color: #1a1a3e; font-size: 13px; }
+            QDialog {
+                background-color: #1e1e2e;
+                border: 1px solid #585b70;
+                border-radius: 16px;
+            }
+            QLabel {
+                color: #cdd6f4; font-size: 18px; font-weight: 700;
+                background: transparent; padding: 16px 20px 0 20px;
+            }
+            QTableWidget {
+                background-color: #313244; color: #cdd6f4;
+                border: 1px solid #585b70; border-radius: 10px;
+                gridline-color: #45475a; font-size: 13px;
+            }
             QTableWidget::item { padding: 8px; }
-            QHeaderView::section { background-color: #16213e; color: #89b4fa; font-weight: bold; padding: 10px; border: none; border-bottom: 2px solid #e94560; }
-            QPushButton { background-color: #e94560; color: white; border: none; border-radius: 8px; padding: 10px 30px; font-size: 14px; font-weight: bold; }
+            QHeaderView::section {
+                background-color: #1e1e2e; color: #6c7086;
+                font-weight: 700; padding: 10px; border: none;
+                border-bottom: 1px solid #45475a;
+            }
+            QPushButton {
+                background-color: #45475a; color: #a6adc8;
+                border: 1px solid #585b70; border-radius: 8px;
+                padding: 10px 30px; font-size: 13px; font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #585b70; color: #cdd6f4;
+            }
         """)
 
         layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 10, 20, 20)
+        layout.setSpacing(12)
 
-        lbl_titulo = QLabel(f"{titulo} ({len(impressoras)})")
+        lbl_titulo = QLabel(f"{titulo}  ·  {len(impressoras)} encontrada(s)")
         layout.addWidget(lbl_titulo)
-        layout.addSpacing(10)
 
         tabela = QTableWidget()
         tabela.setColumnCount(5)
         tabela.setHorizontalHeaderLabels(["Patrimônio", "Modelo", "Status", "Local Atual", "Última Revisão"])
         tabela.setRowCount(len(impressoras))
 
+        from app.views.widgets.badge_widget import BadgeWidget
         for i, p in enumerate(impressoras):
             tabela.setItem(i, 0, QTableWidgetItem(p.patrimonio))
             tabela.setItem(i, 1, QTableWidgetItem(p.modelo))
 
-            status_item = QTableWidgetItem(p.status)
-            cor_status = STATUS_CORES.get(p.status, "#a0a0b0")
-            status_item.setForeground(QColor(cor_status))
-            tabela.setItem(i, 2, status_item)
+            cor_status = STATUS_CORES.get(p.status, "#6c7086")
+            badge = BadgeWidget(p.status, cor_status)
+            tabela.setCellWidget(i, 2, badge)
 
             tabela.setItem(i, 3, QTableWidgetItem(p.local_atual or "-"))
 
@@ -107,9 +144,10 @@ class DashboardPage(QWidget):
         tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tabela.verticalHeader().setVisible(False)
         tabela.resizeColumnsToContents()
+        tabela.resizeRowsToContents()
+        tabela.verticalHeader().setDefaultSectionSize(32)
 
         def ao_duplo_clique(row, col):
-            patrimonio = tabela.item(row, 0).text()
             self.signal_trocar_pagina.emit(1)
             dialog.accept()
 

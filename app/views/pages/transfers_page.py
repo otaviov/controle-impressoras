@@ -5,7 +5,7 @@ from datetime import datetime as dt
 from pathlib import Path
 import os
 import shutil
-from models import Activity, Printer, Attachment
+from app.models import Activity, Printer, Attachment
 from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_BOTAO_AVISO, ESTILO_TABELA_SIMPLES, STATUS_ATIVIDADE_OPCOES, estilos_dialogo_tabs)
 from app.views.widgets.card_widget import CardMiniWidget
 from app.views.widgets.table_widget import TabelaPadrao
@@ -90,9 +90,8 @@ class TransfersPage(QWidget):
             self.tabela.setItem(i, 4, QTableWidgetItem(encurtar(m.parts_used, 30)))
             self.tabela.setItem(i, 5, QTableWidgetItem(m.numero_recibo or "-"))
             status = (m.status_atividade or "concluida").lower()
-            item_status = QTableWidgetItem(status.capitalize())
-            item_status.setForeground(QColor(COR_STATUS.get(status, "#a0a0b0")))
-            self.tabela.setItem(i, 6, item_status)
+            cor_status = COR_STATUS.get(status, "#6c7086")
+            self.tabela.definir_badge(i, 6, status.capitalize(), cor_status)
         self.tabela.redimensionar()
         self._atualizar_cards(movimentacoes)
 
@@ -185,7 +184,7 @@ class TransfersPage(QWidget):
         tab_anexos_vazia = QWidget()
         anexos_layout = QVBoxLayout(tab_anexos_vazia)
         lbl_aviso = QLabel("Salve primeiro para anexar arquivos.")
-        lbl_aviso.setStyleSheet("color: #a0a0b0; font-size: 13px;")
+        lbl_aviso.setStyleSheet("color: #6c7086; font-size: 13px;")
         lbl_aviso.setAlignment(Qt.AlignCenter)
         anexos_layout.addWidget(lbl_aviso)
         tabs.addTab(tab_anexos_vazia, "\U0001f4ce Anexos")
@@ -462,17 +461,19 @@ class TransfersPage(QWidget):
             btn_abrir = QPushButton("\U0001f4c2 Abrir")
             btn_abrir.setStyleSheet("""
                 QPushButton {
-                    background-color: #533483; color: white;
+                    background-color: #45475a; color: #cdd6f4;
                     border: none; border-radius: 4px;
                     padding: 4px 12px; font-size: 11px;
                 }
-                QPushButton:hover { background-color: #6b44a0; }
+                QPushButton:hover { background-color: #585b70; }
             """)
             file_path = a.file_path
             btn_abrir.clicked.connect(lambda checked, fp=file_path: self._abrir_anexo(fp))
             tabela_anexos.setCellWidget(i, 3, btn_abrir)
 
         tabela_anexos.resizeColumnsToContents()
+        tabela_anexos.resizeRowsToContents()
+        tabela_anexos.verticalHeader().setDefaultSectionSize(32)
         layout.addWidget(tabela_anexos)
 
         botoes_anexos = QHBoxLayout()

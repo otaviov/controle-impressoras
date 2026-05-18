@@ -1,4 +1,4 @@
-from models import Technician
+from app.models import Technician
 
 
 class TechnicianService:

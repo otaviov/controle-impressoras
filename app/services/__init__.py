@@ -5,3 +5,6 @@ from .part_service import PartService
 from .technician_service import TechnicianService
 from .user_service import UserService
 from .dashboard_service import DashboardService
+from .alert_service import AlertService
+from .audit_service import AuditService
+from .transfer_service import TransferService

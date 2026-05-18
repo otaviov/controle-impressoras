@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QTextEdit, QDialogButtonBox, QMessageBox, QTabWidget, QHBoxLayout)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
-from models import Company, Printer
+from app.models import Company, Printer
 from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_TABELA_SIMPLES, ESTILO_DIALOG, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_LABEL_CAMPO, estilos_dialogo_tabs)
 from app.views.widgets.table_widget import TabelaPadrao
 from app.utils.helpers import formatar_data_hora
@@ -227,6 +227,8 @@ class ClientsPage(QWidget):
                 imp_tabela.setItem(i, 4, QTableWidgetItem(rev_text))
 
             imp_tabela.resizeColumnsToContents()
+            imp_tabela.resizeRowsToContents()
+            imp_tabela.verticalHeader().setDefaultSectionSize(30)
 
             imp_tabela.cellDoubleClicked.connect(lambda r, c: self._abrir_impressora_por_patrimonio(
                 imp_tabela.item(r, 0).text(), dialog
@@ -235,7 +237,7 @@ class ClientsPage(QWidget):
             imp_layout.addWidget(imp_tabela)
         else:
             sem = QLabel("Nenhuma impressora vinculada a esta empresa.")
-            sem.setStyleSheet("color: #a0a0b0; font-size: 13px; padding: 30px;")
+            sem.setStyleSheet("color: #6c7086; font-size: 13px; padding: 30px;")
             sem.setAlignment(Qt.AlignCenter)
             imp_layout.addWidget(sem)
 

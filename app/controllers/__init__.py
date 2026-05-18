@@ -1,0 +1,3 @@
+from app.controllers.printer_controller import PrinterController
+from app.controllers.auth_controller import AuthController
+from app.controllers.report_controller import ReportController

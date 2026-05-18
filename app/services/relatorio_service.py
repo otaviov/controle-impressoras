@@ -22,7 +22,7 @@ class RelatorioService:
         elements = []
         
         # Título
-        title_style = ParagraphStyle('Title2', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#e94560'), spaceAfter=6)
+        title_style = ParagraphStyle('Title2', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#cba6f7'), spaceAfter=6)
         elements.append(Paragraph("Relatório de Impressoras", title_style))
         elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
         elements.append(Spacer(1, 15))
@@ -39,12 +39,12 @@ class RelatorioService:
         ]
         t_resumo = Table(resumo_data, colWidths=[200, 100])
         t_resumo.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0f3460')),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#45475a')),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('PADDING', (0, 0), (-1, -1), 8),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#533483')),
-            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#533483')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cba6f7')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cba6f7')),
         ]))
         elements.append(t_resumo)
         elements.append(Spacer(1, 20))
@@ -65,16 +65,16 @@ class RelatorioService:
         
         t = Table(data, colWidths=[55, 115, 70, 75, 120, 70])
         t_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e94560')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#cba6f7')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1e1e2e')),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('PADDING', (0, 0), (-1, -1), 5),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#1a1a2e')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#313244')),
             ('TEXTCOLOR', (0, 1), (-1, -1), colors.white),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#533483')),
-            ('INNERGRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#313244')),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#1a1a2e'), colors.HexColor('#16213e')]),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cba6f7')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#585b70')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#313244'), colors.HexColor('#45475a')]),
         ])
         t.setStyle(t_style)
         elements.append(t)
@@ -95,21 +95,21 @@ class RelatorioService:
         
         # Estilos
         header_font = Font(name='Arial', size=12, bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='e94560', end_color='e94560', fill_type='solid')
-        row_fill1 = PatternFill(start_color='1a1a2e', end_color='1a1a2e', fill_type='solid')
-        row_fill2 = PatternFill(start_color='16213e', end_color='16213e', fill_type='solid')
+        header_fill = PatternFill(start_color='cba6f7', end_color='cba6f7', fill_type='solid')
+        row_fill1 = PatternFill(start_color='313244', end_color='313244', fill_type='solid')
+        row_fill2 = PatternFill(start_color='45475a', end_color='45475a', fill_type='solid')
         white_font = Font(name='Arial', size=10, color='FFFFFF')
         border = Border(
-            left=Side(style='thin', color='533483'),
-            right=Side(style='thin', color='533483'),
-            top=Side(style='thin', color='533483'),
-            bottom=Side(style='thin', color='533483')
+            left=Side(style='thin', color='cba6f7'),
+            right=Side(style='thin', color='cba6f7'),
+            top=Side(style='thin', color='cba6f7'),
+            bottom=Side(style='thin', color='cba6f7')
         )
         
         # Título
         ws.merge_cells('A1:G1')
         ws['A1'] = f'RELATÓRIO DE IMPRESSORAS - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
-        ws['A1'].font = Font(name='Arial', size=14, bold=True, color='e94560')
+        ws['A1'].font = Font(name='Arial', size=14, bold=True, color='cba6f7')
         ws['A1'].alignment = Alignment(horizontal='center')
         
         # Resumo
@@ -154,7 +154,7 @@ class RelatorioService:
         styles = getSampleStyleSheet()
         elements = []
         
-        title_style = ParagraphStyle('T', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#e94560'))
+        title_style = ParagraphStyle('T', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#cba6f7'))
         elements.append(Paragraph("Relatório de Atividades / OS", title_style))
         elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Total: {len(atividades)}", styles['Normal']))
         elements.append(Spacer(1, 15))
@@ -176,16 +176,16 @@ class RelatorioService:
         
         t = Table(data, colWidths=[60, 40, 55, 120, 60, 55, 55, 50])
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e94560')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#cba6f7')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1e1e2e')),
             ('FONTSIZE', (0, 0), (-1, -1), 7),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('PADDING', (0, 0), (-1, -1), 4),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#1a1a2e')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#313244')),
             ('TEXTCOLOR', (0, 1), (-1, -1), colors.white),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#533483')),
-            ('INNERGRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#313244')),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#1a1a2e'), colors.HexColor('#16213e')]),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cba6f7')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#585b70')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#313244'), colors.HexColor('#45475a')]),
         ]))
         elements.append(t)
         
@@ -200,16 +200,16 @@ class RelatorioService:
         ws.title = "Atividades"
         
         header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='e94560', end_color='e94560', fill_type='solid')
+        header_fill = PatternFill(start_color='cba6f7', end_color='cba6f7', fill_type='solid')
         white_font = Font(name='Arial', size=9, color='FFFFFF')
-        fill1 = PatternFill(start_color='1a1a2e', end_color='1a1a2e', fill_type='solid')
-        fill2 = PatternFill(start_color='16213e', end_color='16213e', fill_type='solid')
-        border = Border(left=Side(style='thin', color='533483'), right=Side(style='thin', color='533483'),
-                        top=Side(style='thin', color='533483'), bottom=Side(style='thin', color='533483'))
+        fill1 = PatternFill(start_color='313244', end_color='313244', fill_type='solid')
+        fill2 = PatternFill(start_color='45475a', end_color='45475a', fill_type='solid')
+        border = Border(left=Side(style='thin', color='cba6f7'), right=Side(style='thin', color='cba6f7'),
+                        top=Side(style='thin', color='cba6f7'), bottom=Side(style='thin', color='cba6f7'))
         
         ws.merge_cells('A1:H1')
         ws['A1'] = f'RELATÓRIO DE ATIVIDADES - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
-        ws['A1'].font = Font(name='Arial', size=14, bold=True, color='e94560')
+        ws['A1'].font = Font(name='Arial', size=14, bold=True, color='cba6f7')
         ws['A1'].alignment = Alignment(horizontal='center')
         
         ws['A3'] = f'Total de atividades: {len(atividades)}'

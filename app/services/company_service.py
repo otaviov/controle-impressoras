@@ -1,4 +1,4 @@
-from models import Company
+from app.models import Company
 
 
 class CompanyService:

@@ -121,7 +121,7 @@ class TechniciansPage(QWidget):
 
         self.tabela = TabelaPadrao(self.COLUNAS)
         self.tabela.cellDoubleClicked.connect(self._editar)
-        layout.addWidget(self.tabela)
+        layout.addWidget(self.tabela, 1)
 
     def recarregar(self):
         tecnicos = self._technician_service.listar_todos()

@@ -1,6 +1,5 @@
 from sqlalchemy import func
-from models import Printer, Activity
-from models import simple_uid
+from app.models import Printer, Activity, simple_uid
 
 
 class PrinterService:

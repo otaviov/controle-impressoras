@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import func
-from models import Activity, Printer
+from app.models import Activity, Printer
 import calendar
 
 

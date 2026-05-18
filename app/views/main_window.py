@@ -7,7 +7,8 @@ from PySide6.QtGui import QPixmap
 
 from app.services import (
     PrinterService, ActivityService, CompanyService,
-    PartService, TechnicianService, UserService, DashboardService
+    PartService, TechnicianService, UserService, DashboardService,
+    AlertService, AuditService, TransferService
 )
 from app.views.pages import (
     DashboardPage, PrintersPage, OSPage, ClientsPage,
@@ -29,6 +30,9 @@ class MainWindow(QMainWindow):
         self.technician_service = TechnicianService(session)
         self.user_service = UserService(session)
         self.dashboard_service = DashboardService(session)
+        self.alert_service = AlertService(session)
+        self.audit_service = AuditService(session)
+        self.transfer_service = TransferService(session)
 
         self.menu_buttons = []
         self.init_ui()
@@ -48,54 +52,67 @@ class MainWindow(QMainWindow):
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(230)
-        sidebar.setStyleSheet("#sidebar { background-color: #0f3460; border-right: 2px solid #533483; }")
+        sidebar.setStyleSheet("QFrame#sidebar { background-color: #0d0d14; border-right: 1px solid #1a1a2a; }")
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(10, 15, 10, 15)
-        sidebar_layout.setSpacing(3)
+        sidebar_layout.setContentsMargins(8, 0, 8, 0)
+        sidebar_layout.setSpacing(0)
 
         # Logo
         self._adicionar_logo(sidebar_layout)
-        self._adicionar_separador(sidebar_layout)
-        self._adicionar_separador(sidebar_layout)
         sidebar_layout.addSpacing(8)
 
-        # Menu buttons
-        menus = [
+        # ── Seção Principal ──
+        self._adicionar_label_secao(sidebar_layout, "Principal")
+        menus_principal = [
             ("📊", "Dashboard", 0),
             ("🖨️", "Impressoras", 1),
             ("📋", "Ordens de Serviço", 2),
+        ]
+        for icon, text, index in menus_principal:
+            btn = self._criar_botao_menu(icon, text)
+            btn.clicked.connect(lambda checked, i=index: self._trocar_pagina(i))
+            sidebar_layout.addWidget(btn)
+            self.menu_buttons.append(btn)
+
+        sidebar_layout.addSpacing(12)
+
+        # ── Seção Gestão ──
+        self._adicionar_label_secao(sidebar_layout, "Gestão")
+        menus_gestao = [
             ("👥", "Empresas/Clientes", 3),
             ("🔧", "Peças", 4),
             ("🚚", "Transferências", 5),
             ("👨‍🔧", "Técnicos", 6),
             ("📈", "Relatórios", 7),
         ]
-        if self.user.get('perfil') == 'admin':
-            menus.append(("⚙️", "Configurações", 8))
-
-        for icon, text, index in menus:
+        for icon, text, index in menus_gestao:
             btn = self._criar_botao_menu(icon, text)
             btn.clicked.connect(lambda checked, i=index: self._trocar_pagina(i))
             sidebar_layout.addWidget(btn)
             self.menu_buttons.append(btn)
 
+        if self.user.get('perfil') == 'admin':
+            sidebar_layout.addSpacing(12)
+            self._adicionar_label_secao(sidebar_layout, "Sistema")
+            btn_config = self._criar_botao_menu("⚙️", "Configurações")
+            btn_config.clicked.connect(lambda: self._trocar_pagina(8))
+            sidebar_layout.addWidget(btn_config)
+            self.menu_buttons.append(btn_config)
+
         sidebar_layout.addStretch()
 
-        self._adicionar_separador_colorido(sidebar_layout)
-        sidebar_layout.addSpacing(5)
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("background-color: #1a1a2a; max-height: 1px; margin: 8px 12px;")
+        sidebar_layout.addWidget(sep2)
 
-        # User card
+        # User card + sair
         self._adicionar_card_usuario(sidebar_layout)
-
-        btn_sair = QPushButton("🚪 Sair")
-        btn_sair.setCursor(Qt.PointingHandCursor)
-        btn_sair.setStyleSheet("QPushButton { background: transparent; color: #a0a0b0; border: none; text-align: left; font-size: 12px; padding: 5px; } QPushButton:hover { color: #e94560; }")
-        btn_sair.clicked.connect(self.close)
-        sidebar_layout.addWidget(btn_sair)
 
         # ── Pages ─────────────────────────────────────────────
         self.content_area = QStackedWidget()
-        self.content_area.setStyleSheet("background-color: #1a1a2e;")
+        self.content_area.setStyleSheet("background-color: #1e1e2e;")
+        self.content_area.setMinimumWidth(400)
 
         self.pagina_dashboard = DashboardPage(
             self.session, self.printer_service,
@@ -151,12 +168,21 @@ class MainWindow(QMainWindow):
         self._trocar_pagina(0)
 
     # ── Sidebar helpers ─────────────────────────────────────────
+    def _adicionar_label_secao(self, layout, texto):
+        lbl = QLabel(texto.upper())
+        lbl.setStyleSheet(
+            "color: #3a3a5a; font-size: 9px; font-weight: 700;"
+            " letter-spacing: 1.2px; padding: 12px 16px 4px;"
+            " background: transparent;"
+        )
+        layout.addWidget(lbl)
+
     def _adicionar_logo(self, layout):
         import os
         logo_frame = QFrame()
         logo_frame.setStyleSheet("background: transparent; border: none;")
         logo_frame_layout = QHBoxLayout(logo_frame)
-        logo_frame_layout.setContentsMargins(10, 10, 10, 14)
+        logo_frame_layout.setContentsMargins(14, 18, 14, 14)
         logo_frame_layout.setSpacing(10)
 
         logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "1.PNG")
@@ -165,68 +191,79 @@ class MainWindow(QMainWindow):
         if os.path.exists(logo_path):
             from PySide6.QtGui import QPixmap
             logo_img = QLabel()
-            pix = QPixmap(logo_path).scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix = QPixmap(logo_path).scaled(34, 34, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             logo_img.setPixmap(pix)
             logo_img.setStyleSheet("background: transparent; border: none;")
             logo_frame_layout.addWidget(logo_img)
 
-        logo_text_widget = QLabel("CONTROLE DE\nIMPRESSORA")
-        logo_text_widget.setStyleSheet(
-            "color: #e2e8f0; font-size: 11px; font-weight: 700;"
-            " background: transparent; letter-spacing: 0.3px;"
+        logo_text = QLabel("CONTROLE DE\nIMPRESSORAS PRO")
+        logo_text.setStyleSheet(
+            "color: #e2e8f0; font-size: 12px; font-weight: 700;"
+            " background: transparent; letter-spacing: 0.5px; line-height: 1.3;"
         )
-        logo_frame_layout.addWidget(logo_text_widget)
+        logo_frame_layout.addWidget(logo_text)
         logo_frame_layout.addStretch()
         layout.addWidget(logo_frame)
 
-    def _adicionar_separador(self, layout):
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: #1a1a2a; max-height: 1px;")
-        layout.addWidget(sep)
-
-    def _adicionar_separador_colorido(self, layout):
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: #533483; max-height: 1px;")
+        sep.setStyleSheet("background-color: #1a1a2a; max-height: 1px; margin: 0 14px;")
         layout.addWidget(sep)
 
     def _adicionar_card_usuario(self, layout):
         user_frame = QFrame()
         user_frame.setStyleSheet(
             "QFrame { background-color: #141422; border: 1px solid #1e1e30;"
-            " border-radius: 8px; padding: 4px; }"
+            " border-radius: 8px; margin: 8px 10px 4px; }"
         )
         user_frame_layout = QHBoxLayout(user_frame)
-        user_frame_layout.setContentsMargins(8, 6, 8, 6)
+        user_frame_layout.setContentsMargins(10, 8, 10, 8)
         user_frame_layout.setSpacing(8)
 
         avatar = QLabel(self.user["nome"][:2].upper())
-        avatar.setFixedSize(28, 28)
+        avatar.setFixedSize(30, 30)
         avatar.setAlignment(Qt.AlignCenter)
         avatar.setStyleSheet(
             "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #7c3aed,stop:1 #e94560);"
-            " color: white; border-radius: 14px; font-size: 10px; font-weight: 700;"
+            " color: white; border-radius: 15px; font-size: 11px; font-weight: 700;"
         )
         user_frame_layout.addWidget(avatar)
 
-        user_text = QLabel(f"{self.user['nome']}\n{self.user['perfil'].capitalize()}")
-        user_text.setStyleSheet("color: #8888aa; font-size: 10px; background: transparent; border: none;")
-        user_frame_layout.addWidget(user_text)
+        user_info = QVBoxLayout()
+        user_info.setSpacing(1)
+        user_name = QLabel(self.user["nome"])
+        user_name.setStyleSheet("color: #c4c4e0; font-size: 11px; font-weight: 600; background: transparent; border: none;")
+        user_info.addWidget(user_name)
+        user_role = QLabel(self.user["perfil"].capitalize())
+        user_role.setStyleSheet("color: #4a4a6a; font-size: 9px; background: transparent; border: none;")
+        user_info.addWidget(user_role)
+        user_frame_layout.addLayout(user_info)
         user_frame_layout.addStretch()
+
+        exit_btn = QPushButton("✕")
+        exit_btn.setFixedSize(22, 22)
+        exit_btn.setCursor(Qt.PointingHandCursor)
+        exit_btn.setStyleSheet(
+            "QPushButton { background: transparent; color: #4a4a6a; border: none;"
+            " font-size: 12px; border-radius: 11px; }"
+            " QPushButton:hover { background: #e9456022; color: #e94560; }"
+        )
+        exit_btn.clicked.connect(self.close)
+        user_frame_layout.addWidget(exit_btn)
+
         layout.addWidget(user_frame)
 
     def _criar_botao_menu(self, icone, texto):
         btn = QPushButton(f"{icone}  {texto}")
         btn.setCheckable(True)
         btn.setCursor(Qt.PointingHandCursor)
-        btn.setMinimumHeight(42)
+        btn.setMinimumHeight(38)
         btn.setObjectName("menuBtn")
         btn.setStyleSheet(
-            "QPushButton#menuBtn { background: transparent; color: #4a4a6a; border: none;"
-            " text-align: left; font-size: 12pt; padding: 9px 14px; border-radius: 8px; font-weight: 500; }"
-            " QPushButton#menuBtn:hover { background-color: #141428; color: #8888aa; }"
-            " QPushButton#menuBtn:checked { background-color: #1e1040; color: #a78bfa; font-weight: 700; }"
+            "QPushButton#menuBtn { background: transparent; color: #6b7280; border: none;"
+            " text-align: left; font-size: 12px; padding: 7px 12px; border-radius: 8px; font-weight: 500; }"
+            " QPushButton#menuBtn:hover { background-color: #1a1a2e; color: #9ca3af; }"
+            " QPushButton#menuBtn:checked { background-color: #1e1040; color: #a78bfa; font-weight: 600; }"
         )
         return btn
 

@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from datetime import datetime as dt
-from models import Activity, Printer
+from app.models import Activity, Printer
 from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_AVISO)
 from app.views.widgets.card_widget import CardMiniWidget, CardMiniClicavel
 from app.views.widgets.table_widget import TabelaPadrao
@@ -39,31 +39,28 @@ class OSPage(QWidget):
         self.btn_nova.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
-        layout.addLayout(header)
 
-        filtros = QHBoxLayout()
         self.btn_manut = QPushButton("\U0001f527 Manutenções")
         self.btn_manut.setStyleSheet(ESTILO_BOTAO_AVISO)
         self.btn_manut.clicked.connect(lambda: self._filtrar_tipo("MANUTENCAO"))
-        filtros.addWidget(self.btn_manut)
+        header.addWidget(self.btn_manut)
 
         self.btn_mov = QPushButton("\U0001f69a Movimentações")
         self.btn_mov.setStyleSheet(ESTILO_BOTAO_AVISO)
         self.btn_mov.clicked.connect(lambda: self._filtrar_tipo("MOVIMENTACAO"))
-        filtros.addWidget(self.btn_mov)
+        header.addWidget(self.btn_mov)
 
         self.btn_todas = QPushButton("\U0001f4cb Todas")
         self.btn_todas.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         self.btn_todas.clicked.connect(lambda: self._filtrar_tipo("TODAS"))
-        filtros.addWidget(self.btn_todas)
+        header.addWidget(self.btn_todas)
 
         self.btn_atualizar = QPushButton("\U0001f504 Atualizar")
         self.btn_atualizar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         self.btn_atualizar.clicked.connect(self.recarregar)
-        filtros.addWidget(self.btn_atualizar)
+        header.addWidget(self.btn_atualizar)
 
-        filtros.addStretch()
-        layout.addLayout(filtros)
+        layout.addLayout(header)
 
         self.search = SearchBar(placeholder="Buscar por patrimônio, descrição...")
         self.search.textChanged().connect(self._filtrar_busca)
@@ -121,9 +118,8 @@ class OSPage(QWidget):
             pat_item = QTableWidgetItem(patrimonio)
             pat_item.setTextAlignment(Qt.AlignCenter)
 
-            tipo_item = QTableWidgetItem(atv.kind or "-")
-            tipo_item.setTextAlignment(Qt.AlignCenter)
-            tipo_item.setForeground(QColor(cor_tipo))
+            cor_kind = "#f9e2af" if atv.kind == "MANUTENCAO" else "#89b4fa"
+            self.tabela.definir_badge(row, 2, atv.kind or "-", cor_kind)
 
             desc_item = QTableWidgetItem(atv.notes or "-")
 
@@ -140,7 +136,6 @@ class OSPage(QWidget):
 
             self.tabela.setItem(row, 0, data_item)
             self.tabela.setItem(row, 1, pat_item)
-            self.tabela.setItem(row, 2, tipo_item)
             self.tabela.setItem(row, 3, desc_item)
             self.tabela.setItem(row, 4, pecas_item)
             self.tabela.setItem(row, 5, orig_item)
