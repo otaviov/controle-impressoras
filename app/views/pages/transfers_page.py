@@ -174,6 +174,10 @@ class TransfersPage(QWidget):
             printer_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
         form.addRow("Impressora:", printer_combo)
 
+        data_input = QLineEdit(dt.now().strftime("%d/%m/%Y %H:%M"))
+        data_input.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Data/Hora:", data_input)
+
         pecas_text = QTextEdit()
         pecas_text.setStyleSheet(ESTILO_INPUT)
         pecas_text.setPlaceholderText("Peças separadas por vírgula")
@@ -235,11 +239,15 @@ class TransfersPage(QWidget):
                 QMessageBox.warning(dialog, "Aviso", "Impressora não encontrada. Verifique o patrimônio.")
                 return
 
+            from app.utils.helpers import parse_data
+            data_texto = data_input.text().strip()
+            event_at = parse_data(data_texto) if data_texto else dt.now()
+
             try:
                 activity = Activity(
                     printer_id=printer.id,
                     kind="MOVIMENTACAO",
-                    event_at=dt.now(),
+                    event_at=event_at,
                     parts_used=pecas_text.toPlainText().strip(),
                     from_location=origem_combo.currentText().strip(),
                     to_location=destino_combo.currentText().strip(),
@@ -249,22 +257,8 @@ class TransfersPage(QWidget):
                 )
                 self._session.add(activity)
                 self._session.commit()
-                saved_id[0] = activity.id
 
-                tabs.removeTab(1)
-
-                def callback_fechar():
-                    dialog.accept()
-
-                real_anexos = self._criar_tab_anexos(
-                    "activity", activity.id, dialog, callback_fechar, tabs
-                )
-                tabs.addTab(real_anexos, "\U0001f4ce Anexos")
-                tabs.setCurrentIndex(0)
-
-                QMessageBox.information(dialog, "Sucesso", "Transferência salva!")
-                btn_salvar.setText("\u2705 Salvo")
-                btn_salvar.setEnabled(False)
+                dialog.accept()
             except Exception as e:
                 self._session.rollback()
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar:\n{e}")
@@ -309,9 +303,9 @@ class TransfersPage(QWidget):
         lbl_printer.setStyleSheet("color: #c0c0d0; font-size: 13px; background: transparent;")
         form.addRow("Impressora:", lbl_printer)
 
-        lbl_data = QLabel(formatar_data_hora(mov.event_at))
-        lbl_data.setStyleSheet("color: #c0c0d0; font-size: 13px; background: transparent;")
-        form.addRow("Data/Hora:", lbl_data)
+        data_input = QLineEdit(formatar_data_hora(mov.event_at))
+        data_input.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Data/Hora:", data_input)
 
         pecas_text = QTextEdit()
         pecas_text.setStyleSheet(ESTILO_INPUT)
@@ -367,6 +361,8 @@ class TransfersPage(QWidget):
         tabs.addTab(tab_dados, "\U0001f4cb Dados")
 
         def salvar_edicao():
+            from app.utils.helpers import parse_data
+            data_texto = data_input.text().strip()
             novos = {
                 "parts_used": pecas_text.toPlainText().strip(),
                 "from_location": origem_combo.currentText().strip(),
@@ -375,6 +371,10 @@ class TransfersPage(QWidget):
                 "numero_recibo": recibo_input.text().strip(),
                 "status_atividade": status_combo.currentText(),
             }
+            if data_texto:
+                parsed = parse_data(data_texto)
+                if parsed:
+                    mov.event_at = parsed
             if novos == orig:
                 return
             try:
