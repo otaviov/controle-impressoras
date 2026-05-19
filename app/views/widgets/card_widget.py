@@ -52,7 +52,7 @@ class CardWidget(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(12)
 
         header = QHBoxLayout()
         header.setSpacing(12)
@@ -70,24 +70,20 @@ class CardWidget(QFrame):
         header.addStretch()
         layout.addLayout(header)
 
-        conteudo = QVBoxLayout()
-        conteudo.setSpacing(4)
-        conteudo.setContentsMargins(0, 12, 0, 0)
+        titulo_label = QLabel(titulo)
+        titulo_label.setStyleSheet(
+            "font-size: 13px; color: #94949f; background: transparent; border: none;"
+        )
+        layout.addWidget(titulo_label)
 
         self.valor_label = QLabel(valor_inicial)
         self.valor_label.setStyleSheet(
             f"font-size: 30px; font-weight: 700; color: #e8e8f0; "
             f"background: transparent; border: none;"
         )
-        conteudo.addWidget(self.valor_label)
+        layout.addWidget(self.valor_label)
 
-        titulo_label = QLabel(titulo)
-        titulo_label.setStyleSheet(
-            "font-size: 13px; color: #94949f; background: transparent; border: none;"
-        )
-        conteudo.addWidget(titulo_label)
-
-        layout.addLayout(conteudo)
+        layout.addStretch()
 
         if callback:
             self.setCursor(Qt.PointingHandCursor)
@@ -117,9 +113,6 @@ class CardMiniWidget(QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        header = QHBoxLayout()
-        header.setSpacing(8)
-
         icon_label = QLabel(icon)
         icon_label.setFixedSize(36, 36)
         icon_label.setAlignment(Qt.AlignCenter)
@@ -128,17 +121,7 @@ class CardMiniWidget(QFrame):
             f"font-size: 16px; color: {cor}; border: none;"
         )
         icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        header.addWidget(icon_label)
-        header.addStretch()
-
-        self.valor_label = QLabel(valor_inicial)
-        self.valor_label.setStyleSheet(
-            f"font-size: 24px; font-weight: 700; color: {cor}; "
-            f"background: transparent; border: none;"
-        )
-        self.valor_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        header.addWidget(self.valor_label)
-        layout.addLayout(header)
+        layout.addWidget(icon_label)
 
         title_label = QLabel(titulo)
         title_label.setStyleSheet(
@@ -146,6 +129,14 @@ class CardMiniWidget(QFrame):
         )
         title_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(title_label)
+
+        self.valor_label = QLabel(valor_inicial)
+        self.valor_label.setStyleSheet(
+            f"font-size: 24px; font-weight: 700; color: {cor}; "
+            f"background: transparent; border: none;"
+        )
+        self.valor_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        layout.addWidget(self.valor_label)
 
     def atualizar_valor(self, valor):
         self.valor_label.setText(str(valor))
