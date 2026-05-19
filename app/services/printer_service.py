@@ -1,5 +1,10 @@
+import logging
+
 from sqlalchemy import func
-from app.models import Printer, Activity, simple_uid
+
+from app.models import Activity, Printer
+
+log = logging.getLogger(__name__)
 
 
 class PrinterService:
@@ -52,7 +57,6 @@ class PrinterService:
               local_atual="", status="Operacional", ip_rede="",
               tecnico="", observacao=""):
         printer = Printer(
-            id=simple_uid(),
             patrimonio=patrimonio,
             modelo=modelo,
             marca=marca,

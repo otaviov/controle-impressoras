@@ -1,6 +1,26 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox)
 from PySide6.QtCore import Qt
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_ERRO, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_INPUT, ESTILO_BOTAO_AVISO)
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.views.styles.theme import (
+    ESTILO_BOTAO_AVISO,
+    ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_TITULO_PAGINA,
+)
 from app.views.widgets.table_widget import TabelaPadrao
 
 

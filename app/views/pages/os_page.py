@@ -1,22 +1,46 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QTextEdit, QDialogButtonBox, QMessageBox)
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from datetime import datetime as dt
-from app.models import Activity, Printer
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_AVISO)
-from app.views.widgets.card_widget import CardMiniWidget, CardMiniClicavel
-from app.views.widgets.table_widget import TabelaPadrao
-from app.views.widgets.search_bar import SearchBar
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from app.utils.helpers import formatar_data_hora, parse_data
+from app.views.styles.theme import (
+    ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_COMBO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_TITULO_PAGINA,
+    _cor_rgba,
+)
+from app.views.widgets.card_widget import CardMiniClicavel
+from app.views.widgets.search_bar import SearchBar
+from app.views.widgets.table_widget import TabelaPadrao
 
 
 class OSPage(QWidget):
-    def __init__(self, session, printer_service, activity_service, company_service, parent=None):
+    def __init__(self, session, printer_service, activity_service, company_service, technician_service, parent=None):
         super().__init__(parent)
         self.session = session
         self.printer_service = printer_service
         self.activity_service = activity_service
         self.company_service = company_service
+        self.technician_service = technician_service
 
         self._atividades = []
         self._filtro_tipo_atual = None
@@ -30,7 +54,16 @@ class OSPage(QWidget):
         layout.setSpacing(16)
 
         header = QHBoxLayout()
-        titulo = QLabel("\U0001f4cb Ordens de Serviço / Atividades")
+        icon_container = QLabel("\U0001f4cb")
+        icon_container.setFixedSize(40, 40)
+        icon_container.setAlignment(Qt.AlignCenter)
+        icon_container.setStyleSheet(
+            f"background: {_cor_rgba('#6366f1', 0.10)}; border: 1px solid {_cor_rgba('#6366f1', 0.20)}; "
+            f"border-radius: 10px; font-size: 18px;"
+        )
+        header.addWidget(icon_container)
+        header.addSpacing(10)
+        titulo = QLabel("Ordens de Serviço / Atividades")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
         header.addWidget(titulo)
         header.addStretch()
@@ -41,47 +74,68 @@ class OSPage(QWidget):
         header.addWidget(self.btn_nova)
 
         self.btn_manut = QPushButton("\U0001f527 Manutenções")
-        self.btn_manut.setStyleSheet(ESTILO_BOTAO_AVISO)
+        self.btn_manut.setStyleSheet(
+            f"QPushButton {{ background: {_cor_rgba('#f97316', 0.10)}; color: #f97316; "
+            f"border: 1px solid {_cor_rgba('#f97316', 0.30)}; border-radius: 8px; "
+            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: #f97316; color: white; border-color: #f97316; }}"
+        )
         self.btn_manut.clicked.connect(lambda: self._filtrar_tipo("MANUTENCAO"))
         header.addWidget(self.btn_manut)
 
         self.btn_mov = QPushButton("\U0001f69a Movimentações")
-        self.btn_mov.setStyleSheet(ESTILO_BOTAO_AVISO)
+        self.btn_mov.setStyleSheet(
+            f"QPushButton {{ background: {_cor_rgba('#ef4444', 0.10)}; color: #ef4444; "
+            f"border: 1px solid {_cor_rgba('#ef4444', 0.30)}; border-radius: 8px; "
+            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: #ef4444; color: white; border-color: #ef4444; }}"
+        )
         self.btn_mov.clicked.connect(lambda: self._filtrar_tipo("MOVIMENTACAO"))
         header.addWidget(self.btn_mov)
 
         self.btn_todas = QPushButton("\U0001f4cb Todas")
-        self.btn_todas.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        self.btn_todas.setStyleSheet(
+            f"QPushButton {{ background: {_cor_rgba('#6366f1', 0.10)}; color: #6366f1; "
+            f"border: 1px solid {_cor_rgba('#6366f1', 0.30)}; border-radius: 8px; "
+            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: #6366f1; color: white; border-color: #6366f1; }}"
+        )
         self.btn_todas.clicked.connect(lambda: self._filtrar_tipo("TODAS"))
         header.addWidget(self.btn_todas)
 
         self.btn_atualizar = QPushButton("\U0001f504 Atualizar")
-        self.btn_atualizar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        self.btn_atualizar.setStyleSheet(
+            f"QPushButton {{ background: {_cor_rgba('#6366f1', 0.10)}; color: #6366f1; "
+            f"border: 1px solid {_cor_rgba('#6366f1', 0.30)}; border-radius: 8px; "
+            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: #6366f1; color: white; border-color: #6366f1; }}"
+        )
         self.btn_atualizar.clicked.connect(self.recarregar)
         header.addWidget(self.btn_atualizar)
 
         layout.addLayout(header)
 
-        self.search = SearchBar(placeholder="Buscar por patrimônio, descrição...")
+        self.search = SearchBar(placeholder="Buscar por patrimônio, descrição...",
+                                 glass=True)
         self.search.textChanged().connect(self._filtrar_busca)
         layout.addWidget(self.search)
 
         cards = QHBoxLayout()
         cards.setSpacing(12)
 
-        self.card_total = CardMiniClicavel("\U0001f4ca", "Total OS", "0", "#89b4fa",
+        self.card_total = CardMiniClicavel("\U0001f4ca", "Total OS", "0", "#6366f1",
                                            ao_clicar=lambda: self._filtrar_tipo("TODAS"))
         cards.addWidget(self.card_total)
 
-        self.card_andamento = CardMiniClicavel("\U0001f504", "Em Andamento", "0", "#f9e2af",
+        self.card_andamento = CardMiniClicavel("\U0001f504", "Em Andamento", "0", "#3b82f6",
                                                 ao_clicar=lambda: self._filtrar_status("Em Andamento"))
         cards.addWidget(self.card_andamento)
 
-        self.card_pendentes = CardMiniClicavel("\u23f3", "Pendentes", "0", "#f38ba8",
+        self.card_pendentes = CardMiniClicavel("\u23f3", "Pendentes", "0", "#f59e0b",
                                                 ao_clicar=lambda: self._filtrar_status("Pendente"))
         cards.addWidget(self.card_pendentes)
 
-        self.card_concluidas = CardMiniClicavel("\u2705", "Concluídas", "0", "#a6e3a1",
+        self.card_concluidas = CardMiniClicavel("\u2705", "Concluídas", "0", "#10b981",
                                                  ao_clicar=lambda: self._filtrar_status("Concluida"))
         cards.addWidget(self.card_concluidas)
 
@@ -110,7 +164,7 @@ class OSPage(QWidget):
         self.tabela.setRowCount(len(atividades))
         for row, atv in enumerate(atividades):
             patrimonio = mapa_pat.get(atv.printer_id, atv.printer_id[:8] if atv.printer_id else "-")
-            cor_tipo = "#f9e2af" if atv.kind == "MANUTENCAO" else "#89b4fa"
+            cor_tipo = "#f59e0b" if atv.kind == "MANUTENCAO" else "#6366f1"
 
             data_item = QTableWidgetItem(formatar_data_hora(atv.event_at))
             data_item.setTextAlignment(Qt.AlignCenter)
@@ -118,7 +172,7 @@ class OSPage(QWidget):
             pat_item = QTableWidgetItem(patrimonio)
             pat_item.setTextAlignment(Qt.AlignCenter)
 
-            cor_kind = "#f9e2af" if atv.kind == "MANUTENCAO" else "#89b4fa"
+            cor_kind = "#f59e0b" if atv.kind == "MANUTENCAO" else "#6366f1"
             self.tabela.definir_badge(row, 2, atv.kind or "-", cor_kind)
 
             desc_item = QTableWidgetItem(atv.notes or "-")
@@ -131,7 +185,12 @@ class OSPage(QWidget):
             dest_item = QTableWidgetItem(atv.to_location or "-")
             dest_item.setTextAlignment(Qt.AlignCenter)
 
-            tecnico_item = QTableWidgetItem("-")
+            nome_tecnico = "-"
+            if atv.tecnico_id and self.technician_service:
+                tec = self.technician_service.buscar_por_id(atv.tecnico_id)
+                if tec:
+                    nome_tecnico = tec.nome_exibicao
+            tecnico_item = QTableWidgetItem(nome_tecnico)
             tecnico_item.setTextAlignment(Qt.AlignCenter)
 
             self.tabela.setItem(row, 0, data_item)
@@ -196,6 +255,7 @@ class OSPage(QWidget):
 
         from_company_id = self._resolver_empresa(from_location)
         to_company_id = self._resolver_empresa(to_location)
+        tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
 
         try:
             self.activity_service.criar(
@@ -207,6 +267,7 @@ class OSPage(QWidget):
                 to_location=to_location,
                 status_atividade=status_atividade,
                 event_at=event_at,
+                tecnico_id=tecnico_id,
             )
             atividade = self.activity_service.buscar_por_descricao(printer.id, notes)
             if atividade:
@@ -262,6 +323,7 @@ class OSPage(QWidget):
             status_atividade = campos["status"].currentText()
             from_company_id = self._resolver_empresa(from_location)
             to_company_id = self._resolver_empresa(to_location)
+            tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
 
             try:
                 self.activity_service.atualizar(
@@ -276,6 +338,7 @@ class OSPage(QWidget):
                     status_atividade=status_atividade,
                     from_company_id=from_company_id,
                     to_company_id=to_company_id,
+                    tecnico_id=tecnico_id,
                 )
                 resultado["acao"] = "salvar"
                 dialog.accept()
@@ -355,14 +418,38 @@ class OSPage(QWidget):
         cmb_origem.setStyleSheet(ESTILO_COMBO)
         cmb_origem.addItems(empresas)
         cmb_origem.setInsertPolicy(QComboBox.NoInsert)
+        cmb_origem.setCurrentText("")
         form.addRow("Origem:", cmb_origem)
+        lbl_origem = form.labelForField(cmb_origem)
 
         cmb_destino = QComboBox()
         cmb_destino.setEditable(True)
         cmb_destino.setStyleSheet(ESTILO_COMBO)
         cmb_destino.addItems(empresas)
         cmb_destino.setInsertPolicy(QComboBox.NoInsert)
+        cmb_destino.setCurrentText("")
         form.addRow("Destino:", cmb_destino)
+        lbl_destino = form.labelForField(cmb_destino)
+
+        def _toggle_origem_destino(tipo):
+            visivel = tipo == "MOVIMENTACAO"
+            lbl_origem.setVisible(visivel)
+            cmb_origem.setVisible(visivel)
+            lbl_destino.setVisible(visivel)
+            cmb_destino.setVisible(visivel)
+            if not visivel:
+                cmb_origem.setCurrentText("")
+                cmb_destino.setCurrentText("")
+        cmb_tipo.currentTextChanged.connect(_toggle_origem_destino)
+        _toggle_origem_destino(cmb_tipo.currentText())
+
+        cmb_tecnico = QComboBox()
+        cmb_tecnico.setEditable(True)
+        cmb_tecnico.setStyleSheet(ESTILO_COMBO)
+        if self.technician_service:
+            cmb_tecnico.addItems(self.technician_service.nomes_exibicao())
+        cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
+        form.addRow("Técnico:", cmb_tecnico)
 
         cmb_status = QComboBox()
         cmb_status.setStyleSheet(ESTILO_COMBO)
@@ -379,6 +466,7 @@ class OSPage(QWidget):
             "pecas": txt_pecas,
             "origem": cmb_origem,
             "destino": cmb_destino,
+            "tecnico": cmb_tecnico,
             "status": cmb_status,
         }
 
@@ -426,6 +514,15 @@ class OSPage(QWidget):
             else:
                 campos["destino"].setCurrentText(atividade.to_location)
 
+        if atividade.tecnico_id and self.technician_service:
+            tec = self.technician_service.buscar_por_id(atividade.tecnico_id)
+            if tec:
+                idx_tec = campos["tecnico"].findText(tec.nome_exibicao)
+                if idx_tec >= 0:
+                    campos["tecnico"].setCurrentIndex(idx_tec)
+                else:
+                    campos["tecnico"].setCurrentText(tec.nome_exibicao)
+
         idx_st = campos["status"].findText(atividade.status_atividade or "Concluida",
                                            Qt.MatchFixedString)
         if idx_st >= 0:
@@ -436,3 +533,12 @@ class OSPage(QWidget):
             return None
         empresa = self.company_service.buscar_por_nome(nome)
         return empresa.id if empresa else None
+
+    def _resolver_tecnico(self, nome):
+        if not nome or not self.technician_service:
+            return None
+        tecnicos = self.technician_service.listar_ativos()
+        for t in tecnicos:
+            if t.nome_exibicao == nome or t.nome_completo == nome:
+                return t.id
+        return None

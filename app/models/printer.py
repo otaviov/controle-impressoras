@@ -1,22 +1,24 @@
-from __future__ import annotations
+﻿from __future__ import annotations
+
+import uuid
 from datetime import datetime
-import random
-import string
-from sqlalchemy import String, Text, DateTime, Integer
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import TYPE_CHECKING, List, Optional
 
-from app.models.base import Base
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.models.base import Base, utcnow
 
-def simple_uid() -> str:
-    chars = string.ascii_lowercase + string.digits
-    parts = [8, 4, 4, 4, 12]
-    return "-".join("".join(random.choice(chars) for _ in range(n)) for n in parts)
+if TYPE_CHECKING:
+    from app.models.activity import Activity
+    from app.models.alert import Alert
+    from app.models.company import Company
+    from app.models.transfer import Transfer
 
 
 class Printer(Base):
     __tablename__ = "printers"
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     patrimonio: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     modelo: Mapped[str] = mapped_column(String(80), default="")
     serial: Mapped[str] = mapped_column(String(80), default="")
@@ -27,11 +29,18 @@ class Printer(Base):
     tipo: Mapped[str] = mapped_column(String(20), default="")
     ip_rede: Mapped[str] = mapped_column(String(15), default="")
     mac_address: Mapped[str] = mapped_column(String(17), default="")
-    empresa_id: Mapped[int] = mapped_column(Integer, nullable=True)
-    proxima_revisao: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    empresa_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"), nullable=True)
+    proxima_revisao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     tecnico: Mapped[str] = mapped_column(String(120), default="")
 
-    pecas_faltantes: Mapped[str] = mapped_column(Text, nullable=True)
+    pecas_faltantes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     observacao: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    company: Mapped[Optional[Company]] = relationship(back_populates="printers")
+    activities: Mapped[List[Activity]] = relationship(back_populates="printer")
+    transfers: Mapped[List[Transfer]] = relationship(back_populates="printer")
+    alerts: Mapped[List[Alert]] = relationship(back_populates="printer")
+
+

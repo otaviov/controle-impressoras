@@ -1,5 +1,10 @@
+﻿import logging
+
+from db import safe_commit
+
+log = logging.getLogger(__name__)
 from datetime import datetime, timedelta
-from sqlalchemy import func
+
 from app.models import Alert, Printer
 
 
@@ -30,18 +35,18 @@ class AlertService:
             data_alerta=data_alerta or datetime.now(),
         )
         self.session.add(alerta)
-        self.session.commit()
+        safe_commit(self.session)
         return alerta
 
     def resolver(self, alerta, user_id=None):
         alerta.resolvido = True
         alerta.resolvido_em = datetime.now()
         alerta.resolvido_por = user_id
-        self.session.commit()
+        safe_commit(self.session)
 
     def excluir(self, alerta):
         self.session.delete(alerta)
-        self.session.commit()
+        safe_commit(self.session)
 
     def contar_pendentes(self):
         return self.session.query(Alert).filter(Alert.resolvido == False).count()
@@ -72,3 +77,35 @@ class AlertService:
             )
             criados += 1
         return criados
+
+    def verificar_estoque_baixo(self):
+        from app.models import Part
+        from sqlalchemy import or_
+        partes = self.session.query(Part).filter(
+            or_(
+                Part.quantidade_estoque <= 0,
+                Part.quantidade_estoque <= Part.estoque_minimo,
+            )
+        ).all()
+        criados = 0
+        for peca in partes:
+            existente = self.session.query(Alert).filter(
+                Alert.tipo == "estoque",
+                Alert.resolvido == False,
+                Alert.titulo.like(f"%{peca.nome}%"),
+            ).first()
+            if existente:
+                continue
+            printer = self.session.query(Printer).filter(
+                Printer.modelo.ilike(f"%{peca.modelo_compativel}%")
+            ).first()
+            printer_id = printer.id if printer else "unknown"
+            self.criar(
+                printer_id=printer_id,
+                tipo="estoque",
+                titulo=f"Estoque baixo: {peca.nome}",
+                descricao=f"Peça {peca.nome} (cód. {peca.codigo}) tem apenas {peca.quantidade_estoque} unidade(s) — mínimo é {peca.estoque_minimo}.",
+            )
+            criados += 1
+        return criados
+

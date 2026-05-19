@@ -1,9 +1,15 @@
-from __future__ import annotations
-from datetime import datetime
-from sqlalchemy import String, DateTime, Integer, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+﻿from __future__ import annotations
 
-from app.models.base import Base
+from datetime import datetime
+from typing import TYPE_CHECKING, List
+
+from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, utcnow
+
+if TYPE_CHECKING:
+    from app.models.activity import Activity
 
 
 class Technician(Base):
@@ -14,4 +20,8 @@ class Technician(Base):
     telefone: Mapped[str] = mapped_column(String(20), default="")
     email: Mapped[str] = mapped_column(String(120), default="")
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    activities: Mapped[List[Activity]] = relationship(back_populates="technician")
+
+

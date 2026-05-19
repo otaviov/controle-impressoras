@@ -1,9 +1,33 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidgetItem, QDialog, QFormLayout, QLineEdit, QComboBox, QDialogButtonBox, QMessageBox, QFrame)
-from PySide6.QtCore import Qt
-from pathlib import Path
 import shutil
 from datetime import datetime
-from app.views.styles.theme import (ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_INPUT_READONLY, ESTILO_COMBO, ESTILO_DIALOG)
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.views.styles.theme import (
+    ESTILO_BOTAO_AVISO,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_COMBO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_INPUT_READONLY,
+    ESTILO_SUBTITULO,
+    ESTILO_TITULO_PAGINA,
+)
 from app.views.widgets.table_widget import TabelaPadrao
 from config import DB_PATH
 
@@ -32,12 +56,12 @@ class ConfigPage(QWidget):
 
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: #45475a; max-height: 1px; margin: 16px 0;")
+        sep.setStyleSheet("background-color: #2e2e4a; max-height: 1px; margin: 16px 0;")
         layout.addWidget(sep)
 
         # ── Seção Usuários ────────────────────────────────────
         secao_titulo = QLabel("👥 Usuários do Sistema")
-        secao_titulo.setStyleSheet("color: #89b4fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
+        secao_titulo.setStyleSheet("color: #60a5fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
         layout.addWidget(secao_titulo)
 
         self.tabela = TabelaPadrao(["Nome", "Usuário", "Email", "Perfil", "Ativo"])
@@ -63,7 +87,7 @@ class ConfigPage(QWidget):
 
         # ── Seção Backup ──────────────────────────────────────
         secao_titulo2 = QLabel("💾 Backup do Banco de Dados")
-        secao_titulo2.setStyleSheet("color: #89b4fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
+        secao_titulo2.setStyleSheet("color: #60a5fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
         layout.addWidget(secao_titulo2)
 
         self.btn_backup = QPushButton("📦 Fazer Backup Agora")
@@ -71,17 +95,22 @@ class ConfigPage(QWidget):
         self.btn_backup.setCursor(Qt.PointingHandCursor)
         self.btn_backup.setStyleSheet("""
             QPushButton {
-                background-color: #cba6f7; color: #1e1e2e;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #a78bfa, stop:1 #7c3aed);
+                color: #ffffff;
                 border: none; border-radius: 10px;
                 padding: 14px 24px; font-size: 14px; font-weight: 700;
             }
-            QPushButton:hover { background-color: #b4befe; }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #c4b5fd, stop:1 #a78bfa);
+            }
         """)
         self.btn_backup.clicked.connect(self._fazer_backup)
         layout.addWidget(self.btn_backup)
 
         self.label_backup = QLabel("")
-        self.label_backup.setStyleSheet("color: #6c7086; font-size: 12px; background: transparent; padding: 6px 0;")
+        self.label_backup.setStyleSheet("color: #475569; font-size: 12px; background: transparent; padding: 6px 0;")
         layout.addWidget(self.label_backup)
 
         layout.addStretch()
@@ -95,10 +124,10 @@ class ConfigPage(QWidget):
             self.tabela.setItem(i, 1, QTableWidgetItem(u.username))
             self.tabela.setItem(i, 2, QTableWidgetItem(u.email))
 
-            cor_perfil = "#cba6f7" if u.perfil == "admin" else "#89b4fa"
+            cor_perfil = "#a78bfa" if u.perfil == "admin" else "#60a5fa"
             self.tabela.definir_badge(i, 3, u.perfil.capitalize(), cor_perfil)
 
-            cor_ativo = "#a6e3a1" if u.ativo else "#6c7086"
+            cor_ativo = "#34d399" if u.ativo else "#475569"
             self.tabela.definir_badge(i, 4, "Sim" if u.ativo else "Não", cor_ativo)
 
         self.tabela.redimensionar()
@@ -129,10 +158,10 @@ class ConfigPage(QWidget):
             nome_arquivo = f"backup_{timestamp}.db"
             destino = backup_dir / nome_arquivo
             shutil.copy2(str(DB_PATH), str(destino))
-            self.label_backup.setStyleSheet("color: #a6e3a1; font-size: 12px; background: transparent; padding: 6px 0;")
+            self.label_backup.setStyleSheet("color: #34d399; font-size: 12px; background: transparent; padding: 6px 0;")
             self.label_backup.setText(f"Backup criado: {nome_arquivo}")
         except Exception as e:
-            self.label_backup.setStyleSheet("color: #f38ba8; font-size: 12px; background: transparent; padding: 6px 0;")
+            self.label_backup.setStyleSheet("color: #f87171; font-size: 12px; background: transparent; padding: 6px 0;")
             self.label_backup.setText(f"Erro: {e}")
 
 

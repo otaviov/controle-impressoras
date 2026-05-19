@@ -1,26 +1,22 @@
-import sqlite3
+from datetime import datetime as dt
 from pathlib import Path
 
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QLabel,
-    QLineEdit, QPushButton, QFrame, QSizePolicy
-)
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QMouseEvent, QShortcut
+from PySide6.QtWidgets import QDialog, QFrame, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout
 
+from app.models import User
+from app.utils.effects import sombra_glow
 from app.utils.security import verify_password
+from db import close_session, get_session
 
 
 class LoginDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.authenticated_user = None
-        self.db_path = self._get_db_path()
         self.drag_pos = None
         self.init_ui()
-
-    def _get_db_path(self):
-        return Path(__file__).parent.parent.parent / "app.db"
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
@@ -43,7 +39,7 @@ class LoginDialog(QDialog):
         self.setStyleSheet("""
             #loginDialog {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #1e1e2e, stop:1 #313244);
+                    stop:0 #0a0a0f, stop:1 #14141f);
                 border-radius: 20px;
             }
         """)
@@ -56,16 +52,17 @@ class LoginDialog(QDialog):
         card = QFrame()
         card.setStyleSheet("""
             #loginCard {
-                background-color: #313244;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #14141f, stop:1 #1a1a28);
                 border-radius: 16px;
-                border: 1px solid #585b70;
+                border: 1px solid #2a2a3e;
             }
         """)
         card.setObjectName("loginCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(28, 24, 28, 22)
+        card_layout.setContentsMargins(28, 26, 28, 22)
         card_layout.setSpacing(7)
         card_layout.setAlignment(Qt.AlignCenter)
 
@@ -91,26 +88,25 @@ class LoginDialog(QDialog):
         title = QLabel("Impressoras\nBrasil Toner")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
-            "color: #cdd6f4; font-size: 20px; font-weight: 700;"
+            "color: #e8e8f0; font-size: 20px; font-weight: 700;"
             " background: transparent; letter-spacing: -0.5px; line-height: 1.3;"
         )
         card_layout.addWidget(title)
 
         sub = QLabel("Faça login para continuar")
         sub.setAlignment(Qt.AlignCenter)
-        sub.setStyleSheet("color: #6c7086; font-size: 11px; background: transparent; margin-top: -4px;")
+        sub.setStyleSheet("color: #94949f; font-size: 11px; background: transparent; margin-top: -4px;")
         card_layout.addWidget(sub)
 
         card_layout.addSpacing(18)
 
         # USUÁRIO
         lbl_user = QLabel("Usuário")
-        lbl_user.setStyleSheet("color: #a6adc8; font-size: 10px; font-weight: 600; background: transparent; text-transform: uppercase; letter-spacing: 0.8px;")
+        lbl_user.setStyleSheet("color: #717182; font-size: 10px; font-weight: 600; background: transparent; text-transform: uppercase; letter-spacing: 0.8px;")
         card_layout.addWidget(lbl_user)
 
         self.user_input = QLineEdit()
         self.user_input.setPlaceholderText("Digite seu usuário")
-        self.user_input.setText("admin")
         self.user_input.setMinimumHeight(44)
         self.user_input.setStyleSheet(self._input_style())
         card_layout.addWidget(self.user_input)
@@ -119,7 +115,7 @@ class LoginDialog(QDialog):
 
         # SENHA
         lbl_senha = QLabel("Senha")
-        lbl_senha.setStyleSheet("color: #a6adc8; font-size: 10px; font-weight: 600; background: transparent; text-transform: uppercase; letter-spacing: 0.8px;")
+        lbl_senha.setStyleSheet("color: #717182; font-size: 10px; font-weight: 600; background: transparent; text-transform: uppercase; letter-spacing: 0.8px;")
         card_layout.addWidget(lbl_senha)
 
         self.senha_input = QLineEdit()
@@ -133,7 +129,7 @@ class LoginDialog(QDialog):
         # ERRO
         self.error_label = QLabel("")
         self.error_label.setAlignment(Qt.AlignCenter)
-        self.error_label.setStyleSheet("color: #f38ba8; font-size: 11px; background: transparent; min-height: 16px;")
+        self.error_label.setStyleSheet("color: #ef4444; font-size: 11px; background: transparent; min-height: 16px;")
         card_layout.addWidget(self.error_label)
 
         # BOTÃO ENTRAR
@@ -142,9 +138,8 @@ class LoginDialog(QDialog):
         btn.setCursor(Qt.PointingHandCursor)
         btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #cba6f7, stop:1 #b4befe);
-                color: #1e1e2e;
+                background: #6366f1;
+                color: #ffffff;
                 border: none;
                 border-radius: 10px;
                 font-size: 13px;
@@ -152,54 +147,55 @@ class LoginDialog(QDialog):
                 letter-spacing: 1px;
                 margin-top: 4px;
             }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 #b4befe, stop:1 #cba6f7);
-            }
-            QPushButton:pressed {
-                background: #a6adc8;
-            }
+            QPushButton:hover { background: #4f46e5; }
+            QPushButton:pressed { background: #4338ca; }
         """)
         btn.clicked.connect(self.fazer_login)
+        QShortcut(QKeySequence("Return"), self).activated.connect(self.fazer_login)
+        QShortcut(QKeySequence("Enter"), self).activated.connect(self.fazer_login)
         card_layout.addWidget(btn)
 
         # FECHAR
-        close_btn = QPushButton("✕ Fechar")
+        close_btn = QPushButton("Sair")
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet("""
             QPushButton {
                 background: transparent;
-                color: #6c7086;
+                color: #717182;
                 border: none;
-                font-size: 13px;
+                font-size: 12px;
                 padding: 4px;
+                font-weight: 500;
             }
-            QPushButton:hover { color: #f38ba8; }
+            QPushButton:hover { color: #ef4444; }
         """)
         close_btn.clicked.connect(self.reject)
         card_layout.addWidget(close_btn)
 
         # VERSÃO
-        ver = QLabel("v2.0.0 — Desenvolvido por Otávio Oliveira")
+        from app import __version__
+        ver = QLabel(f"v{__version__} — Desenvolvido por Otávio Oliveira")
         ver.setAlignment(Qt.AlignCenter)
-        ver.setStyleSheet("color: #585b70; font-size: 9px; background: transparent;")
+        ver.setStyleSheet("color: #3a3a50; font-size: 9px; background: transparent;")
         card_layout.addWidget(ver)
 
         main_layout.addWidget(card)
 
+        sombra_glow(card, cor="#6366f1", blur=60)
         self.animar_entrada()
 
     def _input_style(self):
         return """
             QLineEdit {
                 background-color: #1e1e2e;
-                color: #cdd6f4;
-                border: 2px solid #585b70;
+                color: #e8e8f0;
+                border: 1px solid #2a2a3e;
                 border-radius: 10px;
                 padding: 10px 14px;
                 font-size: 13px;
             }
-            QLineEdit:focus { border-color: #cba6f7; }
+            QLineEdit:hover { border-color: #3a3a50; }
+            QLineEdit:focus { border-color: #6366f1; background-color: #1e1e2e; }
         """
 
     def animar_entrada(self):
@@ -223,49 +219,39 @@ class LoginDialog(QDialog):
             self.mostrar_erro("Preencha todos os campos!")
             return
 
+        session = get_session()
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "SELECT id, nome, username, senha_hash, perfil, ativo FROM users WHERE username = ?",
-                (username,)
-            )
-
-            user = cursor.fetchone()
-            conn.close()
+            user = session.query(User).filter(User.username == username).first()
 
             if not user:
                 self.mostrar_erro("Usuário não encontrado!")
                 return
 
-            user_id, nome, user_name, senha_hash, perfil, ativo = user
-
-            if not ativo:
+            if not user.ativo:
                 self.mostrar_erro("Usuário desativado!")
                 return
 
-            if not verify_password(senha, senha_hash):
+            if not verify_password(senha, user.senha_hash):
                 self.mostrar_erro("Senha incorreta!")
                 return
 
-            self.authenticated_user = {
-                "id": user_id,
-                "nome": nome,
-                "username": user_name,
-                "perfil": perfil
-            }
+            user.ultimo_login = dt.utcnow()
+            session.commit()
 
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET ultimo_login = datetime('now') WHERE id = ?", (user_id,))
-            conn.commit()
-            conn.close()
+            self.authenticated_user = {
+                "id": user.id,
+                "nome": user.nome,
+                "username": user.username,
+                "perfil": user.perfil
+            }
 
             self.accept()
 
         except Exception as e:
+            session.rollback()
             self.mostrar_erro(f"Erro: {str(e)}")
+        finally:
+            close_session(session)
 
     def mostrar_erro(self, mensagem):
         self.error_label.setText(mensagem)

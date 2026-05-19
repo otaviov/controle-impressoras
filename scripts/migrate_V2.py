@@ -1,9 +1,10 @@
 
-import sqlite3
 import shutil
+import sqlite3
 from datetime import datetime
-from pathlib import Path
-from config import DB_PATH, BACKUP_DIR
+
+from config import BACKUP_DIR, DB_PATH
+
 
 def fazer_backup():
     """
@@ -13,10 +14,10 @@ def fazer_backup():
         print(" Banco de dados não encontrado em:", DB_PATH)
         print(" Verifique se o caminho está correto.")
         return None
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = BACKUP_DIR / f"app_backup_{timestamp}.db"
-    
+
     shutil.copy2(DB_PATH, backup_path)
     print(f" Backup criado: {backup_path.name}")
     print(f"   Tamanho: {backup_path.stat().st_size / 1024:.1f} KB")
@@ -28,21 +29,21 @@ def verificar_estrutura_atual(cursor):
     """
     print("\n ESTRUTURA ATUAL DO BANCO:")
     print("-" * 50)
-    
+
     # Lista tabelas existentes
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     tabelas = cursor.fetchall()
-    
+
     for tabela in tabelas:
         nome_tabela = tabela[0]
         cursor.execute(f"SELECT COUNT(*) FROM {nome_tabela}")
         qtd = cursor.fetchone()[0]
-        
+
         # Pega colunas
         cursor.execute(f"PRAGMA table_info({nome_tabela})")
         colunas = cursor.fetchall()
         nomes_colunas = [col[1] for col in colunas]
-        
+
         print(f"\n Tabela: {nome_tabela}")
         print(f"   Registros: {qtd}")
         print(f"   Colunas: {', '.join(nomes_colunas)}")
@@ -53,7 +54,7 @@ def adicionar_colunas_printers(cursor):
     """
     print("\n ADICIONANDO COLUNAS EM printers...")
     print("-" * 50)
-    
+
     novas_colunas = [
         ("marca", "VARCHAR(80) DEFAULT ''"),
         ("tipo", "VARCHAR(20) DEFAULT ''"),
@@ -63,7 +64,7 @@ def adicionar_colunas_printers(cursor):
         ("proxima_revisao", "DATETIME"),
         ("tecnico", "VARCHAR(120) DEFAULT ''"),
     ]
-    
+
     for nome, tipo in novas_colunas:
         try:
             cursor.execute(f"ALTER TABLE printers ADD COLUMN {nome} {tipo}")
@@ -80,7 +81,7 @@ def adicionar_colunas_activities(cursor):
     """
     print("\n ADICIONANDO COLUNAS EM activities...")
     print("-" * 50)
-    
+
     novas_colunas = [
         ("from_company_id", "INTEGER"),
         ("to_company_id", "INTEGER"),
@@ -89,7 +90,7 @@ def adicionar_colunas_activities(cursor):
         ("custo_servico", "FLOAT DEFAULT 0.0"),
         ("status_atividade", "VARCHAR(30) DEFAULT 'concluida'"),
     ]
-    
+
     for nome, tipo in novas_colunas:
         try:
             cursor.execute(f"ALTER TABLE activities ADD COLUMN {nome} {tipo}")
@@ -106,7 +107,7 @@ def criar_tabelas_novas(cursor):
     """
     print("\n  CRIANDO NOVAS TABELAS...")
     print("-" * 50)
-    
+
     tabelas = {
         "companies": """
             CREATE TABLE IF NOT EXISTS companies (
@@ -196,7 +197,7 @@ def criar_tabelas_novas(cursor):
             )
         """
     }
-    
+
     for nome_tabela, sql in tabelas.items():
         try:
             cursor.execute(sql)
@@ -210,7 +211,7 @@ def criar_indices(cursor):
     """
     print("\n CRIANDO ÍNDICES...")
     print("-" * 50)
-    
+
     indices = [
         "CREATE INDEX IF NOT EXISTS idx_activities_printer ON activities(printer_id)",
         "CREATE INDEX IF NOT EXISTS idx_alerts_printer ON alerts(printer_id)",
@@ -219,13 +220,13 @@ def criar_indices(cursor):
         "CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id)",
         "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id)",
     ]
-    
+
     for sql in indices:
         try:
             cursor.execute(sql)
         except Exception as e:
             print(f"  ⚠️  Aviso: {e}")
-    
+
     print("   Índices criados")
 
 def inserir_dados_iniciais(cursor):
@@ -234,7 +235,7 @@ def inserir_dados_iniciais(cursor):
     """
     print("\n VERIFICANDO DADOS INICIAIS...")
     print("-" * 50)
-    
+
     # Verifica se já tem empresa
     cursor.execute("SELECT COUNT(*) FROM companies")
     if cursor.fetchone()[0] == 0:
@@ -242,24 +243,24 @@ def inserir_dados_iniciais(cursor):
         print("   Empresa padrão criada")
     else:
         print("   Empresa já existe")
-    
+
     # Verifica se já tem admin
     cursor.execute("SELECT COUNT(*) FROM users WHERE email = 'admin@sistema.com'")
     if cursor.fetchone()[0] == 0:
-        try:
-            from passlib.hash import bcrypt
-        except ImportError:
-            print("   Erro: passlib não instalado. Execute: pip install passlib[bcrypt]")
-            return
-        
-        senha_hash = bcrypt.hash("Admin@123")
+        import secrets
+        import string
+        admin_senha = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+
+        from app.utils.security import hash_password
+        senha_hash = hash_password(admin_senha)
         cursor.execute(
             "INSERT INTO users (nome, email, senha_hash, perfil, ativo) VALUES (?, ?, ?, ?, ?)",
             ("Administrador", "admin@sistema.com", senha_hash, "admin", 1)
         )
-        print("   Usuário admin criado")
-        print("     📧 Email: admin@sistema.com")
-        print("     🔑 Senha: Admin@123")
+        print(" Usuário admin criado")
+        print("   Email: admin@sistema.com")
+        print(f"   Senha: {admin_senha}")
+        print("  GUARDE ESTA SENHA EM LOCAL SEGURO!")
     else:
         print("  ⏭  Usuário admin já existe")
 
@@ -268,21 +269,21 @@ def main():
     print(" MIGRAÇÃO SEGURA - Controle de Impressoras v2")
     print("=" * 60)
     print()
-    
+
     # PASSO 1: Backup
     print(" PASSO 1: Criando backup...")
     backup = fazer_backup()
     if not backup:
         return
-    
+
     # Conecta ao banco
     conn = sqlite3.connect(str(DB_PATH))
     cursor = conn.cursor()
-    
+
     try:
         # PASSO 2: Mostrar estrutura atual
         verificar_estrutura_atual(cursor)
-        
+
         # Confirmação do usuário
         print("\n" + "=" * 60)
         resposta = input("⚠️  Deseja continuar com a migração? (S/N): ")
@@ -290,35 +291,35 @@ def main():
             print(" Migração cancelada pelo usuário.")
             conn.close()
             return
-        
+
         # PASSO 3: Adicionar colunas em printers
         adicionar_colunas_printers(cursor)
-        
+
         # PASSO 4: Adicionar colunas em activities
         adicionar_colunas_activities(cursor)
-        
+
         # PASSO 5: Criar tabelas novas
         criar_tabelas_novas(cursor)
-        
+
         # PASSO 6: Criar índices
         criar_indices(cursor)
-        
+
         # PASSO 7: Inserir dados iniciais
         inserir_dados_iniciais(cursor)
-        
+
         # COMMIT FINAL
         conn.commit()
-        
+
         print("\n" + "=" * 60)
         print("🎉 MIGRAÇÃO CONCLUÍDA COM SUCESSO!")
         print("=" * 60)
-        print(f" Seus dados foram PRESERVADOS")
+        print(" Seus dados foram PRESERVADOS")
         print(f" Backup salvo em: {BACKUP_DIR}")
-        print(f" Novas tabelas e colunas adicionadas")
-        print(f"\n Login: admin@sistema.com")
-        print(f" Senha: Admin@123")
-        print(f"\n  ALTERE A SENHA NO PRIMEIRO ACESSO!")
-        
+        print(" Novas tabelas e colunas adicionadas")
+        print("\n Login: admin@sistema.com")
+        print(" Senha: Admin@123")
+        print("\n  ALTERE A SENHA NO PRIMEIRO ACESSO!")
+
     except Exception as e:
         conn.rollback()
         print(f"\n ERRO: {e}")

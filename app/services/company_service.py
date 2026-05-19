@@ -1,3 +1,8 @@
+﻿import logging
+
+from db import safe_commit
+
+log = logging.getLogger(__name__)
 from app.models import Company
 
 
@@ -18,18 +23,19 @@ class CompanyService:
             tipo=tipo
         )
         self.session.add(empresa)
-        self.session.commit()
+        safe_commit(self.session)
         return empresa
 
     def atualizar(self, empresa, **kwargs):
         for chave, valor in kwargs.items():
             if hasattr(empresa, chave):
                 setattr(empresa, chave, valor)
-        self.session.commit()
+        safe_commit(self.session)
 
     def excluir(self, empresa):
         self.session.delete(empresa)
-        self.session.commit()
+        safe_commit(self.session)
 
     def listar_nomes(self):
         return [emp.nome for emp in self.listar_todas()]
+

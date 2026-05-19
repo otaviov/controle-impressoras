@@ -1,10 +1,40 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QTextEdit, QDialogButtonBox, QMessageBox, QTabWidget, QHBoxLayout)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
-from app.models import Company, Printer
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_TABELA_SIMPLES, ESTILO_DIALOG, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_LABEL_CAMPO, estilos_dialogo_tabs)
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.models import Printer
+from app.views.styles.theme import (
+    COR,
+    ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_COMBO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_LABEL_CAMPO,
+    ESTILO_TABELA_SIMPLES,
+    ESTILO_TITULO_PAGINA,
+    estilos_dialogo_tabs,
+)
 from app.views.widgets.table_widget import TabelaPadrao
-from app.utils.helpers import formatar_data_hora
 
 
 class ClientsPage(QWidget):
@@ -204,7 +234,6 @@ class ClientsPage(QWidget):
             imp_tabela.setHorizontalHeaderLabels(["Patrim\u00f4nio", "Modelo", "Serial", "Status", "\u00daltima Revis\u00e3o"])
             imp_tabela.setRowCount(len(impressoras))
             imp_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
-            imp_tabela.horizontalHeader().setStretchLastSection(True)
             imp_tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
             imp_tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
             imp_tabela.verticalHeader().setVisible(False)
@@ -226,9 +255,9 @@ class ClientsPage(QWidget):
                 rev_text = p.proxima_revisao.strftime("%d/%m/%Y") if p.proxima_revisao else "-"
                 imp_tabela.setItem(i, 4, QTableWidgetItem(rev_text))
 
-            imp_tabela.resizeColumnsToContents()
-            imp_tabela.resizeRowsToContents()
-            imp_tabela.verticalHeader().setDefaultSectionSize(30)
+            imp_tabela.verticalHeader().setDefaultSectionSize(44)
+            for i in range(imp_tabela.columnCount()):
+                imp_tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
 
             imp_tabela.cellDoubleClicked.connect(lambda r, c: self._abrir_impressora_por_patrimonio(
                 imp_tabela.item(r, 0).text(), dialog
@@ -237,7 +266,7 @@ class ClientsPage(QWidget):
             imp_layout.addWidget(imp_tabela)
         else:
             sem = QLabel("Nenhuma impressora vinculada a esta empresa.")
-            sem.setStyleSheet("color: #6c7086; font-size: 13px; padding: 30px;")
+            sem.setStyleSheet("color: #94949f; font-size: 13px; padding: 30px;")
             sem.setAlignment(Qt.AlignCenter)
             imp_layout.addWidget(sem)
 

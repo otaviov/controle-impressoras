@@ -1,7 +1,31 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QDialogButtonBox, QMessageBox)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_INPUT_READONLY, ESTILO_BOTAO_AVISO)
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.views.styles.theme import (
+    COR,
+    ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_COMBO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_INPUT_READONLY,
+    ESTILO_TITULO_PAGINA,
+)
 from app.views.widgets.card_widget import CardMiniWidget
 from app.views.widgets.table_widget import TabelaPadrao
 
@@ -31,7 +55,7 @@ class PartsPage(QWidget):
 
         cards = QHBoxLayout()
         cards.setSpacing(12)
-        self.card_total = CardMiniWidget("\U0001f4e6", "Total Peças", "0", COR["roxo_claro"])
+        self.card_total = CardMiniWidget("\U0001f4e6", "Total Peças", "0", COR["roxo"])
         cards.addWidget(self.card_total)
         self.card_em_estoque = CardMiniWidget("\u2705", "Em Estoque", "0", COR["sucesso"])
         cards.addWidget(self.card_em_estoque)
@@ -39,7 +63,7 @@ class PartsPage(QWidget):
         cards.addWidget(self.card_sem_estoque)
         layout.addLayout(cards)
 
-        self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque"])
+        self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque", "Mín."])
         self.tabela.cellDoubleClicked.connect(self._editar)
         layout.addWidget(self.tabela)
 
@@ -61,10 +85,11 @@ class PartsPage(QWidget):
                 (p.descricao, None),
                 (p.modelo_compativel, None),
                 (str(p.quantidade_estoque), None),
+                (str(p.estoque_minimo), None),
             ]
             for j, (texto, _) in enumerate(items):
                 item = QTableWidgetItem(texto)
-                item.setTextAlignment(Qt.AlignCenter if j == 4 else Qt.AlignLeft)
+                item.setTextAlignment(Qt.AlignCenter if j >= 4 else Qt.AlignLeft)
                 self.tabela.setItem(i, j, item)
 
             qtd = p.quantidade_estoque
@@ -72,7 +97,7 @@ class PartsPage(QWidget):
             if qtd <= 0:
                 sem_estoque += 1
 
-            if qtd > 10:
+            if qtd >= p.estoque_minimo:
                 cor = COR["status_ok"]
             elif qtd > 0:
                 cor = COR["status_alerta"]
@@ -81,6 +106,9 @@ class PartsPage(QWidget):
 
             self.tabela.item(i, 4).setForeground(QColor(cor))
             self.tabela.item(i, 4).setTextAlignment(Qt.AlignCenter)
+            self.tabela.item(i, 5).setTextAlignment(Qt.AlignCenter)
+            if qtd < p.estoque_minimo:
+                self.tabela.item(i, 5).setForeground(QColor("#fb923c"))
 
         self.tabela.redimensionar()
 
@@ -127,18 +155,22 @@ class PartsPage(QWidget):
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         form.addRow("Quantidade:", edit_qtd)
 
+        edit_minimo = QLineEdit("1")
+        edit_minimo.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Estoque Mín.:", edit_minimo)
+
         botoes = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         botoes.button(QDialogButtonBox.Save).setText("Salvar")
         botoes.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
         botoes.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
         form.addRow(botoes)
 
-        botoes.accepted.connect(lambda: self._salvar_nova(dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd))
+        botoes.accepted.connect(lambda: self._salvar_nova(dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd, edit_minimo))
         botoes.rejected.connect(dialog.reject)
 
         dialog.exec()
 
-    def _salvar_nova(self, dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd):
+    def _salvar_nova(self, dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd, edit_minimo):
         nome = edit_nome.text().strip()
         if not nome:
             QMessageBox.warning(dialog, "Aviso", "O campo Nome é obrigatório.")
@@ -149,7 +181,11 @@ class PartsPage(QWidget):
             quantidade = int(edit_qtd.text().strip())
         except ValueError:
             quantidade = 0
-        self.part_service.criar(codigo=codigo, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade=quantidade)
+        try:
+            estoque_minimo = int(edit_minimo.text().strip())
+        except ValueError:
+            estoque_minimo = 1
+        self.part_service.criar(codigo=codigo, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade=quantidade, estoque_minimo=estoque_minimo)
         dialog.accept()
         self.recarregar()
 
@@ -186,6 +222,10 @@ class PartsPage(QWidget):
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         form.addRow("Quantidade:", edit_qtd)
 
+        edit_minimo = QLineEdit(str(peca.estoque_minimo))
+        edit_minimo.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Estoque Mín.:", edit_minimo)
+
         botoes = QDialogButtonBox()
         btn_salvar = botoes.addButton("Salvar", QDialogButtonBox.AcceptRole)
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
@@ -205,7 +245,11 @@ class PartsPage(QWidget):
                 quantidade = int(edit_qtd.text().strip())
             except ValueError:
                 quantidade = 0
-            self.part_service.atualizar(peca, nome=nome, descricao=descricao, quantidade_estoque=quantidade)
+            try:
+                estoque_minimo = int(edit_minimo.text().strip())
+            except ValueError:
+                estoque_minimo = 1
+            self.part_service.atualizar(peca, nome=nome, descricao=descricao, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
             dialog.accept()
             self.recarregar()
 
@@ -220,11 +264,7 @@ class PartsPage(QWidget):
                 self.recarregar()
 
         botoes.accepted.connect(salvar)
-        if hasattr(botoes, 'clicked'):
-            btn_excluir.clicked.connect(excluir)
-        else:
-            for btn in botoes.buttons():
-                if botoes.buttonRole(btn) == QDialogButtonBox.DestructiveRole:
-                    btn.clicked.connect(excluir)
+        botoes.rejected.connect(dialog.reject)
+        btn_excluir.clicked.connect(excluir)
 
         dialog.exec()

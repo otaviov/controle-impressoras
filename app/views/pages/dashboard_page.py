@@ -1,9 +1,30 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QPushButton, QFrame)
+from datetime import datetime
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
-from app.views.styles.theme import COR, ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, STATUS_MANUTENCAO, STATUS_OPERACIONAL, STATUS_CORES
-from app.views.widgets.card_widget import CardWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from app.utils.helpers import formatar_data
+from app.views.styles.theme import (
+    ESTILO_SUBTITULO,
+    ESTILO_TITULO_PAGINA,
+    STATUS_CORES,
+    STATUS_MANUTENCAO,
+    STATUS_OPERACIONAL,
+)
+from app.views.widgets.card_widget import CardWidget
+from app.views.widgets.chart_widget import BarChart, LineChart, PizzaChart
 
 
 class DashboardPage(QWidget):
@@ -16,48 +37,76 @@ class DashboardPage(QWidget):
         self.activity_service = activity_service
         self.dashboard_service = dashboard_service
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(28, 24, 28, 28)
         layout.setSpacing(0)
 
-        # ── Header ──────────────────────────────────────────────
-        header_layout = QHBoxLayout()
+        header = QHBoxLayout()
+        header.setSpacing(16)
         titulo = QLabel("📊 Dashboard")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
-        header_layout.addWidget(titulo)
-        header_layout.addStretch()
-        layout.addLayout(header_layout)
+        header.addWidget(titulo)
+        header.addStretch()
+        self.lbl_atualizacao = QLabel("")
+        self.lbl_atualizacao.setStyleSheet("color: #475569; font-size: 11px; background: transparent;")
+        header.addWidget(self.lbl_atualizacao)
+        layout.addLayout(header)
 
         subtitulo = QLabel("Visão geral do sistema de controle de impressoras")
         subtitulo.setStyleSheet(ESTILO_SUBTITULO)
         layout.addWidget(subtitulo)
 
-        layout.addSpacing(20)
+        layout.addSpacing(24)
 
-        # ── Cards ───────────────────────────────────────────────
-        cards_layout = QHBoxLayout()
-        cards_layout.setSpacing(16)
+        cards = QHBoxLayout()
+        cards.setSpacing(14)
 
-        self.card_total = CardWidget("🖨️", "Total Impressoras", "0", "#89b4fa",
-            gradiente="azul",
+        self.card_total = CardWidget("🖨️", "Total Impressoras", "0", estilo="azul",
             callback=lambda: self.signal_trocar_pagina.emit(1))
-        self.card_manut = CardWidget("⚠️", "Em Manutenção", "0", "#f9e2af",
-            gradiente="amarelo",
+        self.card_manut = CardWidget("⚠️", "Em Manutenção", "0", estilo="amarelo",
             callback=lambda: self.ao_clicar_status("manutencao"))
-        self.card_op = CardWidget("✅", "Operacionais", "0", "#a6e3a1",
-            gradiente="verde",
+        self.card_op = CardWidget("✅", "Operacionais", "0", estilo="verde",
             callback=lambda: self.ao_clicar_status("operacional"))
-        self.card_os = CardWidget("📋", "Atividades", "0", "#cba6f7",
-            gradiente="roxo",
+        self.card_os = CardWidget("📋", "Atividades", "0", estilo="roxo",
             callback=lambda: self.signal_trocar_pagina.emit(2))
 
-        cards_layout.addWidget(self.card_total)
-        cards_layout.addWidget(self.card_manut)
-        cards_layout.addWidget(self.card_op)
-        cards_layout.addWidget(self.card_os)
-        layout.addLayout(cards_layout)
+        cards.addWidget(self.card_total)
+        cards.addWidget(self.card_manut)
+        cards.addWidget(self.card_op)
+        cards.addWidget(self.card_os)
+        layout.addLayout(cards)
 
-        layout.addStretch()
+        layout.addSpacing(24)
+
+        charts_row = QHBoxLayout()
+        charts_row.setSpacing(14)
+
+        self.chart_pizza = PizzaChart("Status das Impressoras", width=4, height=3)
+        self.chart_barras = BarChart("Atividades por Mês", width=4, height=3)
+
+        charts_row.addWidget(self.chart_pizza, 1)
+        charts_row.addWidget(self.chart_barras, 1)
+        layout.addLayout(charts_row)
+
+        layout.addSpacing(14)
+
+        self.chart_linha = LineChart("Alertas (últimos 30 dias)", width=8.2, height=2.5)
+        layout.addWidget(self.chart_linha)
+
+        layout.addStretch(1)
+
+        scroll.setWidget(container)
+        outer.addWidget(scroll)
 
     def recarregar(self):
         dados = self.dashboard_service.resumo()
@@ -65,6 +114,19 @@ class DashboardPage(QWidget):
         self.card_manut.atualizar_valor(dados.get("em_manutencao", 0))
         self.card_op.atualizar_valor(dados.get("operacionais", 0))
         self.card_os.atualizar_valor(dados.get("total_atividades", 0))
+        self.lbl_atualizacao.setText(f"Atualizado: {datetime.now():%H:%M:%S}")
+
+        try:
+            labels_pizza, valores_pizza = self.dashboard_service.dados_grafico_pizza()
+            self.chart_pizza.atualizar(labels_pizza, valores_pizza)
+
+            labels_barras, valores_barras = self.dashboard_service.dados_grafico_atividades()
+            self.chart_barras.atualizar(labels_barras, valores_barras)
+
+            labels_linha, valores_linha = self.dashboard_service.dados_grafico_alertas()
+            self.chart_linha.atualizar(labels_linha, valores_linha)
+        except Exception:
+            import traceback; traceback.print_exc()
 
     def ao_clicar_status(self, tipo):
         if tipo == "manutencao":
@@ -83,32 +145,34 @@ class DashboardPage(QWidget):
         dialog.setMinimumSize(800, 520)
         dialog.setStyleSheet("""
             QDialog {
-                background-color: #1e1e2e;
-                border: 1px solid #585b70;
+                background-color: #14141f;
+                border: 1px solid #2a2a3e;
                 border-radius: 16px;
             }
             QLabel {
-                color: #cdd6f4; font-size: 18px; font-weight: 700;
+                color: #e8e8f0; font-size: 18px; font-weight: 700;
                 background: transparent; padding: 16px 20px 0 20px;
             }
             QTableWidget {
-                background-color: #313244; color: #cdd6f4;
-                border: 1px solid #585b70; border-radius: 10px;
-                gridline-color: #45475a; font-size: 13px;
+                background-color: #14141f; color: #e8e8f0;
+                border: 1px solid #2a2a3e; border-radius: 10px;
+                gridline-color: #1e1e2e; font-size: 13px;
             }
-            QTableWidget::item { padding: 8px; }
+            QTableWidget::item { padding: 8px; border-bottom: 1px solid #1e1e2e; }
+            QTableWidget::item:hover { background-color: #1a1a28; }
             QHeaderView::section {
-                background-color: #1e1e2e; color: #6c7086;
+                background-color: #14141f; color: #717182;
                 font-weight: 700; padding: 10px; border: none;
-                border-bottom: 1px solid #45475a;
+                border-bottom: 1px solid #2a2a3e;
             }
             QPushButton {
-                background-color: #45475a; color: #a6adc8;
-                border: 1px solid #585b70; border-radius: 8px;
+                background-color: transparent; color: #717182;
+                border: 1px solid #2a2a3e; border-radius: 8px;
                 padding: 10px 30px; font-size: 13px; font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #585b70; color: #cdd6f4;
+                background-color: #1e1e2e; color: #e8e8f0;
+                border-color: #6366f1;
             }
         """)
 
@@ -129,7 +193,7 @@ class DashboardPage(QWidget):
             tabela.setItem(i, 0, QTableWidgetItem(p.patrimonio))
             tabela.setItem(i, 1, QTableWidgetItem(p.modelo))
 
-            cor_status = STATUS_CORES.get(p.status, "#6c7086")
+            cor_status = STATUS_CORES.get(p.status, "#94949f")
             badge = BadgeWidget(p.status, cor_status)
             tabela.setCellWidget(i, 2, badge)
 
@@ -139,13 +203,12 @@ class DashboardPage(QWidget):
             rev = formatar_data(ultima.event_at) if ultima and ultima.event_at else "Nunca"
             tabela.setItem(i, 4, QTableWidgetItem(rev))
 
-        tabela.horizontalHeader().setStretchLastSection(True)
         tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
         tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tabela.verticalHeader().setVisible(False)
-        tabela.resizeColumnsToContents()
-        tabela.resizeRowsToContents()
-        tabela.verticalHeader().setDefaultSectionSize(32)
+        tabela.verticalHeader().setDefaultSectionSize(44)
+        for i in range(tabela.columnCount()):
+            tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
 
         def ao_duplo_clique(row, col):
             self.signal_trocar_pagina.emit(1)

@@ -1,22 +1,53 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QTextEdit, QMessageBox, QTabWidget, QFileDialog)
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
-from datetime import datetime as dt
-from pathlib import Path
 import os
 import shutil
-from app.models import Activity, Printer, Attachment
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, ESTILO_INPUT, ESTILO_COMBO, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_BOTAO_AVISO, ESTILO_TABELA_SIMPLES, STATUS_ATIVIDADE_OPCOES, estilos_dialogo_tabs)
-from app.views.widgets.card_widget import CardMiniWidget
-from app.views.widgets.table_widget import TabelaPadrao
-from app.views.widgets.search_bar import SearchBar
-from app.utils.helpers import formatar_data_hora, encurtar
+from datetime import datetime as dt
+from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.models import Activity, Attachment
+from app.utils.helpers import encurtar, formatar_data_hora
+from app.views.styles.theme import (
+    COR,
+    ESTILO_BOTAO_AVISO,
+    ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_COMBO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_TABELA_SIMPLES,
+    ESTILO_TITULO_PAGINA,
+    STATUS_ATIVIDADE_OPCOES,
+    estilos_dialogo_tabs,
+)
+from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.search_bar import SearchBar
+from app.views.widgets.table_widget import TabelaPadrao
 
 COR_STATUS = {
-    "pendente": "#f9e2af",
-    "em_andamento": "#89b4fa",
-    "concluida": "#a6e3a1",
+    "pendente": "#fbbf24",
+    "em_andamento": "#60a5fa",
+    "concluida": "#34d399",
 }
 
 ANEXOS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "anexos"
@@ -90,7 +121,7 @@ class TransfersPage(QWidget):
             self.tabela.setItem(i, 4, QTableWidgetItem(encurtar(m.parts_used, 30)))
             self.tabela.setItem(i, 5, QTableWidgetItem(m.numero_recibo or "-"))
             status = (m.status_atividade or "concluida").lower()
-            cor_status = COR_STATUS.get(status, "#6c7086")
+            cor_status = COR_STATUS.get(status, "#94949f")
             self.tabela.definir_badge(i, 6, status.capitalize(), cor_status)
         self.tabela.redimensionar()
         self._atualizar_cards(movimentacoes)
@@ -184,7 +215,7 @@ class TransfersPage(QWidget):
         tab_anexos_vazia = QWidget()
         anexos_layout = QVBoxLayout(tab_anexos_vazia)
         lbl_aviso = QLabel("Salve primeiro para anexar arquivos.")
-        lbl_aviso.setStyleSheet("color: #6c7086; font-size: 13px;")
+        lbl_aviso.setStyleSheet("color: #94949f; font-size: 13px;")
         lbl_aviso.setAlignment(Qt.AlignCenter)
         anexos_layout.addWidget(lbl_aviso)
         tabs.addTab(tab_anexos_vazia, "\U0001f4ce Anexos")
@@ -443,7 +474,6 @@ class TransfersPage(QWidget):
         tabela_anexos.setColumnCount(4)
         tabela_anexos.setHorizontalHeaderLabels(["Arquivo", "Categoria", "Data", "Abrir"])
         tabela_anexos.setStyleSheet(ESTILO_TABELA_SIMPLES)
-        tabela_anexos.horizontalHeader().setStretchLastSection(True)
         tabela_anexos.setSelectionBehavior(QAbstractItemView.SelectRows)
         tabela_anexos.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tabela_anexos.verticalHeader().setVisible(False)
@@ -461,19 +491,19 @@ class TransfersPage(QWidget):
             btn_abrir = QPushButton("\U0001f4c2 Abrir")
             btn_abrir.setStyleSheet("""
                 QPushButton {
-                    background-color: #45475a; color: #cdd6f4;
+                    background-color: #1f2937; color: #94a3b8;
                     border: none; border-radius: 4px;
                     padding: 4px 12px; font-size: 11px;
                 }
-                QPushButton:hover { background-color: #585b70; }
+                QPushButton:hover { background-color: #374151; color: #e2e8f0; }
             """)
             file_path = a.file_path
             btn_abrir.clicked.connect(lambda checked, fp=file_path: self._abrir_anexo(fp))
             tabela_anexos.setCellWidget(i, 3, btn_abrir)
 
-        tabela_anexos.resizeColumnsToContents()
-        tabela_anexos.resizeRowsToContents()
-        tabela_anexos.verticalHeader().setDefaultSectionSize(32)
+        tabela_anexos.verticalHeader().setDefaultSectionSize(44)
+        for i in range(tabela_anexos.columnCount()):
+            tabela_anexos.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
         layout.addWidget(tabela_anexos)
 
         botoes_anexos = QHBoxLayout()

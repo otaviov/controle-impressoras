@@ -1,13 +1,15 @@
-
+import os
 from pathlib import Path
 
-# Caminho do banco de dados (MESMA PASTA DO PROJETO)
-BASE_DIR = Path(__file__).parent  # E:\controle-impressoras
-DB_PATH = BASE_DIR / "app.db"
+from dotenv import load_dotenv
 
-# Pasta de backups
+load_dotenv()
+
+BASE_DIR = Path(__file__).parent
+DB_PATH = Path(os.getenv("DB_PATH", str(BASE_DIR / "app.db")))
+
 BACKUP_DIR = BASE_DIR / "backups"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
-print(f"DB: {DB_PATH}")
-
+SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"

@@ -1,7 +1,12 @@
-from datetime import datetime
-from sqlalchemy import func
-from app.models import Activity, Printer
+﻿import logging
+
+from db import safe_commit
+
+log = logging.getLogger(__name__)
 import calendar
+from datetime import datetime
+
+from app.models import Activity, Printer
 
 
 class ActivityService:
@@ -46,7 +51,7 @@ class ActivityService:
 
     def criar(self, printer_id, kind, notes="", parts_used="",
               from_location="", to_location="", numero_recibo="",
-              status_atividade="Concluida", event_at=None):
+              status_atividade="Concluida", event_at=None, tecnico_id=None):
         atividade = Activity(
             printer_id=printer_id,
             kind=kind,
@@ -56,21 +61,22 @@ class ActivityService:
             from_location=from_location,
             to_location=to_location,
             numero_recibo=numero_recibo,
-            status_atividade=status_atividade
+            status_atividade=status_atividade,
+            tecnico_id=tecnico_id,
         )
         self.session.add(atividade)
-        self.session.commit()
+        safe_commit(self.session)
         return atividade
 
     def atualizar(self, atividade, **kwargs):
         for chave, valor in kwargs.items():
             if hasattr(atividade, chave):
                 setattr(atividade, chave, valor)
-        self.session.commit()
+        safe_commit(self.session)
 
     def excluir(self, atividade):
         self.session.delete(atividade)
-        self.session.commit()
+        safe_commit(self.session)
 
     def contar_total(self):
         return self.session.query(Activity).count()
@@ -162,3 +168,4 @@ class ActivityService:
                     if peca:
                         pecas_count[peca] += 1
         return pecas_count.most_common(limite)
+

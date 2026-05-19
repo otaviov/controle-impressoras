@@ -1,15 +1,41 @@
-from pathlib import Path
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import logging
 
-def get_db_path() -> Path:
-    # USA A MESMA PASTA DO PROJETO
-    base = Path(__file__).parent  # E:\controle-impressoras
-    return base / "app.db"
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
-DB_PATH = get_db_path()
-ENGINE = create_engine(f"sqlite:///{DB_PATH}", echo=False, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(bind=ENGINE)
+from config import DB_PATH
 
-def get_session():
-    return SessionLocal()
+log = logging.getLogger(__name__)
+
+ENGINE = create_engine(
+    f"sqlite:///{DB_PATH}",
+    echo=False,
+    connect_args={"check_same_thread": False},
+)
+
+
+@event.listens_for(ENGINE, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON")
+    cursor.close()
+
+SessionFactory = sessionmaker(bind=ENGINE)
+ScopedSession = scoped_session(SessionFactory)
+
+def get_session() -> Session:
+    return ScopedSession()
+
+def close_session(session: Session | None) -> None:
+    if session:
+        try:
+            session.close()
+        except Exception as exc:
+            log.warning("Erro ao fechar sessão: %s", exc)
+
+def safe_commit(session: Session) -> None:
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise

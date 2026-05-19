@@ -1,5 +1,10 @@
+﻿import logging
+
+from db import safe_commit
+
+log = logging.getLogger(__name__)
 import json
-from datetime import datetime
+
 from app.models import AuditLog
 
 
@@ -29,7 +34,7 @@ class AuditService:
             dados_depois=json.dumps(serializar(dados_depois), ensure_ascii=False, default=str) if dados_depois else None,
         )
         self.session.add(registro)
-        self.session.commit()
+        safe_commit(self.session)
         return registro
 
     def listar(self, limite=100):
@@ -46,3 +51,4 @@ class AuditService:
         return self.session.query(AuditLog).filter(
             AuditLog.user_id == user_id
         ).order_by(AuditLog.created_at.desc()).limit(limite).all()
+

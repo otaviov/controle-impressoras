@@ -1,109 +1,149 @@
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
+from app.utils.effects import sombra_card
 
-GRADIENTES_BORDA = {
-    "azul": "background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #3b82f6,stop:1 #7c3aed);",
-    "verde": "background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #10b981,stop:1 #3b82f6);",
-    "amarelo": "background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #f59e0b,stop:1 #ef4444);",
-    "roxo": "background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #8b5cf6,stop:1 #e94560);",
+ESTILOS_CARD = {
+    "azul": {
+        "card": "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(99,102,241,0.10),stop:1 rgba(79,70,229,0.05)); border: 1px solid rgba(99,102,241,0.20);",
+        "icon_bg": "background: rgba(99,102,241,0.20);",
+        "icon_color": "#6366f1",
+    },
+    "verde": {
+        "card": "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(16,185,129,0.10),stop:1 rgba(5,150,105,0.05)); border: 1px solid rgba(16,185,129,0.20);",
+        "icon_bg": "background: rgba(16,185,129,0.20);",
+        "icon_color": "#10b981",
+    },
+    "amarelo": {
+        "card": "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(249,115,22,0.10),stop:1 rgba(217,119,6,0.05)); border: 1px solid rgba(249,115,22,0.20);",
+        "icon_bg": "background: rgba(249,115,22,0.20);",
+        "icon_color": "#f97316",
+    },
+    "rosa": {
+        "card": "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(236,72,153,0.10),stop:1 rgba(225,29,72,0.05)); border: 1px solid rgba(236,72,153,0.20);",
+        "icon_bg": "background: rgba(236,72,153,0.20);",
+        "icon_color": "#ec4899",
+    },
+    "roxo": {
+        "card": "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(139,92,246,0.10),stop:1 rgba(124,58,237,0.05)); border: 1px solid rgba(139,92,246,0.20);",
+        "icon_bg": "background: rgba(139,92,246,0.20);",
+        "icon_color": "#8b5cf6",
+    },
+    "blue": {
+        "card": "background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(59,130,246,0.10),stop:1 rgba(37,99,235,0.05)); border: 1px solid rgba(59,130,246,0.20);",
+        "icon_bg": "background: rgba(59,130,246,0.20);",
+        "icon_color": "#3b82f6",
+    },
 }
 
 
 class CardWidget(QFrame):
-    def __init__(self, icon, titulo, valor_inicial="0", cor="#cba6f7", gradiente="roxo", callback=None, parent=None):
+    def __init__(self, icon, titulo, valor_inicial="0", estilo="azul", callback=None, parent=None):
         super().__init__(parent)
+        e = ESTILOS_CARD.get(estilo, ESTILOS_CARD["azul"])
+        sombra_card(self)
+
         self.setStyleSheet(
-            f"QFrame {{ background-color: #0d0d1a; border-radius: 12px; "
-            f"border: 1px solid #1e1e30; padding: 16px; padding-top: 20px; }} "
-            f"QFrame:hover {{ border-color: {cor}; }}"
+            f"QFrame#cardFrame {{ border-radius: 12px; padding: 20px; {e['card']} }} "
+            f"QFrame#cardFrame:hover {{ border-color: {e['icon_color']} !important; }}"
         )
+        self.setObjectName("cardFrame")
         self.setMinimumHeight(130)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        borda = QFrame()
-        borda.setFixedHeight(3)
-        estilo_borda = GRADIENTES_BORDA.get(gradiente, GRADIENTES_BORDA["roxo"])
-        borda.setStyleSheet(
-            f"QFrame {{ border: none; border-radius: 2px; {estilo_borda} position: absolute; top: 0; left: 0; right: 0; }}"
+        header = QHBoxLayout()
+        header.setSpacing(12)
+
+        icon_label = QLabel(icon)
+        icon_label.setFixedSize(48, 48)
+        icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setStyleSheet(
+            f"QLabel {{ {e['icon_bg']} border-radius: 12px; "
+            f"font-size: 22px; color: {e['icon_color']}; "
+            f"border: none; }}"
         )
-        borda.setAttribute(Qt.WA_TransparentForMouseEvents)
-        layout.addWidget(borda)
+        icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        header.addWidget(icon_label)
+        header.addStretch()
+        layout.addLayout(header)
 
         conteudo = QVBoxLayout()
-        conteudo.setSpacing(6)
-        conteudo.setContentsMargins(4, 10, 4, 2)
+        conteudo.setSpacing(4)
+        conteudo.setContentsMargins(0, 12, 0, 0)
+
+        self.valor_label = QLabel(valor_inicial)
+        self.valor_label.setStyleSheet(
+            f"font-size: 30px; font-weight: 700; color: #e8e8f0; "
+            f"background: transparent; border: none;"
+        )
+        conteudo.addWidget(self.valor_label)
+
+        titulo_label = QLabel(titulo)
+        titulo_label.setStyleSheet(
+            "font-size: 13px; color: #94949f; background: transparent; border: none;"
+        )
+        conteudo.addWidget(titulo_label)
+
+        layout.addLayout(conteudo)
 
         if callback:
             self.setCursor(Qt.PointingHandCursor)
             self.mousePressEvent = lambda event: callback()
 
-        header = QHBoxLayout()
-        icon_label = QLabel(icon)
-        icon_label.setStyleSheet(
-            f"font-size: 18px; background: transparent; "
-            f"min-width: 34px; min-height: 34px; max-width: 34px; max-height: 34px; "
-            f"border-radius: 8px; background-color: {cor}15; qproperty-alignment: AlignCenter;"
-        )
-        icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        header.addWidget(icon_label)
-        header.addStretch()
-        conteudo.addLayout(header)
-
-        self.valor_label = QLabel(valor_inicial)
-        self.valor_label.setStyleSheet(
-            f"color: {cor}; font-size: 28px; font-weight: 700; background: transparent;"
-        )
-        self.valor_label.setObjectName("cardValue")
-        self.valor_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        conteudo.addWidget(self.valor_label)
-
-        title_label = QLabel(titulo)
-        title_label.setStyleSheet("color: #4a4a6a; font-size: 11px; background: transparent; font-weight: 500; letter-spacing: 0.2px;")
-        title_label.setAttribute(Qt.WA_TransparentForMouseEvents)
-        conteudo.addWidget(title_label)
-
-        layout.addLayout(conteudo)
-
     def atualizar_valor(self, valor):
         self.valor_label.setText(str(valor))
 
 
+def _rgba(hex_color, alpha=1.0):
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 class CardMiniWidget(QFrame):
-    def __init__(self, icon, titulo, valor_inicial="0", cor="#cba6f7", parent=None):
+    def __init__(self, icon, titulo, valor_inicial="0", cor="#6366f1", parent=None):
         super().__init__(parent)
         self.setStyleSheet(
-            f"QFrame {{ background-color: #313244; border-radius: 12px; "
-            f"border: 1px solid #585b70; padding: 14px; }} "
-            f"QFrame:hover {{ border-color: {cor}; background-color: #45475a; }}"
+            f"QFrame#miniCard {{ background-color: rgba(20,20,31,0.5); "
+            f"border: 1px solid rgba(42,42,62,0.5); border-radius: 12px; padding: 16px; }}"
         )
+        self.setObjectName("miniCard")
         self.setMinimumHeight(90)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(4)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         header = QHBoxLayout()
+        header.setSpacing(8)
+
         icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 20px; background: transparent;")
+        icon_label.setFixedSize(36, 36)
+        icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setStyleSheet(
+            f"background: {_rgba(cor, 0.15)}; border-radius: 8px; "
+            f"font-size: 16px; color: {cor}; border: none;"
+        )
         icon_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         header.addWidget(icon_label)
         header.addStretch()
 
         self.valor_label = QLabel(valor_inicial)
         self.valor_label.setStyleSheet(
-            f"color: {cor}; font-size: 24px; font-weight: 700; background: transparent;"
+            f"font-size: 24px; font-weight: 700; color: {cor}; "
+            f"background: transparent; border: none;"
         )
-        self.valor_label.setObjectName("miniValue")
         self.valor_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         header.addWidget(self.valor_label)
         layout.addLayout(header)
 
         title_label = QLabel(titulo)
-        title_label.setStyleSheet("color: #6c7086; font-size: 10px; background: transparent; font-weight: 500;")
+        title_label.setStyleSheet(
+            "font-size: 11px; color: #94949f; background: transparent; border: none; font-weight: 500;"
+        )
         title_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(title_label)
 
@@ -117,3 +157,17 @@ class CardMiniClicavel(CardMiniWidget):
         self.setCursor(Qt.PointingHandCursor)
         if ao_clicar:
             self.mousePressEvent = lambda event: ao_clicar()
+
+    def enterEvent(self, event):
+        self.setStyleSheet(
+            f"QFrame#miniCard {{ background-color: rgba(30,30,46,0.6); "
+            f"border: 1px solid rgba(42,42,62,0.8); border-radius: 12px; padding: 16px; }}"
+        )
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setStyleSheet(
+            f"QFrame#miniCard {{ background-color: rgba(20,20,31,0.5); "
+            f"border: 1px solid rgba(42,42,62,0.5); border-radius: 12px; padding: 16px; }}"
+        )
+        super().leaveEvent(event)

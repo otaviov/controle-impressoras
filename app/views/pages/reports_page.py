@@ -1,24 +1,24 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton)
-from PySide6.QtCore import Qt
-from datetime import datetime as dt
-import os
+
 import matplotlib
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
 matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from app.views.styles.theme import ESTILO_TITULO_PAGINA, ESTILO_BOTAO_SUCESSO
+
 from app.views.relatorio_dialog import RelatorioDialog
+from app.views.styles.theme import ESTILO_TITULO_PAGINA
 
-
-BG = '#1e1e2e'
-CARD = '#313244'
-BORDA = '#585b70'
-TEXTO = '#cdd6f4'
-AZUL = '#89b4fa'
-VERDE = '#a6e3a1'
-AMARELO = '#f9e2af'
-ROXO = '#cba6f7'
-CINZA = '#6c7086'
+BG = '#0a0a0f'
+CARD = '#14141f'
+BORDA = '#2a2a3e'
+TEXTO = '#e8e8f0'
+AZUL = '#3b82f6'
+VERDE = '#10b981'
+AMARELO = '#f59e0b'
+ROXO = '#6366f1'
+CINZA = '#717182'
 
 
 class ReportsPage(QWidget):
@@ -44,19 +44,22 @@ class ReportsPage(QWidget):
         header.addStretch()
         layout.addLayout(header)
 
-        self.btn_relatorio = QPushButton("📊  Gerar Relatório Personalizado")
+        self.btn_relatorio = QPushButton("Gerar Relatório Personalizado")
         self.btn_relatorio.setMinimumHeight(56)
         self.btn_relatorio.setCursor(Qt.PointingHandCursor)
-        self.btn_relatorio.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {ROXO}; color: #1e1e2e;
+        self.btn_relatorio.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #a78bfa, stop:1 #7c3aed);
+                color: #ffffff;
                 border: none; border-radius: 12px;
                 padding: 16px 24px; font-size: 15px; font-weight: 700;
-                text-align: left;
-            }}
-            QPushButton:hover {{
-                background-color: #b4befe;
-            }}
+                text-align: center;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #c4b5fd, stop:1 #a78bfa);
+            }
         """)
         self.btn_relatorio.clicked.connect(self._abrir_relatorio)
         layout.addWidget(self.btn_relatorio)

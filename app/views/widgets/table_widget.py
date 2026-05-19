@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QSizePolicy
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QSizePolicy, QTableWidget, QTableWidgetItem
 
 from app.views.styles.theme import ESTILO_TABELA
 from app.views.widgets.badge_widget import BadgeWidget
@@ -12,7 +12,9 @@ class TabelaPadrao(QTableWidget):
         self.setColumnCount(len(colunas))
         self.setHorizontalHeaderLabels(colunas)
         self.setStyleSheet(ESTILO_TABELA)
-        self.horizontalHeader().setStretchLastSection(True)
+        header = self.horizontalHeader()
+        for i in range(len(colunas)):
+            header.setSectionResizeMode(i, QHeaderView.Stretch)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.verticalHeader().setVisible(False)
@@ -21,10 +23,7 @@ class TabelaPadrao(QTableWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def redimensionar(self):
-        self.resizeColumnsToContents()
-        self.verticalHeader().setDefaultSectionSize(28)
-        self.resizeRowsToContents()
-        self.horizontalHeader().setStretchLastSection(True)
+        self.verticalHeader().setDefaultSectionSize(44)
 
     def item_colorido(self, texto, cor_hex):
         item = QTableWidgetItem(texto)

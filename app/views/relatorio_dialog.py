@@ -1,24 +1,35 @@
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QRadioButton, QCheckBox, QGroupBox,
-    QLineEdit, QScrollArea, QWidget, QFrame, QCompleter
-)
-from PySide6.QtCore import Qt
-from datetime import datetime as dt
 import os
+from datetime import datetime as dt
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QCompleter,
+    QDialog,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
-BG = '#1e1e2e'
-CARD = '#313244'
-BORDA = '#585b70'
-TEXTO = '#cdd6f4'
-TEXTO_SEC = '#6c7086'
-AZUL = '#89b4fa'
-VERDE = '#a6e3a1'
-AMARELO = '#f9e2af'
-ROXO = '#cba6f7'
-VERMELHO = '#f38ba8'
-ROXO_BTN = '#cba6f7'
+BG = '#0a0a0f'
+CARD = '#14141f'
+BORDA = '#2a2a3e'
+TEXTO = '#e8e8f0'
+TEXTO_SEC = '#717182'
+AZUL = '#3b82f6'
+VERDE = '#10b981'
+AMARELO = '#f59e0b'
+ROXO = '#6366f1'
+VERMELHO = '#f87171'
+ROXO_BTN = '#a78bfa'
 
 
 class RelatorioDialog(QDialog):
@@ -176,15 +187,16 @@ class RelatorioDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(15)
         btn_layout.addStretch()
-        btn_gerar = QPushButton("🚀  Gerar Relatório")
+        btn_gerar = QPushButton("Gerar Relatório")
         btn_gerar.setCursor(Qt.PointingHandCursor)
         btn_gerar.setMinimumWidth(180)
-        btn_gerar.setStyleSheet(f"QPushButton {{ background-color: {VERDE}; color: #ffffff; padding: 10px 24px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ background-color: #2ea043; }}")
+        btn_gerar.setMinimumHeight(40)
+        btn_gerar.setStyleSheet(f"QPushButton {{ background-color: {VERDE}; color: #ffffff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; padding: 0px; }} QPushButton:hover {{ background-color: #2ea043; }}")
         btn_gerar.clicked.connect(self.gerar_relatorio)
         btn_layout.addWidget(btn_gerar)
         btn_cancelar = QPushButton("Cancelar")
         btn_cancelar.setCursor(Qt.PointingHandCursor)
-        btn_cancelar.setStyleSheet(f"QPushButton {{ background-color: #45475a; color: {TEXTO}; padding: 10px 24px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; }} QPushButton:hover {{ background-color: #585b70; }}")
+        btn_cancelar.setStyleSheet(f"QPushButton {{ background-color: #2a2a3e; color: {TEXTO}; padding: 10px 24px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: center; }} QPushButton:hover {{ background-color: #3a3a50; }}")
         btn_cancelar.clicked.connect(self.reject)
         btn_layout.addWidget(btn_cancelar)
         btn_layout.addStretch()
@@ -238,8 +250,9 @@ class RelatorioDialog(QDialog):
 
     def gerar_relatorio(self):
         from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        from app.models import Activity, Printer
         from app.services.relatorio_service import RelatorioService
-        from app.models import Printer, Activity
 
         status_filtro = self.status_combo.currentText()
         patrimonio = self.pat_input.text().strip()
@@ -284,12 +297,20 @@ class RelatorioDialog(QDialog):
             QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório:\n\n{str(e)}")
 
     def _gerar_pdf_detalhado(self, printers, filepath):
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
         from reportlab.lib.units import cm
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image, HRFlowable
-        from reportlab.lib.enums import TA_CENTER
+        from reportlab.platypus import (
+            Image,
+            PageBreak,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
+
         from app.models import Activity
 
         logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logo.png")
@@ -337,7 +358,7 @@ class RelatorioDialog(QDialog):
 
         for idx, p in enumerate(printers):
             if os.path.exists(logo_path):
-                img = Image(logo_path, width=4*cm, preserveAspectRatio=True)
+                img = Image(logo_path, width=4*cm)
                 img.hAlign = 'LEFT'
                 elements.append(img)
                 elements.append(Spacer(1, 12))

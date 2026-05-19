@@ -1,3 +1,8 @@
+﻿import logging
+
+from db import safe_commit
+
+log = logging.getLogger(__name__)
 from app.models import User
 from app.utils.security import hash_password
 
@@ -32,7 +37,7 @@ class UserService:
             ativo=True
         )
         self.session.add(u)
-        self.session.commit()
+        safe_commit(self.session)
         return u
 
     def atualizar(self, user, **kwargs):
@@ -42,4 +47,5 @@ class UserService:
         for chave, valor in kwargs.items():
             if hasattr(user, chave):
                 setattr(user, chave, valor)
-        self.session.commit()
+        safe_commit(self.session)
+

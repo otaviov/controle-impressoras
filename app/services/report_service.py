@@ -1,12 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from datetime import datetime
 import csv
+from datetime import datetime
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 class ReportService:
@@ -14,12 +14,12 @@ class ReportService:
     def export_history_csv(path: str, printer, activities):
         with open(path, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, delimiter=";")
-            w.writerow(["Patrimônio", "Modelo", "Serial", "Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"])
+            w.writerow(["PatrimÃ´nio", "Modelo", "Serial", "Data/Hora", "Tipo", "DescriÃ§Ã£o", "PeÃ§as", "De", "Para"])
             for a in activities:
                 w.writerow([
                     printer.patrimonio, printer.modelo, printer.serial,
                     a.event_at.strftime("%d/%m/%Y %H:%M"),
-                    "Manutenção" if a.kind == "MANUTENCAO" else "Movimentação",
+                    "ManutenÃ§Ã£o" if a.kind == "MANUTENCAO" else "MovimentaÃ§Ã£o",
                     a.notes or "",
                     a.parts_used or "",
                     a.from_location or "",
@@ -32,16 +32,16 @@ class ReportService:
         doc = SimpleDocTemplate(path, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=28)
         elems = []
 
-        elems.append(Paragraph("Relatório de Impressora", styles["Title"]))
+        elems.append(Paragraph("RelatÃ³rio de Impressora", styles["Title"]))
         elems.append(Spacer(1, 12))
 
         header = [
-            ["Patrimônio", printer.patrimonio or "-"],
+            ["PatrimÃ´nio", printer.patrimonio or "-"],
             ["Modelo", printer.modelo or "-"],
             ["Serial", printer.serial or "-"],
             ["Status", printer.status or "-"],
             ["Local atual", printer.local_atual or "-"],
-            ["Manutenções (contador)", str(maintenance_count)],
+            ["ManutenÃ§Ãµes (contador)", str(maintenance_count)],
         ]
         t_header = Table(header, colWidths=[130, 360])
         t_header.setStyle(TableStyle([
@@ -55,18 +55,18 @@ class ReportService:
         elems.append(Spacer(1, 14))
 
         if (printer.observacao or "").strip():
-            elems.append(Paragraph("Observação geral:", styles["Heading3"]))
+            elems.append(Paragraph("ObservaÃ§Ã£o geral:", styles["Heading3"]))
             elems.append(Paragraph((printer.observacao or "").replace("\n", "<br/>"), styles["BodyText"]))
             elems.append(Spacer(1, 10))
 
-        elems.append(Paragraph("Histórico de atividades:", styles["Heading3"]))
+        elems.append(Paragraph("HistÃ³rico de atividades:", styles["Heading3"]))
         elems.append(Spacer(1, 6))
 
-        data = [["Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"]]
+        data = [["Data/Hora", "Tipo", "DescriÃ§Ã£o", "PeÃ§as", "De", "Para"]]
         for a in activities:
             data.append([
                 a.event_at.strftime("%d/%m/%Y %H:%M"),
-                "Manutenção" if a.kind == "MANUTENCAO" else "Movimentação",
+                "ManutenÃ§Ã£o" if a.kind == "MANUTENCAO" else "MovimentaÃ§Ã£o",
                 (a.notes or "")[:1200],
                 (a.parts_used or "")[:400],
                 a.from_location or "",
@@ -88,3 +88,4 @@ class ReportService:
         elems.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["Normal"]))
 
         doc.build(elems)
+

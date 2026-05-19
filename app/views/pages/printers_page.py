@@ -1,12 +1,49 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QDialog, QFormLayout, QLineEdit, QComboBox, QTextEdit, QDialogButtonBox, QMessageBox, QTabWidget, QGridLayout)
+from datetime import datetime as dt
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from datetime import datetime as dt
-from app.models import Printer, simple_uid
-from app.views.styles.theme import (COR, ESTILO_TITULO_PAGINA, ESTILO_SUBTITULO, ESTILO_INPUT, ESTILO_COMBO, ESTILO_BOTAO_PRIMARIO, ESTILO_BOTAO_SECUNDARIO, ESTILO_BOTAO_SUCESSO, ESTILO_BOTAO_AVISO, ESTILO_BOTAO_ERRO, ESTILO_BOTAO_FECHAR, STATUS_CORES, ESTILO_TABELA, ESTILO_DIALOG, ESTILO_INPUT_READONLY, estilos_dialogo_tabs, ESTILO_LABEL_CAMPO)
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.utils.helpers import formatar_data_hora, limpar_local
+from app.views.styles.theme import (
+    COR,
+    ESTILO_BOTAO_AVISO,
+    ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_PRIMARIO,
+    ESTILO_BOTAO_SECUNDARIO,
+    ESTILO_BOTAO_SUCESSO,
+    ESTILO_COMBO,
+    ESTILO_DIALOG,
+    ESTILO_INPUT,
+    ESTILO_INPUT_READONLY,
+    ESTILO_LABEL_CAMPO,
+    ESTILO_SUBTITULO,
+    ESTILO_TITULO_PAGINA,
+    STATUS_CORES,
+    estilos_dialogo_tabs,
+)
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
-from app.utils.helpers import limpar_local, formatar_data, formatar_data_hora
 
 
 class PrintersPage(QWidget):
@@ -73,26 +110,24 @@ class PrintersPage(QWidget):
 
         for i, p in enumerate(impressoras):
             pat_item = QTableWidgetItem(p.patrimonio)
-            pat_item.setForeground(QColor("#e2e8f0"))
+            pat_item.setForeground(QColor(COR["texto"]))
             self.tabela.setItem(i, 0, pat_item)
 
             self.tabela.setItem(i, 1, QTableWidgetItem(p.modelo))
             self.tabela.setItem(i, 2, QTableWidgetItem(p.serial or "-"))
             self.tabela.setItem(i, 3, QTableWidgetItem(p.marca or "-"))
 
-            cor = STATUS_CORES.get(p.status, "#6c7086")
+            cor = STATUS_CORES.get(p.status, "#94949f")
             self.tabela.definir_badge(i, 4, p.status, cor)
 
             self.tabela.setItem(i, 5, QTableWidgetItem(p.local_atual or "-"))
 
             cnt_item = QTableWidgetItem(str(counts.get(p.id, 0)))
             cnt_item.setTextAlignment(Qt.AlignCenter)
-            cnt_item.setForeground(QColor("#4a4a6a"))
+            cnt_item.setForeground(QColor(COR["texto_sec"]))
             self.tabela.setItem(i, 6, cnt_item)
 
-        self.tabela.resizeColumnsToContents()
-        self.tabela.setColumnWidth(4, 130)
-        self.tabela.setColumnWidth(5, 200)
+        self.tabela.redimensionar()
 
     def filtrar(self, texto):
         self.recarregar(texto if texto else None)
@@ -211,15 +246,14 @@ class PrintersPage(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"\U0001f5a8 Impressora {printer.patrimonio} - {printer.modelo}")
         dialog.setMinimumSize(750, 550)
-        from app.views.styles.theme import ESTILO_INPUT_READONLY
         dialog.setStyleSheet(ESTILO_DIALOG + """
-            QLineEdit, QTextEdit { background-color: #313244; color: #cdd6f4; border: 1px solid #585b70; border-radius: 6px; padding: 6px; font-size: 13px; }
-            QLineEdit[readOnly="true"], QTextEdit[readOnly="true"] { background-color: #1e1e2e; color: #6c7086; border: 1px solid #45475a; }
-            QComboBox { background-color: #313244; color: #cdd6f4; border: 1px solid #585b70; border-radius: 6px; padding: 6px; }
-            QComboBox:disabled { background-color: #1e1e2e; color: #6c7086; }
-            QTableWidget { background-color: #313244; color: #cdd6f4; border: 1px solid #585b70; border-radius: 8px; gridline-color: #45475a; font-size: 12px; }
+            QLineEdit, QTextEdit { background-color: #1a1a2e; color: #e2e8f0; border: 1px solid #2e2e4a; border-radius: 6px; padding: 6px; font-size: 13px; }
+            QLineEdit[readOnly="true"], QTextEdit[readOnly="true"] { background-color: #0f0f1a; color: #475569; border: 1px solid #1e1e30; }
+            QComboBox { background-color: #1a1a2e; color: #e2e8f0; border: 1px solid #2e2e4a; border-radius: 6px; padding: 6px; }
+            QComboBox:disabled { background-color: #0f0f1a; color: #475569; }
+            QTableWidget { background-color: #1a1a2e; color: #e2e8f0; border: 1px solid #2e2e4a; border-radius: 8px; gridline-color: #2a2a3e; font-size: 12px; }
             QTableWidget::item { padding: 6px; }
-            QHeaderView::section { background-color: #1e1e2e; color: #89b4fa; font-weight: bold; padding: 8px; border: none; border-bottom: 1px solid #585b70; }
+            QHeaderView::section { background-color: #0f0f1a; color: #60a5fa; font-weight: bold; padding: 8px; border: none; border-bottom: 1px solid #2e2e4a; }
         """ + estilos_dialogo_tabs() + """
             QPushButton { border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: bold; }
         """)
@@ -340,7 +374,7 @@ class PrintersPage(QWidget):
         dados_layout.addWidget(obs_input, 5, 1, 1, 3)
 
         lbl_pecas = QLabel("Peças Faltantes:")
-        lbl_pecas.setStyleSheet("color: #f9e2af; font-weight: bold;")
+        lbl_pecas.setStyleSheet("color: #fbbf24; font-weight: bold;")
         dados_layout.addWidget(lbl_pecas, 6, 0)
         pecas_input = QTextEdit()
         pecas_input.setMaximumHeight(60)
@@ -364,7 +398,7 @@ class PrintersPage(QWidget):
         hist_layout = QVBoxLayout(tab_historico)
         atividades = self.activity_service.listar_por_impressora(printer.id)
         hist_label = QLabel(f"Total de atividades: {len(atividades)}")
-        hist_label.setStyleSheet("color: #89b4fa; font-weight: bold; font-size: 13px;")
+        hist_label.setStyleSheet("color: #60a5fa; font-weight: bold; font-size: 13px;")
         hist_layout.addWidget(hist_label)
 
         hist_tabela = QTableWidget()
@@ -375,20 +409,19 @@ class PrintersPage(QWidget):
             hist_tabela.setItem(i, 0, QTableWidgetItem(formatar_data_hora(a.event_at) if a.event_at else "-"))
             tipo = "\U0001f527 Manutenção" if a.kind == "MANUTENCAO" else "\U0001f69a Movimentação"
             tipo_item = QTableWidgetItem(tipo)
-            tipo_item.setForeground(QColor("#f9e2af") if a.kind == "MANUTENCAO" else QColor("#89b4fa"))
+            tipo_item.setForeground(QColor("#f59e0b") if a.kind == "MANUTENCAO" else QColor("#6366f1"))
             hist_tabela.setItem(i, 1, tipo_item)
             hist_tabela.setItem(i, 2, QTableWidgetItem(a.notes or "-"))
             hist_tabela.setItem(i, 3, QTableWidgetItem(a.parts_used or "-"))
             hist_tabela.setItem(i, 4, QTableWidgetItem(a.from_location or "-"))
             hist_tabela.setItem(i, 5, QTableWidgetItem(a.to_location or "-"))
 
-        hist_tabela.horizontalHeader().setStretchLastSection(True)
         hist_tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
         hist_tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
         hist_tabela.verticalHeader().setVisible(False)
-        hist_tabela.resizeColumnsToContents()
-        hist_tabela.resizeRowsToContents()
-        hist_tabela.verticalHeader().setDefaultSectionSize(30)
+        hist_tabela.verticalHeader().setDefaultSectionSize(44)
+        for i in range(hist_tabela.columnCount()):
+            hist_tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
         hist_tabela.cellDoubleClicked.connect(lambda r, c: self._editar_atividade(r, atividades, printer, dialog))
         hist_layout.addWidget(hist_tabela)
 

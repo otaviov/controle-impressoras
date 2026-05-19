@@ -1,5 +1,12 @@
+﻿import logging
+
+from db import safe_commit
+
+log = logging.getLogger(__name__)
 from datetime import datetime
+
 from sqlalchemy import func
+
 from app.models import Transfer
 
 
@@ -45,22 +52,22 @@ class TransferService:
             observacao=observacao,
         )
         self.session.add(t)
-        self.session.commit()
+        safe_commit(self.session)
         return t
 
     def atualizar(self, transferencia, **kwargs):
         for chave, valor in kwargs.items():
             if hasattr(transferencia, chave):
                 setattr(transferencia, chave, valor)
-        self.session.commit()
+        safe_commit(self.session)
 
     def registrar_retorno(self, transferencia):
         transferencia.data_retorno_real = datetime.now()
-        self.session.commit()
+        safe_commit(self.session)
 
     def excluir(self, transferencia):
         self.session.delete(transferencia)
-        self.session.commit()
+        safe_commit(self.session)
 
     def contar_pendentes(self):
         return self.session.query(Transfer).filter(
@@ -77,3 +84,4 @@ class TransferService:
         return self.session.query(Transfer).filter(
             Transfer.created_at >= inicio, Transfer.created_at < fim
         ).count()
+

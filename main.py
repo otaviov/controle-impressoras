@@ -1,10 +1,18 @@
+import logging
 import sys
+
 from PySide6.QtWidgets import QApplication
 
+from app.models.base import Base
+from app.utils.logger import setup_logging
 from config import DB_PATH
-from db import get_session
+from db import ENGINE, close_session, get_session
 
-print(f"DB: {DB_PATH}")
+setup_logging()
+log = logging.getLogger(__name__)
+log.info("DB: %s", DB_PATH)
+
+Base.metadata.create_all(ENGINE)
 
 def main():
     app = QApplication(sys.argv)
@@ -24,11 +32,15 @@ def main():
     user = login.authenticated_user
 
     session = get_session()
-    from app.views.main_window import MainWindow
-    window = MainWindow(session, user)
-    window.showMaximized()
+    try:
+        from app.views.main_window import MainWindow
+        window = MainWindow(session, user)
+        window.showMaximized()
+        exit_code = app.exec()
+    finally:
+        close_session(session)
 
-    sys.exit(app.exec())
+    sys.exit(exit_code)
 
 if __name__ == "__main__":
     main()
