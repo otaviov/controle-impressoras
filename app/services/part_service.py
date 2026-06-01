@@ -19,6 +19,9 @@ class PartService:
     def buscar_por_nome(self, nome):
         return self.session.query(Part).filter(Part.nome == nome).first()
 
+    def buscar_por_id(self, part_id):
+        return self.session.query(Part).filter(Part.id == part_id).first()
+
     def criar(self, codigo, nome, descricao="", modelo_compativel="", quantidade=0, estoque_minimo=1):
         peca = Part(
             codigo=codigo,

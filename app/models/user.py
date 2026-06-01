@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.alert import Alert
     from app.models.attachment import Attachment
     from app.models.audit_log import AuditLog
+    from app.models.login_history import LoginHistory
 
 
 class User(Base):
@@ -29,5 +30,6 @@ class User(Base):
     alerts_resolved: Mapped[List[Alert]] = relationship(back_populates="resolved_by")
     audit_logs: Mapped[List[AuditLog]] = relationship(back_populates="user")
     uploads: Mapped[List[Attachment]] = relationship(back_populates="uploader")
+    login_history: Mapped[List[LoginHistory]] = relationship(back_populates="user", order_by="LoginHistory.login_at.desc()")
 
 

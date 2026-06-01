@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QStyleFactory
 
 from app.models.base import Base
 from app.utils.logger import setup_logging
@@ -16,6 +16,7 @@ Base.metadata.create_all(ENGINE)
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyle(QStyleFactory.create("Fusion"))
     app.setApplicationName("Controle de Impressoras Pro")
 
     import os

@@ -19,14 +19,17 @@ from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_PRIMARIO,
     ESTILO_BOTAO_SUCESSO,
-    ESTILO_COMBO,
+    ESTILO_SUBTITULO,
+    configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
     ESTILO_TITULO_PAGINA,
 )
 from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 
 
@@ -42,13 +45,26 @@ class PartsPage(QWidget):
         layout.setSpacing(16)
 
         header = QHBoxLayout()
-        titulo = QLabel("\U0001f527 Peças / Estoque")
+        header.setSpacing(10)
+
+        titulo = QLabel("\U0001f527 Peças")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
-        header.addWidget(titulo)
+        sub = QLabel("Gerencie o estoque de peças")
+        sub.setStyleSheet(ESTILO_SUBTITULO)
+
+        titulo_col = QVBoxLayout()
+        titulo_col.setSpacing(2)
+        titulo_col.addWidget(titulo)
+        titulo_col.addWidget(sub)
+        header.addLayout(titulo_col)
         header.addStretch()
 
+        self.search = SearchBar(placeholder="Buscar por nome, código ou modelo...", glass=True)
+        self.search.textChanged().connect(lambda texto: self._filtrar(texto))
+        header.addWidget(self.search)
+
         self.btn_nova = QPushButton("\u2795 Nova Peça")
-        self.btn_nova.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        self.btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
         layout.addLayout(header)
@@ -70,7 +86,8 @@ class PartsPage(QWidget):
         self.recarregar()
 
     def recarregar(self):
-        pecas = self.part_service.listar_todas()
+        self._pecas = self.part_service.listar_todas()
+        pecas = self._pecas
         self.tabela.limpar()
         self.tabela.setRowCount(len(pecas))
 
@@ -116,6 +133,45 @@ class PartsPage(QWidget):
         self.card_em_estoque.atualizar_valor(soma_estoque)
         self.card_sem_estoque.atualizar_valor(sem_estoque)
 
+    def _filtrar(self, texto):
+        if not texto:
+            self.recarregar()
+            return
+        filtradas = [
+            p for p in self._pecas
+            if texto.lower() in (p.nome or "").lower()
+            or texto.lower() in (p.codigo or "").lower()
+            or texto.lower() in (p.modelo_compativel or "").lower()
+        ]
+        self.tabela.limpar()
+        self.tabela.setRowCount(len(filtradas))
+        for i, p in enumerate(filtradas):
+            items = [
+                (p.codigo, None),
+                (p.nome, None),
+                (p.descricao, None),
+                (p.modelo_compativel, None),
+                (str(p.quantidade_estoque), None),
+                (str(p.estoque_minimo), None),
+            ]
+            for j, (texto, _) in enumerate(items):
+                item = QTableWidgetItem(texto)
+                item.setTextAlignment(Qt.AlignCenter if j >= 4 else Qt.AlignLeft)
+                self.tabela.setItem(i, j, item)
+            qtd = p.quantidade_estoque
+            if qtd >= p.estoque_minimo:
+                cor = COR["status_ok"]
+            elif qtd > 0:
+                cor = COR["status_alerta"]
+            else:
+                cor = COR["status_ruim"]
+            self.tabela.item(i, 4).setForeground(QColor(cor))
+            self.tabela.item(i, 4).setTextAlignment(Qt.AlignCenter)
+            self.tabela.item(i, 5).setTextAlignment(Qt.AlignCenter)
+            if qtd < p.estoque_minimo:
+                self.tabela.item(i, 5).setForeground(QColor("#fb923c"))
+        self.tabela.redimensionar()
+
     def _nova(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Nova Peça")
@@ -144,7 +200,7 @@ class PartsPage(QWidget):
         form.addRow("Descrição:", edit_descricao)
 
         combo_modelo = QComboBox()
-        combo_modelo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(combo_modelo)
         combo_modelo.setEditable(True)
         combo_modelo.setInsertPolicy(QComboBox.NoInsert)
         modelos = self.printer_service.modelos_distintos()
@@ -218,6 +274,20 @@ class PartsPage(QWidget):
         edit_descricao.setStyleSheet(ESTILO_INPUT)
         form.addRow("Descrição:", edit_descricao)
 
+        combo_modelo = QComboBox()
+        configurar_combo(combo_modelo)
+        combo_modelo.setEditable(True)
+        combo_modelo.setInsertPolicy(QComboBox.NoInsert)
+        modelos = self.printer_service.modelos_distintos()
+        combo_modelo.addItems(modelos)
+        if peca.modelo_compativel:
+            idx = combo_modelo.findText(peca.modelo_compativel)
+            if idx >= 0:
+                combo_modelo.setCurrentIndex(idx)
+            else:
+                combo_modelo.setCurrentText(peca.modelo_compativel)
+        form.addRow("Modelo Compatível:", combo_modelo)
+
         edit_qtd = QLineEdit(str(peca.quantidade_estoque))
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         form.addRow("Quantidade:", edit_qtd)
@@ -241,6 +311,7 @@ class PartsPage(QWidget):
                 QMessageBox.warning(dialog, "Aviso", "O campo Nome é obrigatório.")
                 return
             descricao = edit_descricao.text().strip()
+            modelo = combo_modelo.currentText().strip()
             try:
                 quantidade = int(edit_qtd.text().strip())
             except ValueError:
@@ -249,7 +320,7 @@ class PartsPage(QWidget):
                 estoque_minimo = int(edit_minimo.text().strip())
             except ValueError:
                 estoque_minimo = 1
-            self.part_service.atualizar(peca, nome=nome, descricao=descricao, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
+            self.part_service.atualizar(peca, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
             dialog.accept()
             self.recarregar()
 

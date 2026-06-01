@@ -21,10 +21,11 @@ from PySide6.QtWidgets import (
 from app.utils.helpers import formatar_data_hora
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
+    ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
     ESTILO_BOTAO_SECUNDARIO,
-    ESTILO_COMBO,
+    configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
@@ -71,7 +72,7 @@ class AlertasPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(0)
+        layout.setSpacing(16)
 
         header = QHBoxLayout()
         header.setSpacing(10)
@@ -107,7 +108,6 @@ class AlertasPage(QWidget):
         header.addWidget(btn_atualizar)
 
         layout.addLayout(header)
-        layout.addSpacing(18)
 
         filtros = QHBoxLayout()
         filtros.setSpacing(8)
@@ -131,12 +131,10 @@ class AlertasPage(QWidget):
         filtros.addWidget(self.lbl_contador)
 
         layout.addLayout(filtros)
-        layout.addSpacing(12)
 
         self.search = SearchBar(placeholder="Buscar por título, impressora ou tipo...")
         self.search.textChanged().connect(lambda texto: self._buscar(texto))
         layout.addWidget(self.search)
-        layout.addSpacing(14)
 
         colunas = ["Impressora", "Tipo", "Título", "Descrição", "Data", "Status"]
         self.tabela = TabelaPadrao(colunas)
@@ -224,7 +222,7 @@ class AlertasPage(QWidget):
         layout.setSpacing(8)
 
         printer_combo = QComboBox()
-        printer_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(printer_combo)
         impressoras = self.printer_service.listar_todos()
         printer_combo.addItem("Selecione uma impressora...", None)
         for p in impressoras:
@@ -232,7 +230,7 @@ class AlertasPage(QWidget):
         layout.addRow("Impressora *:", printer_combo)
 
         tipo_combo = QComboBox()
-        tipo_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(tipo_combo)
         for t in TIPO_OPCOES:
             tipo_combo.addItem(TIPO_LABELS.get(t, t), t)
         layout.addRow("Tipo *:", tipo_combo)
@@ -330,6 +328,12 @@ class AlertasPage(QWidget):
         btn_editar.clicked.connect(lambda: self._editar(alerta, dialog))
         botoes.addWidget(btn_editar)
 
+        btn_excluir = QPushButton("\U0001f5d1 Excluir")
+        btn_excluir.setCursor(Qt.PointingHandCursor)
+        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.clicked.connect(lambda: self._excluir(alerta, dialog))
+        botoes.addWidget(btn_excluir)
+
         if not alerta.resolvido:
             btn_resolver = QPushButton("✅  Resolver Alerta")
             btn_resolver.setCursor(Qt.PointingHandCursor)
@@ -347,7 +351,6 @@ class AlertasPage(QWidget):
         dialog.exec()
 
     def _editar(self, alerta, parent_dialog):
-        from app.views.styles.theme import ESTILO_COMBO
         dialog = QDialog(parent_dialog)
         dialog.setWindowTitle("Editar Alerta")
         dialog.setFixedSize(500, 420)
@@ -356,7 +359,7 @@ class AlertasPage(QWidget):
         layout.setSpacing(8)
 
         printer_combo = QComboBox()
-        printer_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(printer_combo)
         impressoras = self.printer_service.listar_todos()
         printer_combo.addItem("Selecione uma impressora...", None)
         idx_selecionado = 0
@@ -368,7 +371,7 @@ class AlertasPage(QWidget):
         layout.addRow("Impressora *:", printer_combo)
 
         tipo_combo = QComboBox()
-        tipo_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(tipo_combo)
         for t in TIPO_OPCOES:
             tipo_combo.addItem(TIPO_LABELS.get(t, t), t)
         tipo_combo.setCurrentIndex(TIPO_OPCOES.index(alerta.tipo) if alerta.tipo in TIPO_OPCOES else 0)
@@ -435,6 +438,22 @@ class AlertasPage(QWidget):
         self.recarregar()
         dialog.accept()
         parent_dialog.accept()
+
+    def _excluir(self, alerta, dialog):
+        resp = QMessageBox.question(
+            dialog, "Excluir Alerta",
+            f"Deseja realmente excluir o alerta \"{alerta.titulo}\"?\nEsta ação não pode ser desfeita.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if resp == QMessageBox.Yes:
+            try:
+                self.alert_service.excluir(alerta)
+                ToastManager.atualizar_status(self.alert_service.contar_pendentes())
+                ToastManager.info(f"Alerta excluído: {alerta.titulo}")
+                self.recarregar()
+                dialog.accept()
+            except Exception as e:
+                QMessageBox.critical(dialog, "Erro", f"Erro ao excluir alerta:\n{e}")
 
     def _resolver(self, alerta, dialog):
         resp = QMessageBox.question(

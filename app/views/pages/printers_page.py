@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.utils.helpers import formatar_data_hora, limpar_local
+from app.utils.helpers import formatar_data_hora, limpar_local, parse_data
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -32,7 +32,7 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_PRIMARIO,
     ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
-    ESTILO_COMBO,
+    configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
@@ -47,17 +47,18 @@ from app.views.widgets.table_widget import TabelaPadrao
 
 
 class PrintersPage(QWidget):
-    def __init__(self, session, printer_service, company_service, technician_service, activity_service, parent=None):
+    def __init__(self, session, printer_service, company_service, technician_service, activity_service, part_service, parent=None):
         super().__init__(parent)
         self.session = session
         self.printer_service = printer_service
         self.company_service = company_service
         self.technician_service = technician_service
         self.activity_service = activity_service
+        self.part_service = part_service
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(0)
+        layout.setSpacing(16)
 
         header = QHBoxLayout()
         header.setSpacing(10)
@@ -74,6 +75,10 @@ class PrintersPage(QWidget):
         header.addLayout(titulo_col)
         header.addStretch()
 
+        self.search = SearchBar(placeholder="Buscar por patrimônio, modelo, serial ou local...")
+        self.search.textChanged().connect(lambda texto: self.filtrar(texto))
+        header.addWidget(self.search)
+
         btn_nova = QPushButton("  Nova Impressora")
         btn_nova.setCursor(Qt.PointingHandCursor)
         btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
@@ -87,12 +92,6 @@ class PrintersPage(QWidget):
         header.addWidget(btn_atualizar)
 
         layout.addLayout(header)
-        layout.addSpacing(18)
-
-        self.search = SearchBar(placeholder="Buscar por patrimônio, modelo, serial ou local...")
-        self.search.textChanged().connect(lambda texto: self.filtrar(texto))
-        layout.addWidget(self.search)
-        layout.addSpacing(14)
 
         colunas = ["Patrimônio", "Modelo", "Serial", "Marca", "Status", "Local Atual", "Atividades"]
         self.tabela = TabelaPadrao(colunas)
@@ -157,13 +156,13 @@ class PrintersPage(QWidget):
         layout.addRow("Serial:", serial_input)
 
         tipo_combo = QComboBox()
-        tipo_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(tipo_combo)
         tipo_combo.addItems(["", "Laser", "Jato de tinta", "Multifuncional"])
         layout.addRow("Tipo:", tipo_combo)
 
         local_combo = QComboBox()
         local_combo.setEditable(True)
-        local_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(local_combo)
         local_combo.addItem("")
         empresas = self.company_service.listar_todas()
         for emp in empresas:
@@ -177,7 +176,7 @@ class PrintersPage(QWidget):
         layout.addRow("Local Atual:", local_combo)
 
         status_combo = QComboBox()
-        status_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(status_combo)
         status_combo.addItems(["Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         layout.addRow("Status:", status_combo)
 
@@ -187,7 +186,7 @@ class PrintersPage(QWidget):
 
         tec_combo = QComboBox()
         tec_combo.setEditable(True)
-        tec_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(tec_combo)
         tec_combo.addItem("")
         tecnicos = self.technician_service.listar_ativos()
         for t in tecnicos:
@@ -275,7 +274,7 @@ class PrintersPage(QWidget):
 
         dados_layout.addWidget(QLabel("Status:"), 0, 2)
         status_combo = QComboBox()
-        status_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(status_combo)
         status_combo.addItems(["Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         status_combo.setCurrentText(printer.status or "Operacional")
         status_combo.setEnabled(False)
@@ -298,7 +297,7 @@ class PrintersPage(QWidget):
 
         dados_layout.addWidget(QLabel("Tipo:"), 2, 2)
         tipo_combo = QComboBox()
-        tipo_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(tipo_combo)
         tipo_combo.addItems(["", "Laser", "Jato de tinta", "Multifuncional"])
         tipo_combo.setCurrentText(printer.tipo or "")
         tipo_combo.setEnabled(False)
@@ -307,7 +306,7 @@ class PrintersPage(QWidget):
         dados_layout.addWidget(QLabel("Local Atual:"), 3, 0)
         local_combo = QComboBox()
         local_combo.setEditable(True)
-        local_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(local_combo)
         local_combo.addItem("")
         empresas = self.company_service.listar_todas()
         for emp in empresas:
@@ -336,7 +335,7 @@ class PrintersPage(QWidget):
         dados_layout.addWidget(QLabel("Técnico:"), 4, 0)
         tec_combo = QComboBox()
         tec_combo.setEditable(True)
-        tec_combo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(tec_combo)
         tec_combo.addItem("")
         tecnicos = self.technician_service.listar_ativos()
         for t in tecnicos:
@@ -513,7 +512,7 @@ class PrintersPage(QWidget):
             local_atual=limpar_local(local.currentText()),
             ip_rede=ip.text().strip(),
             tecnico=tecnico.currentText().strip(),
-            proxima_revisao=dt.now(),
+            proxima_revisao=parse_data(revisao.text()) or printer.proxima_revisao or dt.now(),
             observacao=obs.toPlainText().strip(),
             pecas_faltantes=pecas.toPlainText().strip()
         )
@@ -526,57 +525,131 @@ class PrintersPage(QWidget):
 
         dialog = QDialog(parent_dialog)
         dialog.setWindowTitle("\u270f Editar Atividade")
-        dialog.setFixedSize(500, 480)
+        dialog.setMinimumWidth(520)
         dialog.setStyleSheet(ESTILO_DIALOG)
-        layout = QFormLayout(dialog)
-        layout.setSpacing(10)
 
-        tipo_combo = QComboBox()
-        tipo_combo.setStyleSheet(ESTILO_COMBO)
-        tipo_combo.addItems(["MANUTENCAO", "MOVIMENTACAO"])
-        tipo_combo.setCurrentText(atividade.kind)
-        layout.addRow("Tipo:", tipo_combo)
+        layout = QVBoxLayout(dialog)
+        form = QFormLayout()
+        form.setSpacing(12)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        data_input = QLineEdit()
-        data_input.setText(formatar_data_hora(atividade.event_at) if atividade.event_at else "")
-        data_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Data/Hora:", data_input)
+        todos_printers = self.printer_service.listar_todos()
+        cmb_printer = QComboBox()
+        configurar_combo(cmb_printer)
+        cmb_printer.setInsertPolicy(QComboBox.NoInsert)
+        for p in todos_printers:
+            cmb_printer.addItem(p.patrimonio)
+        printer_atual = self.printer_service.buscar_por_id(atividade.printer_id)
+        if printer_atual:
+            idx = cmb_printer.findText(printer_atual.patrimonio)
+            if idx >= 0:
+                cmb_printer.setCurrentIndex(idx)
+            else:
+                cmb_printer.setCurrentText(printer_atual.patrimonio)
+        form.addRow("Impressora:", cmb_printer)
 
-        desc_input = QTextEdit()
-        desc_input.setMaximumHeight(100)
-        desc_input.setPlainText(atividade.notes or "")
-        desc_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Descrição:", desc_input)
+        cmb_tipo = QComboBox()
+        configurar_combo(cmb_tipo)
+        cmb_tipo.addItems(["MANUTENCAO", "MOVIMENTACAO"])
+        cmb_tipo.setCurrentText(atividade.kind)
+        form.addRow("Tipo:", cmb_tipo)
 
-        pecas_input = QLineEdit()
-        pecas_input.setText(atividade.parts_used or "")
-        pecas_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Peças:", pecas_input)
+        edt_data = QLineEdit()
+        edt_data.setText(formatar_data_hora(atividade.event_at) if atividade.event_at else "")
+        edt_data.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Data/Hora:", edt_data)
 
-        origem_combo = QComboBox()
-        origem_combo.setEditable(True)
-        origem_combo.setStyleSheet(ESTILO_COMBO)
-        origem_combo.addItem("")
-        empresas = self.company_service.listar_todas()
-        for emp in empresas:
-            origem_combo.addItem(emp.nome)
-        origem_combo.setCurrentText(atividade.from_location or "")
-        layout.addRow("Origem:", origem_combo)
+        txt_descricao = QTextEdit()
+        txt_descricao.setMaximumHeight(80)
+        txt_descricao.setPlainText(atividade.notes or "")
+        txt_descricao.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Descrição:", txt_descricao)
 
-        destino_combo = QComboBox()
-        destino_combo.setEditable(True)
-        destino_combo.setStyleSheet(ESTILO_COMBO)
-        destino_combo.addItem("")
-        for emp in empresas:
-            destino_combo.addItem(emp.nome)
-        destino_combo.setCurrentText(atividade.to_location or "")
-        layout.addRow("Destino:", destino_combo)
+        txt_pecas = QTextEdit()
+        txt_pecas.setMaximumHeight(60)
+        txt_pecas.setPlainText(atividade.parts_used or "")
+        txt_pecas.setStyleSheet(ESTILO_INPUT)
+        form.addRow("Peças Trocadas:", txt_pecas)
 
-        status_combo = QComboBox()
-        status_combo.setStyleSheet(ESTILO_COMBO)
-        status_combo.addItems(["Concluida", "Pendente", "Em Andamento"])
-        status_combo.setCurrentText(atividade.status_atividade or "Concluida")
-        layout.addRow("Status:", status_combo)
+        estoque_combo = QComboBox()
+        configurar_combo(estoque_combo)
+        estoque_combo.addItem("-- Nenhuma --", None)
+        for p in self.part_service.listar_todas():
+            if p.quantidade_estoque > 0:
+                estoque_combo.addItem(f"{p.nome} ({p.quantidade_estoque} un.)", p.id)
+
+        def _preencher_pecas(idx):
+            if idx <= 0:
+                return
+            try:
+                pid = estoque_combo.currentData()
+                if pid is None:
+                    return
+                part = self.part_service.buscar_por_id(pid)
+                if part:
+                    atual = txt_pecas.toPlainText().strip()
+                    txt_pecas.setPlainText(
+                        f"{part.nome}" if not atual else f"{atual}, {part.nome}"
+                    )
+            except RuntimeError:
+                pass
+        estoque_combo.currentIndexChanged.connect(_preencher_pecas)
+        form.addRow("Peça do Estoque:", estoque_combo)
+
+        empresas = self.company_service.listar_nomes() if self.company_service else []
+
+        cmb_origem = QComboBox()
+        cmb_origem.setEditable(True)
+        configurar_combo(cmb_origem)
+        cmb_origem.setInsertPolicy(QComboBox.NoInsert)
+        cmb_origem.addItems(empresas)
+        if atividade.from_location:
+            idx = cmb_origem.findText(atividade.from_location)
+            if idx >= 0:
+                cmb_origem.setCurrentIndex(idx)
+            else:
+                cmb_origem.setCurrentText(atividade.from_location)
+        form.addRow("Origem:", cmb_origem)
+        lbl_origem = form.labelForField(cmb_origem)
+
+        cmb_destino = QComboBox()
+        cmb_destino.setEditable(True)
+        configurar_combo(cmb_destino)
+        cmb_destino.setInsertPolicy(QComboBox.NoInsert)
+        cmb_destino.addItems(empresas)
+        if atividade.to_location:
+            idx = cmb_destino.findText(atividade.to_location)
+            if idx >= 0:
+                cmb_destino.setCurrentIndex(idx)
+            else:
+                cmb_destino.setCurrentText(atividade.to_location)
+        form.addRow("Destino:", cmb_destino)
+        lbl_destino = form.labelForField(cmb_destino)
+
+        def _toggle_origem_destino(tipo):
+            visivel = tipo == "MOVIMENTACAO"
+            lbl_origem.setVisible(visivel)
+            cmb_origem.setVisible(visivel)
+            lbl_destino.setVisible(visivel)
+            cmb_destino.setVisible(visivel)
+        cmb_tipo.currentTextChanged.connect(_toggle_origem_destino)
+        _toggle_origem_destino(cmb_tipo.currentText())
+
+        cmb_tecnico = QComboBox()
+        cmb_tecnico.setEditable(True)
+        configurar_combo(cmb_tecnico)
+        cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
+        if self.technician_service:
+            cmb_tecnico.addItems(self.technician_service.nomes_exibicao())
+        form.addRow("Técnico:", cmb_tecnico)
+
+        cmb_status = QComboBox()
+        configurar_combo(cmb_status)
+        cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
+        cmb_status.setCurrentText(atividade.status_atividade or "Concluida")
+        form.addRow("Status:", cmb_status)
+
+        layout.addLayout(form)
 
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
@@ -584,7 +657,10 @@ class PrintersPage(QWidget):
         btn_salvar = QPushButton("\U0001f4be Salvar")
         btn_salvar.setCursor(Qt.PointingHandCursor)
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
-        btn_salvar.clicked.connect(lambda: self._salvar_edicao_atividade(dialog, atividade, tipo_combo, data_input, desc_input, pecas_input, origem_combo, destino_combo, status_combo))
+        btn_salvar.clicked.connect(lambda: self._salvar_edicao_atividade(
+            dialog, atividade, cmb_printer, cmb_tipo, edt_data,
+            txt_descricao, txt_pecas, cmb_origem, cmb_destino,
+            cmb_tecnico, cmb_status))
         btn_layout.addWidget(btn_salvar)
 
         btn_excluir = QPushButton("\U0001f5d1 Excluir")
@@ -599,10 +675,11 @@ class PrintersPage(QWidget):
         btn_cancelar.clicked.connect(dialog.reject)
         btn_layout.addWidget(btn_cancelar)
 
-        layout.addRow(btn_layout)
+        layout.addLayout(btn_layout)
         dialog.exec()
 
-    def _salvar_edicao_atividade(self, dialog, atividade, tipo, data, desc, pecas, origem, destino, status):
+    def _salvar_edicao_atividade(self, dialog, atividade, printer_combo, tipo, data,
+                                  desc, pecas, origem, destino, tecnico, status):
         data_text = data.text().strip()
         event_at = atividade.event_at
         if data_text:
@@ -614,14 +691,18 @@ class PrintersPage(QWidget):
                 except ValueError:
                     pass
 
+        printer_pat = printer_combo.currentText().strip()
+        printer_obj = self.printer_service.buscar_por_patrimonio(printer_pat)
+
         self.activity_service.atualizar(
             atividade,
+            printer_id=printer_obj.id if printer_obj else atividade.printer_id,
             kind=tipo.currentText(),
             event_at=event_at,
             notes=desc.toPlainText().strip(),
-            parts_used=pecas.text().strip(),
-            from_location=origem.currentText().strip(),
-            to_location=destino.currentText().strip(),
+            parts_used=pecas.toPlainText().strip(),
+            from_location=origem.currentText().strip() if origem.isVisible() else "",
+            to_location=destino.currentText().strip() if destino.isVisible() else "",
             status_atividade=status.currentText()
         )
         self.recarregar()

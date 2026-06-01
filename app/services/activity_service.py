@@ -155,6 +155,34 @@ class ActivityService:
             Activity.to_location == destino
         ).order_by(Activity.event_at.desc()).first()
 
+    def listar_por_tecnico(self, tecnico_id, limite=200):
+        return self.session.query(Activity).filter(
+            Activity.tecnico_id == tecnico_id
+        ).order_by(Activity.event_at.desc()).limit(limite).all()
+
+    def listar_por_tecnico_e_status(self, tecnico_id, status, limite=200):
+        return self.session.query(Activity).filter(
+            Activity.tecnico_id == tecnico_id,
+            Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
+        ).order_by(Activity.event_at.desc()).limit(limite).all()
+
+    def listar_por_tecnico_e_tipo(self, tecnico_id, kind, limite=200):
+        return self.session.query(Activity).filter(
+            Activity.tecnico_id == tecnico_id,
+            Activity.kind == kind
+        ).order_by(Activity.event_at.desc()).limit(limite).all()
+
+    def contar_por_tecnico(self, tecnico_id):
+        return self.session.query(Activity).filter(
+            Activity.tecnico_id == tecnico_id
+        ).count()
+
+    def contar_por_tecnico_por_status(self, tecnico_id, status):
+        return self.session.query(Activity).filter(
+            Activity.tecnico_id == tecnico_id,
+            Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
+        ).count()
+
     def top_pecas_trocadas(self, limite=8):
         from collections import Counter
         pecas_count = Counter()

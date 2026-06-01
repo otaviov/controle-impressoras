@@ -25,7 +25,10 @@ from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_PRIMARIO,
     ESTILO_BOTAO_SUCESSO,
+    ESTILO_SUBTITULO,
+    configurar_combo,
     ESTILO_COMBO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
@@ -49,7 +52,8 @@ class ClientsPage(QWidget):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
 
         header = QHBoxLayout()
         titulo = QLabel("\U0001f465 Clientes / Empresas")
@@ -59,12 +63,15 @@ class ClientsPage(QWidget):
 
         btn_nova = QPushButton("\u2795 Nova Empresa")
         btn_nova.setCursor(Qt.PointingHandCursor)
-        btn_nova.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         btn_nova.clicked.connect(self._nova)
         header.addWidget(btn_nova)
 
         layout.addLayout(header)
-        layout.addSpacing(10)
+
+        subtitulo = QLabel("Gerencie as empresas e clientes")
+        subtitulo.setStyleSheet(ESTILO_SUBTITULO)
+        layout.addWidget(subtitulo)
 
         self.tabela = TabelaPadrao(["Nome", "CNPJ", "Cidade/UF", "Telefone", "Email", "Impressoras"])
         self.tabela.cellDoubleClicked.connect(self._editar)
@@ -110,6 +117,7 @@ class ClientsPage(QWidget):
         layout.addRow("Email:", email_input)
 
         tipo_input = QComboBox()
+        configurar_combo(tipo_input)
         tipo_input.addItems(["Cliente", "Filial", "Parceiro"])
         layout.addRow("Tipo:", tipo_input)
 
@@ -160,6 +168,7 @@ class ClientsPage(QWidget):
         form.addRow("CNPJ:", cnpj_input)
 
         tipo_combo = QComboBox()
+        configurar_combo(tipo_combo)
         tipo_combo.addItems(["Cliente", "Filial", "Parceiro"])
         tipo_combo.setCurrentText(empresa.tipo or "Cliente")
         form.addRow("Tipo:", tipo_combo)

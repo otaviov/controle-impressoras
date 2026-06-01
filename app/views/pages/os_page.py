@@ -17,16 +17,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.models import Part
+from app.services.part_service import PartService
 from app.utils.helpers import formatar_data_hora, parse_data
 from app.views.styles.theme import (
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_PRIMARIO,
+    ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_COMBO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
+    ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
-    _cor_rgba,
+    configurar_combo,
 )
 from app.views.widgets.card_widget import CardMiniClicavel
 from app.views.widgets.search_bar import SearchBar
@@ -44,6 +49,7 @@ class OSPage(QWidget):
 
         self._atividades = []
         self._filtro_tipo_atual = None
+        self.part_service = PartService(session)
 
         self._setup_ui()
         self.recarregar()
@@ -53,77 +59,54 @@ class OSPage(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
+        # ── Header ──────────────────────────────────────
         header = QHBoxLayout()
-        icon_container = QLabel("\U0001f4cb")
-        icon_container.setFixedSize(40, 40)
-        icon_container.setAlignment(Qt.AlignCenter)
-        icon_container.setStyleSheet(
-            f"background: {_cor_rgba('#6366f1', 0.10)}; border: 1px solid {_cor_rgba('#6366f1', 0.20)}; "
-            f"border-radius: 10px; font-size: 18px;"
-        )
-        header.addWidget(icon_container)
-        header.addSpacing(10)
-        titulo = QLabel("Ordens de Serviço / Atividades")
+        titulo_col = QVBoxLayout()
+        titulo_col.setSpacing(2)
+        titulo = QLabel("Ordens de Serviço")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
-        header.addWidget(titulo)
+        titulo_col.addWidget(titulo)
+        subtitulo = QLabel("Gerencie as atividades e ordens de serviço")
+        subtitulo.setStyleSheet(ESTILO_SUBTITULO)
+        titulo_col.addWidget(subtitulo)
+        header.addLayout(titulo_col)
         header.addStretch()
 
-        self.btn_nova = QPushButton("\u2795 Nova OS")
-        self.btn_nova.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        self.btn_nova = QPushButton("Nova OS")
+        self.btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
 
-        self.btn_manut = QPushButton("\U0001f527 Manutenções")
-        self.btn_manut.setStyleSheet(
-            f"QPushButton {{ background: {_cor_rgba('#f97316', 0.10)}; color: #f97316; "
-            f"border: 1px solid {_cor_rgba('#f97316', 0.30)}; border-radius: 8px; "
-            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #f97316; color: white; border-color: #f97316; }}"
-        )
+        self.btn_manut = QPushButton("Manutenções")
+        self.btn_manut.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         self.btn_manut.clicked.connect(lambda: self._filtrar_tipo("MANUTENCAO"))
         header.addWidget(self.btn_manut)
 
-        self.btn_mov = QPushButton("\U0001f69a Movimentações")
-        self.btn_mov.setStyleSheet(
-            f"QPushButton {{ background: {_cor_rgba('#ef4444', 0.10)}; color: #ef4444; "
-            f"border: 1px solid {_cor_rgba('#ef4444', 0.30)}; border-radius: 8px; "
-            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #ef4444; color: white; border-color: #ef4444; }}"
-        )
+        self.btn_mov = QPushButton("Movimentações")
+        self.btn_mov.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         self.btn_mov.clicked.connect(lambda: self._filtrar_tipo("MOVIMENTACAO"))
         header.addWidget(self.btn_mov)
 
-        self.btn_todas = QPushButton("\U0001f4cb Todas")
-        self.btn_todas.setStyleSheet(
-            f"QPushButton {{ background: {_cor_rgba('#6366f1', 0.10)}; color: #6366f1; "
-            f"border: 1px solid {_cor_rgba('#6366f1', 0.30)}; border-radius: 8px; "
-            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #6366f1; color: white; border-color: #6366f1; }}"
-        )
+        self.btn_todas = QPushButton("Todas")
+        self.btn_todas.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         self.btn_todas.clicked.connect(lambda: self._filtrar_tipo("TODAS"))
         header.addWidget(self.btn_todas)
 
-        self.btn_atualizar = QPushButton("\U0001f504 Atualizar")
-        self.btn_atualizar.setStyleSheet(
-            f"QPushButton {{ background: {_cor_rgba('#6366f1', 0.10)}; color: #6366f1; "
-            f"border: 1px solid {_cor_rgba('#6366f1', 0.30)}; border-radius: 8px; "
-            f"padding: 9px 18px; font-size: 11pt; font-weight: 600; }}"
-            f"QPushButton:hover {{ background: #6366f1; color: white; border-color: #6366f1; }}"
-        )
+        self.btn_atualizar = QPushButton("Atualizar")
+        self.btn_atualizar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         self.btn_atualizar.clicked.connect(self.recarregar)
         header.addWidget(self.btn_atualizar)
 
         layout.addLayout(header)
 
-        self.search = SearchBar(placeholder="Buscar por patrimônio, descrição...",
-                                 glass=True)
+        self.search = SearchBar(placeholder="Buscar por patrimônio, descrição...", glass=True)
         self.search.textChanged().connect(self._filtrar_busca)
         layout.addWidget(self.search)
 
         cards = QHBoxLayout()
         cards.setSpacing(12)
 
-        self.card_total = CardMiniClicavel("\U0001f4ca", "Total OS", "0", "#6366f1",
+        self.card_total = CardMiniClicavel("\U0001f4ca", "Total", "0", "#6366f1",
                                            ao_clicar=lambda: self._filtrar_tipo("TODAS"))
         cards.addWidget(self.card_total)
 
@@ -269,6 +252,7 @@ class OSPage(QWidget):
                 event_at=event_at,
                 tecnico_id=tecnico_id,
             )
+            self._dar_baixa_estoque(parts_used)
             atividade = self.activity_service.buscar_por_descricao(printer.id, notes)
             if atividade:
                 self.activity_service.atualizar(
@@ -340,6 +324,7 @@ class OSPage(QWidget):
                     to_company_id=to_company_id,
                     tecnico_id=tecnico_id,
                 )
+                self._dar_baixa_estoque(parts_used)
                 resultado["acao"] = "salvar"
                 dialog.accept()
                 self.recarregar()
@@ -386,13 +371,13 @@ class OSPage(QWidget):
 
         cmb_printer = QComboBox()
         cmb_printer.setEditable(True)
-        cmb_printer.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(cmb_printer)
         cmb_printer.addItems(nomes_impressoras)
         cmb_printer.setInsertPolicy(QComboBox.NoInsert)
         form.addRow("Impressora:", cmb_printer)
 
         cmb_tipo = QComboBox()
-        cmb_tipo.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(cmb_tipo)
         cmb_tipo.addItems(["MANUTENCAO", "MOVIMENTACAO"])
         form.addRow("Tipo:", cmb_tipo)
 
@@ -411,11 +396,34 @@ class OSPage(QWidget):
         txt_pecas.setMaximumHeight(60)
         form.addRow("Peças Trocadas:", txt_pecas)
 
+        estoque_combo_os = QComboBox()
+        configurar_combo(estoque_combo_os)
+        estoque_combo_os.addItem("-- Nenhuma --", None)
+        for p in self.part_service.listar_todas():
+            if p.quantidade_estoque > 0:
+                estoque_combo_os.addItem(f"{p.nome} ({p.quantidade_estoque} un.)", p.id)
+        form.addRow("Peça do Estoque:", estoque_combo_os)
+
+        def _preencher_pecas_os(idx):
+            if idx <= 0:
+                return
+            try:
+                pid = estoque_combo_os.currentData()
+                if pid is None:
+                    return
+                part = self.part_service.buscar_por_id(pid)
+                if part:
+                    atual = txt_pecas.toPlainText().strip()
+                    txt_pecas.setPlainText(f"{part.nome}" if not atual else f"{atual}, {part.nome}")
+            except RuntimeError:
+                pass
+        estoque_combo_os.currentIndexChanged.connect(_preencher_pecas_os)
+
         empresas = self.company_service.listar_nomes() if self.company_service else []
 
         cmb_origem = QComboBox()
         cmb_origem.setEditable(True)
-        cmb_origem.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(cmb_origem)
         cmb_origem.addItems(empresas)
         cmb_origem.setInsertPolicy(QComboBox.NoInsert)
         cmb_origem.setCurrentText("")
@@ -424,7 +432,7 @@ class OSPage(QWidget):
 
         cmb_destino = QComboBox()
         cmb_destino.setEditable(True)
-        cmb_destino.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(cmb_destino)
         cmb_destino.addItems(empresas)
         cmb_destino.setInsertPolicy(QComboBox.NoInsert)
         cmb_destino.setCurrentText("")
@@ -445,14 +453,14 @@ class OSPage(QWidget):
 
         cmb_tecnico = QComboBox()
         cmb_tecnico.setEditable(True)
-        cmb_tecnico.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(cmb_tecnico)
         if self.technician_service:
             cmb_tecnico.addItems(self.technician_service.nomes_exibicao())
         cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
         form.addRow("Técnico:", cmb_tecnico)
 
         cmb_status = QComboBox()
-        cmb_status.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(cmb_status)
         cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
         form.addRow("Status:", cmb_status)
 
@@ -542,3 +550,11 @@ class OSPage(QWidget):
             if t.nome_exibicao == nome or t.nome_completo == nome:
                 return t.id
         return None
+
+    def _dar_baixa_estoque(self, pecas_texto):
+        if not pecas_texto:
+            return
+        nome_peca = pecas_texto.split(",")[0].strip()
+        part = self.part_service.buscar_por_nome(nome_peca)
+        if part and part.quantidade_estoque > 0:
+            self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)

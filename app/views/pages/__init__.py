@@ -6,5 +6,6 @@ from .os_page import OSPage
 from .parts_page import PartsPage
 from .printers_page import PrintersPage
 from .reports_page import ReportsPage
+from .technician_history_page import TechnicianHistoryPage
 from .technicians_page import TechniciansPage
 from .transfers_page import TransfersPage

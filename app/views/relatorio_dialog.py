@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.views.styles.theme import configurar_combo
+
 BG = '#0a0a0f'
 CARD = '#14141f'
 BORDA = '#2a2a3e'
@@ -132,6 +134,7 @@ class RelatorioDialog(QDialog):
 
         filtro_layout.addWidget(QLabel("Status da Impressora:"))
         self.status_combo = QComboBox()
+        configurar_combo(self.status_combo)
         self.status_combo.addItems(["Todos", "Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         self.status_combo.currentTextChanged.connect(self._atualizar_patrimonios)
         filtro_layout.addWidget(self.status_combo)
@@ -144,6 +147,7 @@ class RelatorioDialog(QDialog):
 
         filtro_layout.addWidget(QLabel("Modelo:"))
         self.modelo_combo = QComboBox()
+        configurar_combo(self.modelo_combo)
         self.modelo_combo.addItem("Todos")
         from app.models import Printer
         modelos = self.session.query(Printer.modelo).filter(Printer.modelo != "").distinct().order_by(Printer.modelo).all()
@@ -154,6 +158,7 @@ class RelatorioDialog(QDialog):
 
         filtro_layout.addWidget(QLabel("Local / Empresa:"))
         self.local_combo = QComboBox()
+        configurar_combo(self.local_combo)
         self.local_combo.addItem("Todos")
         from app.models import Company
         empresas = self.session.query(Company).order_by(Company.nome).all()

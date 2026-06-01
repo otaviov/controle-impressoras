@@ -186,7 +186,7 @@ class TechniciansPage(QWidget):
         if dialogo.exec() == QDialog.Accepted:
             if dialogo.excluir_confirmado():
                 try:
-                    self._technician_service.excluir(tecnico.id)
+                    self._technician_service.excluir(tecnico)
                     self.recarregar()
                 except Exception as e:
                     QMessageBox.critical(self, "Erro", f"Erro ao excluir técnico:\n{e}")
@@ -196,7 +196,7 @@ class TechniciansPage(QWidget):
                     QMessageBox.warning(self, "Aviso", "O campo Nome Completo é obrigatório.")
                     return
                 try:
-                    self._technician_service.atualizar(tecnico.id, **novos_dados)
+                    self._technician_service.atualizar(tecnico, **novos_dados)
                     self.recarregar()
                 except Exception as e:
                     QMessageBox.critical(self, "Erro", f"Erro ao atualizar técnico:\n{e}")

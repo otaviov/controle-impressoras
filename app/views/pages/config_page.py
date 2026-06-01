@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_SUCESSO,
-    ESTILO_COMBO,
+    configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
@@ -43,16 +43,20 @@ class ConfigPage(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(0)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
 
-        titulo = QLabel("⚙️ Configurações do Sistema")
+        header_layout = QHBoxLayout()
+        header_text_layout = QVBoxLayout()
+        titulo = QLabel("Configurações")
         titulo.setStyleSheet(ESTILO_TITULO_PAGINA)
-        layout.addWidget(titulo)
-
-        subtitulo = QLabel("Gerenciamento de usuários e manutenção do banco de dados")
+        header_text_layout.addWidget(titulo)
+        subtitulo = QLabel("Gerencie usuários, backup e preferências")
         subtitulo.setStyleSheet(ESTILO_SUBTITULO)
-        layout.addWidget(subtitulo)
+        header_text_layout.addWidget(subtitulo)
+        header_layout.addLayout(header_text_layout)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
@@ -218,7 +222,7 @@ class _UserDialog(QDialog):
         form.addRow("Senha:", self.input_senha)
 
         self.combo_perfil = QComboBox()
-        self.combo_perfil.setStyleSheet(ESTILO_COMBO)
+        configurar_combo(self.combo_perfil)
         self.combo_perfil.addItems(["admin", "tecnico", "visualizador"])
         if self.usuario:
             idx = self.combo_perfil.findText(self.usuario.perfil)
@@ -228,7 +232,7 @@ class _UserDialog(QDialog):
 
         if self.modo == "editar":
             self.combo_ativo = QComboBox()
-            self.combo_ativo.setStyleSheet(ESTILO_COMBO)
+            configurar_combo(self.combo_ativo)
             self.combo_ativo.addItems(["Sim", "Não"])
             if self.usuario and not self.usuario.ativo:
                 self.combo_ativo.setCurrentIndex(1)

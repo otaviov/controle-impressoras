@@ -5,7 +5,7 @@ from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QMouseEvent, QShortcut
 from PySide6.QtWidgets import QDialog, QFrame, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout
 
-from app.models import User
+from app.models import LoginHistory, User
 from app.utils.effects import sombra_glow
 from app.utils.security import verify_password
 from db import close_session, get_session
@@ -236,13 +236,16 @@ class LoginDialog(QDialog):
                 return
 
             user.ultimo_login = dt.utcnow()
+            login_history = LoginHistory(user_id=user.id, login_at=dt.utcnow())
+            session.add(login_history)
             session.commit()
 
             self.authenticated_user = {
                 "id": user.id,
                 "nome": user.nome,
                 "username": user.username,
-                "perfil": user.perfil
+                "perfil": user.perfil,
+                "login_history_id": login_history.id,
             }
 
             self.accept()

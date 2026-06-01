@@ -4,6 +4,7 @@ from app.models.attachment import Attachment
 from app.models.audit_log import AuditLog
 from app.models.base import Base
 from app.models.company import Company
+from app.models.login_history import LoginHistory
 from app.models.part import Part
 from app.models.printer import Printer
 from app.models.technician import Technician

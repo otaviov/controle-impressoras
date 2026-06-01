@@ -3,6 +3,7 @@ from .alert_service import AlertService
 from .audit_service import AuditService
 from .company_service import CompanyService
 from .dashboard_service import DashboardService
+from .login_history_service import LoginHistoryService
 from .part_service import PartService
 from .printer_service import PrinterService
 from .technician_service import TechnicianService

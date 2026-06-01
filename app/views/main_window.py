@@ -1,6 +1,6 @@
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from datetime import datetime as dt
 
 from app.services import (
     ActivityService,
@@ -20,6 +21,7 @@ from app.services import (
     AuditService,
     CompanyService,
     DashboardService,
+    LoginHistoryService,
     PartService,
     PrinterService,
     TechnicianService,
@@ -36,6 +38,7 @@ from app.views.pages import (
     PartsPage,
     PrintersPage,
     ReportsPage,
+    TechnicianHistoryPage,
     TechniciansPage,
     TransfersPage,
 )
@@ -60,11 +63,22 @@ class MainWindow(QMainWindow):
         self.alert_service = AlertService(session)
         self.audit_service = AuditService(session)
         self.transfer_service = TransferService(session)
+        self.login_history_service = LoginHistoryService(session)
 
         self.menu_buttons = []
+        self._menu_indices = []
         self._menu_containers = []
         self._menu_indicators = []
         self.init_ui()
+
+    def closeEvent(self, event):
+        login_id = self.user.get("login_history_id")
+        if login_id:
+            try:
+                self.login_history_service.registrar_logout(self.user["id"])
+            except Exception:
+                pass
+        super().closeEvent(event)
 
     # ── UI ──────────────────────────────────────────────────────
     def init_ui(self):
@@ -100,47 +114,39 @@ class MainWindow(QMainWindow):
         self._adicionar_logo(scroll_layout)
         scroll_layout.addSpacing(6)
 
-        # ── Seção Principal ──
+        # ── Seção Principal (ordem Figma) ──
         self._adicionar_label_secao(scroll_layout, "Principal")
-        menus_principal = [
+        menus_principais = [
             ("📊", "Dashboard", 0),
             ("🖨️", "Impressoras", 1),
+            ("🔧", "Peças", 4),
             ("📋", "Ordens de Serviço", 2),
+            ("🚚", "Transferências", 5),
+            ("📈", "Relatórios", 8),
         ]
-        for icon, text, index in menus_principal:
-            container = self._criar_botao_menu(icon, text)
-            btn = container.findChild(QPushButton)
-            btn.clicked.connect(lambda checked, i=index: self._trocar_pagina(i))
+        for icon, text, index in menus_principais:
+            container = self._criar_botao_menu(icon, text, index)
             scroll_layout.addWidget(container)
-            self.menu_buttons.append(btn)
 
         scroll_layout.addSpacing(8)
 
-        # ── Seção Gestão ──
-        self._adicionar_label_secao(scroll_layout, "Gestão")
-        menus_gestao = [
+        # ── Seção Extra (páginas sem Figma) ──
+        self._adicionar_label_secao(scroll_layout, "Outros")
+        menus_extra = [
             ("👥", "Empresas/Clientes", 3),
-            ("🔧", "Peças", 4),
-            ("🚚", "Transferências", 5),
             ("👨‍🔧", "Técnicos", 6),
-            ("📈", "Relatórios", 7),
-            ("🔔", "Alertas", 8),
+            ("📜", "Histórico", 7),
+            ("🔔", "Alertas", 9),
         ]
-        for icon, text, index in menus_gestao:
-            container = self._criar_botao_menu(icon, text)
-            btn = container.findChild(QPushButton)
-            btn.clicked.connect(lambda checked, i=index: self._trocar_pagina(i))
+        for icon, text, index in menus_extra:
+            container = self._criar_botao_menu(icon, text, index)
             scroll_layout.addWidget(container)
-            self.menu_buttons.append(btn)
 
         if self.user.get('perfil') == 'admin':
             scroll_layout.addSpacing(8)
             self._adicionar_label_secao(scroll_layout, "Sistema")
-            container = self._criar_botao_menu("⚙️", "Configurações")
-            btn_config = container.findChild(QPushButton)
-            btn_config.clicked.connect(lambda: self._trocar_pagina(9))
+            container = self._criar_botao_menu("⚙️", "Configurações", 10)
             scroll_layout.addWidget(container)
-            self.menu_buttons.append(btn_config)
 
         scroll_layout.addStretch()
         scroll_sidebar.setWidget(scroll_content)
@@ -183,7 +189,7 @@ class MainWindow(QMainWindow):
         self.pagina_impressoras = PrintersPage(
             self.session, self.printer_service,
             self.company_service, self.technician_service,
-            self.activity_service
+            self.activity_service, self.part_service
         )
         self.pagina_os = OSPage(
             self.session, self.printer_service,
@@ -203,6 +209,11 @@ class MainWindow(QMainWindow):
         self.pagina_tecnicos = TechniciansPage(
             self.session, self.technician_service
         )
+        self.pagina_historico = TechnicianHistoryPage(
+            self.session, self.technician_service,
+            self.activity_service, self.user_service,
+            self.login_history_service, self.printer_service
+        )
         self.pagina_relatorios = ReportsPage(
             self.session, self.printer_service, self.activity_service
         )
@@ -217,14 +228,15 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self.pagina_pecas)            # 4
         self.content_area.addWidget(self.pagina_transferencias)   # 5
         self.content_area.addWidget(self.pagina_tecnicos)         # 6
-        self.content_area.addWidget(self.pagina_relatorios)       # 7
-        self.content_area.addWidget(self.pagina_alertas)          # 8
+        self.content_area.addWidget(self.pagina_historico)        # 7
+        self.content_area.addWidget(self.pagina_relatorios)       # 8
+        self.content_area.addWidget(self.pagina_alertas)          # 9
 
         if self.user.get('perfil') == 'admin':
             self.pagina_config = ConfigPage(
                 self.session, self.user_service, self.user
             )
-            self.content_area.addWidget(self.pagina_config)       # 9
+            self.content_area.addWidget(self.pagina_config)       # 10
 
         # ── Conexões de sinais ─────────────────────────────────
         self.pagina_dashboard.signal_trocar_pagina.connect(self._trocar_pagina)
@@ -236,18 +248,7 @@ class MainWindow(QMainWindow):
 
         ToastManager.instalar(self)
 
-        try:
-            novos_estoque = self.alert_service.verificar_estoque_baixo()
-            if novos_estoque:
-                log.info(f"Gerados {novos_estoque} alerta(s) de estoque baixo")
-        except Exception as e:
-            log.warning(f"Erro ao verificar estoque baixo: {e}")
-
-        pendentes = self.alert_service.contar_pendentes()
-        if pendentes:
-            ToastManager.aviso(f"{pendentes} alerta(s) pendente(s) — clique em 🔔 Alertas para ver", persistente=True)
-        else:
-            ToastManager.sucesso("Nenhum alerta pendente")
+        QTimer.singleShot(0, self._verificar_alertas_iniciais)
 
         self._trocar_pagina(0)
 
@@ -471,9 +472,10 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(user_frame)
 
-    def _criar_botao_menu(self, icone, texto):
+    def _criar_botao_menu(self, icone, texto, indice):
         container = QFrame()
-        container.setStyleSheet("QFrame { background: transparent; border: none; }")
+        container.setObjectName("menuContainer")
+        container.setStyleSheet("QFrame#menuContainer { background: transparent; border: none; }")
         container_layout = QHBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
         container_layout.setSpacing(0)
@@ -488,30 +490,35 @@ class MainWindow(QMainWindow):
         btn = QPushButton(f"{icone}  {texto}")
         btn.setCheckable(True)
         btn.setCursor(Qt.PointingHandCursor)
-        btn.setMinimumHeight(34)
+        btn.setMinimumHeight(36)
         btn.setObjectName("menuBtn")
         btn.setStyleSheet(
-            "QPushButton#menuBtn { background: transparent; color: #717182; border: none;"
-            " text-align: left; font-size: 12px; padding: 6px 10px; border-radius: 8px; font-weight: 500; }"
-            " QPushButton#menuBtn:hover { background-color: #1e1e2e; color: #e8e8f0; }"
-            " QPushButton#menuBtn:checked { background: rgba(99, 102, 241, 0.12); color: #6366f1; font-weight: 600; }"
+            "QPushButton#menuBtn { background: transparent; color: #94949f; border: none;"
+            " text-align: left; font-size: 13px; padding: 6px 12px; border-radius: 0px; font-weight: 500; }"
+            " QPushButton#menuBtn:hover { background: #1e1e2e; color: #e8e8f0; }"
+            " QPushButton#menuBtn:checked { background: rgba(99, 102, 241, 0.2); color: #6366f1; font-weight: 600; }"
         )
         container_layout.addWidget(btn)
+        btn.clicked.connect(lambda: self._trocar_pagina(indice))
 
         self._menu_containers.append(container)
         self._menu_indicators.append(indicador)
+        self.menu_buttons.append(btn)
+        self._menu_indices.append(indice)
         return container
 
     # ── Navegação ────────────────────────────────────────────────
     def _trocar_pagina(self, index):
         for i, btn in enumerate(self.menu_buttons):
-            btn.setChecked(i == index)
+            is_active = self._menu_indices[i] == index
+            btn.setChecked(is_active)
             if i < len(self._menu_indicators):
                 ind = self._menu_indicators[i]
-                if i == index:
-                    ind.setStyleSheet("QFrame#activeIndicator { background: #6366f1; border-radius: 0 2px 2px 0; }")
-                else:
-                    ind.setStyleSheet("QFrame#activeIndicator { background: transparent; border-radius: 0 2px 2px 0; }")
+                ind.setStyleSheet(
+                    "QFrame#activeIndicator { background: #6366f1; border-radius: 0 2px 2px 0; }"
+                    if is_active
+                    else "QFrame#activeIndicator { background: transparent; border-radius: 0 2px 2px 0; }"
+                )
         self.content_area.setCurrentIndex(index)
 
         pagina_atual = self.content_area.currentWidget()
@@ -533,11 +540,25 @@ class MainWindow(QMainWindow):
             self.pagina_dashboard, self.pagina_impressoras,
             self.pagina_os, self.pagina_clientes,
             self.pagina_pecas, self.pagina_transferencias,
-            self.pagina_tecnicos, self.pagina_relatorios,
-            self.pagina_alertas
+            self.pagina_tecnicos, self.pagina_historico,
+            self.pagina_relatorios, self.pagina_alertas
         ]:
             if hasattr(pagina, 'recarregar'):
                 pagina.recarregar()
+
+    def _verificar_alertas_iniciais(self):
+        try:
+            novos_estoque = self.alert_service.verificar_estoque_baixo()
+            if novos_estoque:
+                log.info(f"Gerados {novos_estoque} alerta(s) de estoque baixo")
+        except Exception as e:
+            log.warning(f"Erro ao verificar estoque baixo: {e}")
+
+        pendentes = self.alert_service.contar_pendentes()
+        if pendentes:
+            ToastManager.aviso(f"{pendentes} alerta(s) pendente(s) — clique em 🔔 Alertas para ver", persistente=True)
+        else:
+            ToastManager.sucesso("Nenhum alerta pendente")
 
     # ── Exportação ───────────────────────────────────────────────
     def _exportar(self, tipo: str, formato: str):

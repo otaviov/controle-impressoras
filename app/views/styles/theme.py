@@ -176,9 +176,11 @@ ESTILO_COMBO = """\
     }
     QComboBox:hover { border-color: #3a3a50; }
     QComboBox:focus { border-color: #6366f1; }
+    QComboBox:on { background-color: #1e1e2e; border-color: #6366f1; }
     QComboBox:disabled { background-color: #14141f; color: #3a3a50; border-color: #2a2a3e; }
-    QComboBox::drop-down { border: none; width: 30px; }
-    QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #717182; margin-right: 8px; }
+    QComboBox QLineEdit { background-color: #1e1e2e; color: #e8e8f0; border: none; }
+    QComboBox::drop-down { border: none; width: 30px; background: transparent; }
+    QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #717182; width: 0; height: 0; margin-right: 8px; }
     QComboBox:hover::down-arrow { border-top-color: #6366f1; }
     QComboBox QAbstractItemView {
         background-color: #1e1e2e; color: #e8e8f0;
@@ -187,8 +189,31 @@ ESTILO_COMBO = """\
         selection-background-color: rgba(99, 102, 241, 0.15);
         selection-color: #818cf8; padding: 4px; outline: none;
     }
-    QComboBox QAbstractItemView::item { padding: 8px 12px; min-height: 28px; border-radius: 6px; }
-    QComboBox QAbstractItemView::item:hover { background-color: rgba(99, 102, 241, 0.1); color: #818cf8; }
+    QComboBox QAbstractItemView::item {
+        padding: 8px 12px; min-height: 28px; border-radius: 6px;
+        background-color: #1e1e2e; color: #e8e8f0;
+    }
+    QComboBox QAbstractItemView::item:hover {
+        background-color: rgba(99, 102, 241, 0.15); color: #818cf8;
+    }
+    QComboBox QAbstractItemView::item:selected {
+        background-color: rgba(99, 102, 241, 0.25); color: #a5b4fc;
+    }
+    QComboBox QAbstractItemView::viewport { background-color: #1e1e2e; }
+    QComboBox QScrollBar:vertical {
+        background: #1e1e2e; width: 8px; margin: 0;
+        border: none; border-radius: 4px;
+    }
+    QComboBox QScrollBar::handle:vertical {
+        background: #3a3a50; min-height: 30px; border-radius: 4px;
+    }
+    QComboBox QScrollBar::handle:vertical:hover { background: #52527a; }
+    QComboBox QScrollBar::add-line:vertical, QComboBox QScrollBar::sub-line:vertical {
+        height: 0; background: none; border: none;
+    }
+    QComboBox QScrollBar::add-page:vertical, QComboBox QScrollBar::sub-page:vertical {
+        background: none;
+    }
 """
 
 ESTILO_TABELA = """\
@@ -238,12 +263,6 @@ ESTILO_DIALOG = """\
     }
     QLineEdit:hover, QTextEdit:hover { border-color: #3a3a50; }
     QLineEdit:focus, QTextEdit:focus { border-color: #6366f1; }
-    QComboBox {
-        background-color: #1e1e2e; color: #e8e8f0;
-        border: 1px solid #2a2a3e; border-radius: 8px;
-        padding: 8px 12px; font-size: 13px;
-    }
-    QComboBox:hover { border-color: #3a3a50; }
 """
 
 ESTILO_TITULO_PAGINA = "color: #e8e8f0; font-size: 22px; font-weight: 700; background: transparent; letter-spacing: -0.3px;"
@@ -279,21 +298,70 @@ def estilo_botao_outline(cor, cor_hover=None, bg_hover=None):
 
 
 def estilos_dialogo_tabs():
-    return """\
-        QTabWidget::pane {
-            border: 1px solid #2a2a3e;
-            background-color: transparent;
-            border-radius: 0 0 10px 10px;
-        }
-        QTabWidget { background: transparent; }
-        QTabBar { background: transparent; }
-        QTabBar::tab {
-            background: transparent; color: #717182;
-            border: none; border-bottom: 2px solid transparent;
-            padding: 10px 20px; margin-right: 2px;
-            font-size: 13px; font-weight: 500;
-        }
-        QTabBar::tab:hover { color: #94949f; border-bottom-color: #3a3a50; }
-        QTabBar::tab:selected { color: #6366f1; border-bottom-color: #6366f1; font-weight: 700; }
-        QTabBar::tab:focus { outline: none; }
-    """
+    return f"""
+    QTabWidget::pane {{ border: none; background: transparent; }}
+    QTabBar::tab {{ background: transparent; color: #717182; padding: 10px 16px; border: none; border-bottom: 2px solid transparent; font-size: 13px; }}
+    QTabBar::tab:selected {{ color: #e8e8f0; border-bottom-color: #6366f1; }}
+    QTabBar::tab:hover {{ color: #94949f; }}
+"""
+
+
+def configurar_combo(combo):
+    """Garante fundo escuro e habilita digitação em qualquer QComboBox.
+    editable + read-only (contorna bug do Fusion que ignora
+    background-color via stylesheet em combos não-editáveis)."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QComboBox as _QComboBox
+
+    combo.setEditable(True)
+    combo.setInsertPolicy(_QComboBox.NoInsert)
+    combo.setMinimumHeight(38)
+
+    le = combo.lineEdit()
+    if le:
+        le.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        le.setStyleSheet(
+            "background-color: #1e1e2e; color: #e8e8f0;"
+            " border: none;"
+        )
+
+    combo.setStyleSheet(
+        "QComboBox { background-color: #1e1e2e; color: #e8e8f0;"
+        " border: 1px solid #2a2a3e; border-radius: 8px;"
+        " padding: 0px 12px; font-size: 13px;"
+        " min-height: 36px; }"
+        "QComboBox:hover { border-color: #3a3a50; }"
+        "QComboBox:focus { border-color: #6366f1; }"
+        "QComboBox:on { background-color: #1e1e2e; border-color: #6366f1; }"
+        "QComboBox QLineEdit { background-color: #1e1e2e; color: #e8e8f0;"
+        " border: none; }"
+        "QComboBox::drop-down { border: none; width: 30px;"
+        " background: transparent; }"
+        "QComboBox::down-arrow {"
+        " image: none; border-left: 5px solid transparent;"
+        " border-right: 5px solid transparent;"
+        " border-top: 6px solid #717182; width: 0; height: 0;"
+        " margin-right: 8px; }"
+        "QComboBox:disabled { background-color: #14141f;"
+        " color: #3a3a50; }"
+    )
+
+    orig = combo.showPopup
+    def _popup():
+        orig()
+        v = combo.view()
+        if v:
+            from PySide6.QtWidgets import QStyleFactory
+            v.setStyle(QStyleFactory.create("Fusion"))
+            v.setStyleSheet(
+                "QListView { background-color: #1e1e2e; color: #e8e8f0; }"
+                "QListView::item { background-color: #1e1e2e; color: #e8e8f0;"
+                " padding: 8px 12px; }"
+                "QListView::item:hover {"
+                " background-color: rgba(99, 102, 241, 0.15);"
+                " color: #818cf8; }"
+                "QListView::item:selected {"
+                " background-color: rgba(99, 102, 241, 0.25);"
+                " color: #a5b4fc; }"
+            )
+    combo.showPopup = _popup
