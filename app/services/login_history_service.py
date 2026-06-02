@@ -1,6 +1,8 @@
 from datetime import datetime
 
+from db import safe_commit
 from app.models import LoginHistory
+from app.models.base import utcnow
 
 
 class LoginHistoryService:
@@ -10,7 +12,7 @@ class LoginHistoryService:
     def registrar_login(self, user_id, ip_address=""):
         sessao = LoginHistory(user_id=user_id, ip_address=ip_address)
         self.session.add(sessao)
-        self.session.commit()
+        safe_commit(self.session)
         return sessao
 
     def registrar_logout(self, user_id):
@@ -19,8 +21,8 @@ class LoginHistoryService:
             LoginHistory.logout_at.is_(None)
         ).order_by(LoginHistory.login_at.desc()).first()
         if sessao:
-            sessao.logout_at = datetime.utcnow()
-            self.session.commit()
+            sessao.logout_at = utcnow()
+            safe_commit(self.session)
         return sessao
 
     def listar_por_usuario(self, user_id, limite=50):

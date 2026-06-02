@@ -1,18 +1,34 @@
 import logging
 import sys
+import traceback
 
-from PySide6.QtWidgets import QApplication, QStyleFactory
+from PySide6.QtWidgets import QApplication, QStyleFactory, QMessageBox
 
-from app.models.base import Base
+from alembic.config import Config as AlembicConfig
+from alembic.command import upgrade as alembic_upgrade
 from app.utils.logger import setup_logging
-from config import DB_PATH
+from config import BASE_DIR, DB_PATH
 from db import ENGINE, close_session, get_session
 
 setup_logging()
 log = logging.getLogger(__name__)
 log.info("DB: %s", DB_PATH)
 
-Base.metadata.create_all(ENGINE)
+_alembic_cfg = AlembicConfig(BASE_DIR / "alembic.ini")
+_alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{DB_PATH}")
+alembic_upgrade(_alembic_cfg, "head")
+
+def _excepthook(tipo, valor, tb):
+    msg = "".join(traceback.format_exception(tipo, valor, tb))
+    log.critical("Exceção não tratada:\n%s", msg)
+    try:
+        QMessageBox.critical(None, "Erro Inesperado",
+            f"Ocorreu um erro inesperado:\n\n{valor}\n\n"
+            "Verifique o log para mais detalhes.")
+    except Exception:
+        pass
+
+sys.excepthook = _excepthook
 
 def main():
     app = QApplication(sys.argv)

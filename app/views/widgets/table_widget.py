@@ -36,10 +36,7 @@ class TabelaPadrao(QTableWidget):
         return item
 
     def badge_item(self, texto, cor):
-        item = QTableWidgetItem()
-        item.setData(Qt.DisplayRole, texto)
         badge = BadgeWidget(texto, cor)
-        self.setItem(self.rowCount() - 1, 0, item)
         return badge
 
     def definir_badge(self, row, col, texto, cor):

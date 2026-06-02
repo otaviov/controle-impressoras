@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.models import Printer
+from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_ERRO,
@@ -132,15 +132,16 @@ class ClientsPage(QWidget):
         nome_text = nome.text().strip()
         if not nome_text:
             return
-        self.company_service.criar(
-            nome=nome_text,
-            cnpj=cnpj.text().strip(),
-            telefone=telefone.text().strip(),
-            email=email.text().strip(),
-            tipo=tipo.currentText()
-        )
-        self.recarregar()
-        dialog.accept()
+        with tratar_erro("criar empresa"):
+            self.company_service.criar(
+                nome=nome_text,
+                cnpj=cnpj.text().strip(),
+                telefone=telefone.text().strip(),
+                email=email.text().strip(),
+                tipo=tipo.currentText()
+            )
+            self.recarregar()
+            dialog.accept()
 
     def _editar(self, row):
         nome_empresa = self.tabela.item(row, 0).text()
@@ -229,9 +230,7 @@ class ClientsPage(QWidget):
         tab_impressoras = QWidget()
         imp_layout = QVBoxLayout(tab_impressoras)
 
-        impressoras = self.session.query(Printer).filter(
-            Printer.local_atual == empresa.nome
-        ).order_by(Printer.patrimonio).all()
+        impressoras = self.printer_service.listar_por_local(empresa.nome)
 
         imp_label = QLabel(f"\U0001f5a8\ufe0f Impressoras em '{empresa.nome}' ({len(impressoras)})")
         imp_label.setStyleSheet(ESTILO_LABEL_CAMPO.replace("font-size: 12px;", "font-size: 14px;"))
@@ -298,17 +297,13 @@ class ClientsPage(QWidget):
         empresa.uf = uf.text().strip().upper()
         empresa.observacao = obs.toPlainText().strip()
 
-        if nome_antigo != nome_novo and nome_novo:
-            impressoras = self.session.query(Printer).filter(
-                Printer.local_atual == nome_antigo
-            ).all()
-            for p in impressoras:
-                p.local_atual = nome_novo
-
-        empresa.nome = nome_novo
-        self.session.commit()
-        self.recarregar()
-        dialog.accept()
+        with tratar_erro("salvar edição da empresa"):
+            if nome_antigo != nome_novo and nome_novo:
+                self.printer_service.atualizar_local_por_nome_antigo(nome_antigo, nome_novo)
+            empresa.nome = nome_novo
+            self.session.commit()
+            self.recarregar()
+            dialog.accept()
 
     def _excluir(self, dialog, empresa):
         resposta = QMessageBox.question(
@@ -321,9 +316,10 @@ class ClientsPage(QWidget):
         )
 
         if resposta == QMessageBox.Yes:
-            self.company_service.excluir(empresa)
-            self.recarregar()
-            dialog.accept()
+            with tratar_erro("excluir empresa"):
+                self.company_service.excluir(empresa)
+                self.recarregar()
+                dialog.accept()
 
     def _abrir_impressora_por_patrimonio(self, patrimonio, parent_dialog):
         parent_dialog.accept()

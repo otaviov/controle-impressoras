@@ -6,22 +6,36 @@ log = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 
 from app.models import Alert, Printer
+from sqlalchemy.orm import selectinload
 
 
 class AlertService:
-    def __init__(self, session):
+    def __init__(self, session, audit_service=None, user_id=None):
         self.session = session
+        self.audit_service = audit_service
+        self.user_id = user_id
 
-    def listar_todos(self, apenas_pendentes=False):
-        query = self.session.query(Alert).order_by(Alert.created_at.desc())
+    def listar_todos(self, apenas_pendentes=False, limite=None, offset=None):
+        query = self.session.query(Alert).options(
+            selectinload(Alert.printer)
+        ).order_by(Alert.created_at.desc())
         if apenas_pendentes:
             query = query.filter(Alert.resolvido == False)
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
         return query.all()
 
-    def listar_por_impressora(self, printer_id):
-        return self.session.query(Alert).filter(
+    def listar_por_impressora(self, printer_id, limite=None, offset=None):
+        query = self.session.query(Alert).filter(
             Alert.printer_id == printer_id
-        ).order_by(Alert.created_at.desc()).all()
+        ).order_by(Alert.created_at.desc())
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
     def buscar_por_id(self, alert_id):
         return self.session.query(Alert).filter(Alert.id == alert_id).first()
@@ -36,15 +50,21 @@ class AlertService:
         )
         self.session.add(alerta)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "criar", tabela_alvo="alerts", registro_id=alerta.id, dados_depois=alerta)
         return alerta
 
     def resolver(self, alerta, user_id=None):
+        if self.audit_service:
+            self.audit_service.log(user_id or self.user_id, "resolver", tabela_alvo="alerts", registro_id=alerta.id, dados_antes=alerta)
         alerta.resolvido = True
         alerta.resolvido_em = datetime.now()
         alerta.resolvido_por = user_id
         safe_commit(self.session)
 
     def excluir(self, alerta):
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "excluir", tabela_alvo="alerts", registro_id=alerta.id, dados_antes=alerta)
         self.session.delete(alerta)
         safe_commit(self.session)
 

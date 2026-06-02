@@ -7,34 +7,61 @@ import calendar
 from datetime import datetime
 
 from app.models import Activity, Printer
+from sqlalchemy.orm import selectinload
 
 
 class ActivityService:
-    def __init__(self, session):
+    def __init__(self, session, audit_service=None, user_id=None):
         self.session = session
+        self.audit_service = audit_service
+        self.user_id = user_id
 
-    def listar(self, filtro_tipo=None, limite=200):
-        query = self.session.query(Activity).order_by(Activity.event_at.desc())
+    def buscar_por_id(self, activity_id):
+        return self.session.query(Activity).options(
+            selectinload(Activity.printer)
+        ).filter(Activity.id == activity_id).first()
+
+    def listar(self, filtro_tipo=None, limite=200, offset=None):
+        query = self.session.query(Activity).options(
+            selectinload(Activity.printer)
+        ).order_by(Activity.event_at.desc())
         if filtro_tipo and filtro_tipo != "TODAS":
             query = query.filter(Activity.kind == filtro_tipo)
-        return query.limit(limite).all()
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
-    def listar_por_status(self, status, limite=200):
-        query = self.session.query(Activity).order_by(Activity.event_at.desc())
+    def listar_por_status(self, status, limite=200, offset=None):
+        query = self.session.query(Activity).options(
+            selectinload(Activity.printer)
+        ).order_by(Activity.event_at.desc())
         query = query.filter(Activity.status_atividade.in_([status, status.lower(), status.capitalize()]))
-        return query.limit(limite).all()
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
-    def listar_movimentacoes(self, limite=100):
-        return self.session.query(Activity).filter(
+    def listar_movimentacoes(self, limite=100, offset=None):
+        query = self.session.query(Activity).filter(
             Activity.kind == "MOVIMENTACAO"
-        ).order_by(Activity.event_at.desc()).limit(limite).all()
+        ).order_by(Activity.event_at.desc())
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
-    def listar_por_impressora(self, printer_id, limite=None):
+    def listar_por_impressora(self, printer_id, limite=None, offset=None):
         query = self.session.query(Activity).filter(
             Activity.printer_id == printer_id
         ).order_by(Activity.event_at.desc())
-        if limite:
+        if limite is not None:
             query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
         return query.all()
 
     def buscar_ultima_manutencao(self, printer_id):
@@ -66,15 +93,23 @@ class ActivityService:
         )
         self.session.add(atividade)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "criar", tabela_alvo="activities", registro_id=atividade.id, dados_depois=atividade)
         return atividade
 
     def atualizar(self, atividade, **kwargs):
+        if self.audit_service:
+            dados_antes = {chave: getattr(atividade, chave, None) for chave in kwargs}
         for chave, valor in kwargs.items():
             if hasattr(atividade, chave):
                 setattr(atividade, chave, valor)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "atualizar", tabela_alvo="activities", registro_id=atividade.id, dados_antes=dados_antes, dados_depois=atividade)
 
     def excluir(self, atividade):
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "excluir", tabela_alvo="activities", registro_id=atividade.id, dados_antes=atividade)
         self.session.delete(atividade)
         safe_commit(self.session)
 
@@ -182,6 +217,40 @@ class ActivityService:
             Activity.tecnico_id == tecnico_id,
             Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
         ).count()
+
+    def contar_por_impressora_e_kind(self, printer_id, kind):
+        return self.session.query(Activity).filter(
+            Activity.printer_id == printer_id,
+            Activity.kind == kind
+        ).count()
+
+    def listar_por_peca(self, nome_peca, limite=100):
+        filtro = f"%{nome_peca}%"
+        resultados = self.session.query(Activity).options(
+            selectinload(Activity.printer)
+        ).filter(
+            Activity.parts_used.like(filtro)
+        ).order_by(Activity.event_at.desc()).limit(limite * 5).all()
+        nome_peca_lower = nome_peca.strip().lower()
+        filtrados = [
+            a for a in resultados
+            if any(p.strip().lower() == nome_peca_lower for p in (a.parts_used or "").split(","))
+        ]
+        return filtrados[:limite]
+
+    def listar_por_peca_com_relacionadas(self, nome_peca, limite=100):
+        diretas = self.listar_por_peca(nome_peca, limite=limite)
+        printer_ids = list({a.printer_id for a in diretas if a.printer_id})
+        if not printer_ids:
+            return diretas, []
+        diretas_ids = {a.id for a in diretas}
+        query = self.session.query(Activity).options(
+            selectinload(Activity.printer)
+        ).filter(Activity.printer_id.in_(printer_ids))
+        if diretas_ids:
+            query = query.filter(~Activity.id.in_(diretas_ids))
+        relacionadas = query.order_by(Activity.event_at.desc()).limit(limite).all()
+        return diretas, relacionadas
 
     def top_pecas_trocadas(self, limite=8):
         from collections import Counter

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
@@ -6,17 +6,21 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import (
     COR,
+    ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
@@ -34,11 +38,14 @@ from app.views.widgets.table_widget import TabelaPadrao
 
 
 class PartsPage(QWidget):
-    def __init__(self, session, part_service, printer_service, parent=None):
+    abrir_atividade = Signal(int)
+
+    def __init__(self, session, part_service, printer_service, activity_service=None, parent=None):
         super().__init__(parent)
         self.session = session
         self.part_service = part_service
         self.printer_service = printer_service
+        self.activity_service = activity_service
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -79,6 +86,7 @@ class PartsPage(QWidget):
         cards.addWidget(self.card_sem_estoque)
         layout.addLayout(cards)
 
+        self._pecas_filtradas = None
         self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque", "Mín."])
         self.tabela.cellDoubleClicked.connect(self._editar)
         layout.addWidget(self.tabela)
@@ -128,16 +136,16 @@ class PartsPage(QWidget):
                 self.tabela.item(i, 5).setForeground(QColor("#fb923c"))
 
         self.tabela.redimensionar()
-
         self.card_total.atualizar_valor(total)
         self.card_em_estoque.atualizar_valor(soma_estoque)
         self.card_sem_estoque.atualizar_valor(sem_estoque)
+        self._pecas_filtradas = None
 
     def _filtrar(self, texto):
         if not texto:
             self.recarregar()
             return
-        filtradas = [
+        self._pecas_filtradas = filtradas = [
             p for p in self._pecas
             if texto.lower() in (p.nome or "").lower()
             or texto.lower() in (p.codigo or "").lower()
@@ -241,15 +249,16 @@ class PartsPage(QWidget):
             estoque_minimo = int(edit_minimo.text().strip())
         except ValueError:
             estoque_minimo = 1
-        self.part_service.criar(codigo=codigo, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade=quantidade, estoque_minimo=estoque_minimo)
-        dialog.accept()
-        self.recarregar()
+        with tratar_erro("criar peça"):
+            self.part_service.criar(codigo=codigo, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade=quantidade, estoque_minimo=estoque_minimo)
+            dialog.accept()
+            self.recarregar()
 
     def _editar(self, row):
         if row < 0:
             return
 
-        peca = self.part_service.listar_todas()[row]
+        peca = (self._pecas_filtradas or self._pecas)[row]
 
         dialog = QDialog(self)
         dialog.setWindowTitle("Editar Peça")
@@ -303,6 +312,10 @@ class PartsPage(QWidget):
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_cancelar = botoes.addButton("Cancelar", QDialogButtonBox.RejectRole)
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        if self.activity_service:
+            btn_historico = botoes.addButton("📋 Histórico de Uso", QDialogButtonBox.ActionRole)
+            btn_historico.setStyleSheet(ESTILO_BOTAO_AVISO)
+            btn_historico.clicked.connect(lambda: self._mostrar_uso(peca))
         form.addRow(botoes)
 
         def salvar():
@@ -320,9 +333,10 @@ class PartsPage(QWidget):
                 estoque_minimo = int(edit_minimo.text().strip())
             except ValueError:
                 estoque_minimo = 1
-            self.part_service.atualizar(peca, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
-            dialog.accept()
-            self.recarregar()
+            with tratar_erro("atualizar peça"):
+                self.part_service.atualizar(peca, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
+                dialog.accept()
+                self.recarregar()
 
         def excluir():
             resp = QMessageBox.question(
@@ -330,12 +344,70 @@ class PartsPage(QWidget):
                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No
             )
             if resp == QMessageBox.Yes:
-                self.part_service.excluir(peca)
-                dialog.accept()
-                self.recarregar()
+                with tratar_erro("excluir peça"):
+                    self.part_service.excluir(peca)
+                    dialog.accept()
+                    self.recarregar()
 
         botoes.accepted.connect(salvar)
         botoes.rejected.connect(dialog.reject)
         btn_excluir.clicked.connect(excluir)
 
         dialog.exec()
+
+    def _mostrar_uso(self, peca):
+        from app.utils.helpers import formatar_data_hora
+        diretas, relacionadas = self.activity_service.listar_por_peca_com_relacionadas(peca.nome, limite=200)
+        if not diretas:
+            QMessageBox.information(self, "Histórico de Uso", f"Nenhum uso encontrado para '{peca.nome}'.")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Uso da peça: {peca.nome}")
+        dialog.setMinimumSize(780, 500)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+
+        def preencher_tabela(atividades):
+            tabela = QTableWidget()
+            tabela.setColumnCount(5)
+            tabela.setHorizontalHeaderLabels(["Data/Hora", "Tipo", "Impressora", "Origem", "Destino"])
+            tabela.horizontalHeader().setStretchLastSection(True)
+            tabela.setSelectionBehavior(QTableWidget.SelectRows)
+            tabela.setEditTriggers(QTableWidget.NoEditTriggers)
+            tabela.setAlternatingRowColors(True)
+            tabela.setRowCount(len(atividades))
+            tabela.verticalHeader().setVisible(False)
+            for i, a in enumerate(atividades):
+                pat = a.printer.patrimonio if a.printer else "-"
+                tabela.setItem(i, 0, QTableWidgetItem(formatar_data_hora(a.event_at)))
+                tabela.setItem(i, 1, QTableWidgetItem("Manutenção" if a.kind == "MANUTENCAO" else "Movimentação"))
+                tabela.setItem(i, 2, QTableWidgetItem(pat))
+                tabela.setItem(i, 3, QTableWidgetItem(a.from_location or "-"))
+                tabela.setItem(i, 4, QTableWidgetItem(a.to_location or "-"))
+            tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            tabela.resizeColumnsToContents()
+            return tabela
+
+        layout.addWidget(QLabel(f"<b style='font-size:14px'>📌 Uso direto — {len(diretas)} registro(s)</b>"))
+        tab_diretas = preencher_tabela(diretas)
+        tab_diretas.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(diretas[r].id, dialog))
+        layout.addWidget(tab_diretas)
+
+        if relacionadas:
+            layout.addWidget(QLabel(f"<b style='font-size:14px'>🔗 Outras atividades nas mesmas impressoras — {len(relacionadas)} registro(s)</b>"))
+            tab_rel = preencher_tabela(relacionadas)
+            tab_rel.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(relacionadas[r].id, dialog))
+            layout.addWidget(tab_rel)
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.clicked.connect(dialog.accept)
+        layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
+
+        dialog.exec()
+
+    def _abrir_atividade_historico(self, activity_id, dialog):
+        self.abrir_atividade.emit(activity_id)

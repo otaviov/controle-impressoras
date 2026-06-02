@@ -8,25 +8,26 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from app.views.relatorio_dialog import RelatorioDialog
-from app.views.styles.theme import ESTILO_TITULO_PAGINA
+from app.views.styles.theme import COR, ESTILO_TITULO_PAGINA
 
-BG = '#0a0a0f'
-CARD = '#14141f'
-BORDA = '#2a2a3e'
-TEXTO = '#e8e8f0'
-AZUL = '#3b82f6'
-VERDE = '#10b981'
-AMARELO = '#f59e0b'
-ROXO = '#6366f1'
-CINZA = '#717182'
+BG = COR["fundo"]
+CARD = COR["fundo_card"]
+BORDA = COR["borda"]
+TEXTO = COR["texto"]
+AZUL = COR["azul"]
+VERDE = COR["sucesso"]
+AMARELO = COR["aviso"]
+ROXO = COR["roxo"]
+CINZA = COR["texto_label"]
 
 
 class ReportsPage(QWidget):
-    def __init__(self, session, printer_service, activity_service, parent=None):
+    def __init__(self, session, printer_service, activity_service, company_service, parent=None):
         super().__init__(parent)
         self._session = session
         self._printer_service = printer_service
         self._activity_service = activity_service
+        self._company_service = company_service
 
         self.canvas_status = None
         self.canvas_modelos = None
@@ -182,5 +183,5 @@ class ReportsPage(QWidget):
         return canvas
 
     def _abrir_relatorio(self):
-        dialogo = RelatorioDialog(self._session, self)
+        dialogo = RelatorioDialog(self._session, self._printer_service, self._company_service, self._activity_service, self)
         dialogo.exec()

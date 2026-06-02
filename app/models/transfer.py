@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -15,6 +15,10 @@ if TYPE_CHECKING:
 
 class Transfer(Base):
     __tablename__ = "transfers"
+    __table_args__ = (
+        Index("ix_transfer_numero_os", "numero_os"),
+        Index("ix_transfer_tipo", "tipo"),
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     printer_id: Mapped[str] = mapped_column(String(36), ForeignKey("printers.id"), default="")
     numero_os: Mapped[str] = mapped_column(String(50), default="")

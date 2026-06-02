@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 from datetime import datetime as dt
 
+from app.utils.ui_helpers import exportar_em_thread
 from app.services import (
     ActivityService,
     AlertService,
@@ -53,16 +54,16 @@ class MainWindow(QMainWindow):
         self.user = user
 
         # ── Serviços ──────────────────────────────────────────
-        self.printer_service = PrinterService(session)
-        self.activity_service = ActivityService(session)
-        self.company_service = CompanyService(session)
-        self.part_service = PartService(session)
-        self.technician_service = TechnicianService(session)
-        self.user_service = UserService(session)
-        self.dashboard_service = DashboardService(session)
-        self.alert_service = AlertService(session)
         self.audit_service = AuditService(session)
-        self.transfer_service = TransferService(session)
+        self.printer_service = PrinterService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.activity_service = ActivityService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.company_service = CompanyService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.part_service = PartService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.technician_service = TechnicianService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.user_service = UserService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.dashboard_service = DashboardService(session)
+        self.alert_service = AlertService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.transfer_service = TransferService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.login_history_service = LoginHistoryService(session)
 
         self.menu_buttons = []
@@ -200,7 +201,7 @@ class MainWindow(QMainWindow):
             self.session, self.company_service, self.printer_service
         )
         self.pagina_pecas = PartsPage(
-            self.session, self.part_service, self.printer_service
+            self.session, self.part_service, self.printer_service, self.activity_service
         )
         self.pagina_transferencias = TransfersPage(
             self.session, self.printer_service,
@@ -215,7 +216,7 @@ class MainWindow(QMainWindow):
             self.login_history_service, self.printer_service
         )
         self.pagina_relatorios = ReportsPage(
-            self.session, self.printer_service, self.activity_service
+            self.session, self.printer_service, self.activity_service, self.company_service
         )
         self.pagina_alertas = AlertasPage(
             self.session, self.alert_service, self.printer_service
@@ -241,6 +242,7 @@ class MainWindow(QMainWindow):
         # ── Conexões de sinais ─────────────────────────────────
         self.pagina_dashboard.signal_trocar_pagina.connect(self._trocar_pagina)
         self.pagina_clientes.abrir_impressora.connect(self._abrir_impressora_por_patrimonio)
+        self.pagina_pecas.abrir_atividade.connect(self._abrir_atividade_por_id)
 
         main_layout.addWidget(sidebar)
         right_layout.addWidget(self.content_area, 1)
@@ -526,6 +528,9 @@ class MainWindow(QMainWindow):
             pagina_atual.recarregar()
 
     # ── Ações ────────────────────────────────────────────────────
+    def _abrir_atividade_por_id(self, activity_id):
+        self.pagina_os.editar_atividade_por_id(activity_id)
+
     def _abrir_impressora_por_patrimonio(self, patrimonio):
         self._trocar_pagina(1)
         self.pagina_impressoras.filtrar(patrimonio)
@@ -580,17 +585,23 @@ class MainWindow(QMainWindow):
         try:
             if tipo == "impressoras":
                 data = self.printer_service.listar_todos()
-                if formato == "pdf":
-                    RelatorioService.exportar_impressoras_pdf(data, filepath)
-                else:
-                    RelatorioService.exportar_impressoras_excel(data, filepath)
             else:
                 data = self.activity_service.listar(limite=500)
-                if formato == "pdf":
-                    RelatorioService.exportar_atividades_pdf(data, filepath)
-                else:
-                    RelatorioService.exportar_atividades_excel(data, filepath)
-            os.startfile(filepath)
-            QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{filepath}")
         except Exception as e:
-            QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório: {str(e)}")
+            QMessageBox.critical(self, "Erro", f"Erro ao buscar dados: {str(e)}")
+            return
+
+        export_fn = None
+        if tipo == "impressoras":
+            export_fn = RelatorioService.exportar_impressoras_pdf if formato == "pdf" else RelatorioService.exportar_impressoras_excel
+        else:
+            export_fn = RelatorioService.exportar_atividades_pdf if formato == "pdf" else RelatorioService.exportar_atividades_excel
+
+        def _ao_finalizar(fp):
+            try:
+                os.startfile(fp)
+            except Exception:
+                pass
+            QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{fp}")
+
+        exportar_em_thread(export_fn, data, filepath, on_finish=_ao_finalizar)

@@ -1,5 +1,24 @@
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+
+class SpinnerWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(40, 40)
+        self._angulo = 0
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        rect = self.rect().adjusted(3, 3, -3, -3)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#2e2e4a"))
+        p.drawPie(rect, 0, 360 * 16)
+        p.setBrush(QColor("#a78bfa"))
+        p.drawPie(rect, self._angulo * 16, 90 * 16)
+        p.end()
 
 
 class LoadingOverlay(QWidget):
@@ -12,16 +31,8 @@ class LoadingOverlay(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
 
-        self.spinner = QLabel()
-        self.spinner.setAlignment(Qt.AlignCenter)
-        self.spinner.setFixedSize(40, 40)
-        self.spinner.setStyleSheet(
-            "background: transparent; font-size: 24px;"
-            " border: 3px solid #2e2e4a;"
-            " border-top: 3px solid #a78bfa;"
-            " border-radius: 20px;"
-        )
-        layout.addWidget(self.spinner)
+        self.spinner = SpinnerWidget()
+        layout.addWidget(self.spinner, alignment=Qt.AlignCenter)
 
         self.label = QLabel(text)
         self.label.setAlignment(Qt.AlignCenter)
@@ -31,19 +42,12 @@ class LoadingOverlay(QWidget):
         )
         layout.addWidget(self.label)
 
-        self._angulo = 0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._rotacionar)
 
     def _rotacionar(self):
-        self._angulo = (self._angulo + 30) % 360
-        self.spinner.setStyleSheet(
-            "background: transparent; font-size: 24px;"
-            " border: 3px solid #2e2e4a;"
-            " border-top: 3px solid #a78bfa;"
-            " border-radius: 20px;"
-            " border-top-color: #a78bfa;"
-        )
+        self.spinner._angulo = (self.spinner._angulo + 30) % 360
+        self.spinner.update()
 
     def mostrar(self, text=None):
         if text:

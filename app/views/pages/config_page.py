@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_SUCESSO,
@@ -265,17 +266,17 @@ class _UserDialog(QDialog):
             QMessageBox.warning(self, "Validação", "O campo Senha é obrigatório.")
             return
 
-        if self.modo == "novo":
-            if self.user_service.verificar_existente(email, username):
-                QMessageBox.warning(self, "Validação", "Usuário já existe.")
-                return
-            self.user_service.criar(nome, username, email, senha, perfil)
-        else:
-            kwargs = {"nome": nome, "email": email, "perfil": perfil}
-            if senha:
-                kwargs["senha"] = senha
-            if hasattr(self, "combo_ativo"):
-                kwargs["ativo"] = self.combo_ativo.currentText() == "Sim"
-            self.user_service.atualizar(self.usuario, **kwargs)
-
-        self.accept()
+        with tratar_erro("salvar usuário"):
+            if self.modo == "novo":
+                if self.user_service.verificar_existente(email, username):
+                    QMessageBox.warning(self, "Validação", "Usuário já existe.")
+                    return
+                self.user_service.criar(nome, username, email, senha, perfil)
+            else:
+                kwargs = {"nome": nome, "email": email, "perfil": perfil}
+                if senha:
+                    kwargs["senha"] = senha
+                if hasattr(self, "combo_ativo"):
+                    kwargs["ativo"] = self.combo_ativo.currentText() == "Sim"
+                self.user_service.atualizar(self.usuario, **kwargs)
+            self.accept()

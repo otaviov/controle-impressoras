@@ -19,25 +19,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.views.styles.theme import configurar_combo
+from app.utils.ui_helpers import tratar_erro
+from app.views.styles.theme import configurar_combo, COR
 
-BG = '#0a0a0f'
-CARD = '#14141f'
-BORDA = '#2a2a3e'
-TEXTO = '#e8e8f0'
-TEXTO_SEC = '#717182'
-AZUL = '#3b82f6'
-VERDE = '#10b981'
-AMARELO = '#f59e0b'
-ROXO = '#6366f1'
-VERMELHO = '#f87171'
+BG = COR["fundo"]
+CARD = COR["fundo_card"]
+BORDA = COR["borda"]
+TEXTO = COR["texto"]
+TEXTO_SEC = COR["texto_sec"]
+AZUL = COR["azul"]
+VERDE = COR["sucesso"]
+AMARELO = COR["aviso"]
+ROXO = COR["roxo"]
+VERMELHO = COR["erro"]
 ROXO_BTN = '#a78bfa'
 
 
 class RelatorioDialog(QDialog):
-    def __init__(self, session, parent=None):
+    def __init__(self, session, printer_service, company_service, activity_service, parent=None):
         super().__init__(parent)
         self.session = session
+        self.printer_service = printer_service
+        self.company_service = company_service
+        self.activity_service = activity_service
         self.setWindowTitle("📊 Gerar Relatório")
         self.setMinimumSize(480, 580)
         self.setMaximumSize(480, 750)
@@ -150,10 +154,10 @@ class RelatorioDialog(QDialog):
         configurar_combo(self.modelo_combo)
         self.modelo_combo.addItem("Todos")
         from app.models import Printer
-        modelos = self.session.query(Printer.modelo).filter(Printer.modelo != "").distinct().order_by(Printer.modelo).all()
+        modelos = self.printer_service.modelos_distintos()
         for m in modelos:
-            if m[0]:
-                self.modelo_combo.addItem(m[0])
+            if m:
+                self.modelo_combo.addItem(m)
         filtro_layout.addWidget(self.modelo_combo)
 
         filtro_layout.addWidget(QLabel("Local / Empresa:"))
@@ -161,7 +165,7 @@ class RelatorioDialog(QDialog):
         configurar_combo(self.local_combo)
         self.local_combo.addItem("Todos")
         from app.models import Company
-        empresas = self.session.query(Company).order_by(Company.nome).all()
+        empresas = self.company_service.listar_todas()
         for emp in empresas:
             self.local_combo.addItem(emp.nome)
         filtro_layout.addWidget(self.local_combo)
@@ -215,33 +219,23 @@ class RelatorioDialog(QDialog):
         self._atualizar_patrimonios()
 
     def _atualizar_patrimonios(self):
-        from app.models import Printer
         status = self.status_combo.currentText()
-        query = self.session.query(Printer)
-        if status != "Todos":
-            query = query.filter(Printer.status == status)
-        patrimonios = [p.patrimonio for p in query.order_by(Printer.patrimonio).all()]
+        patrimonios = self.printer_service.listar_patrimonios(status)
         completer = QCompleter(patrimonios)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.pat_input.setCompleter(completer)
 
     def _ao_selecionar_patrimonio(self, texto):
-        from app.models import Printer
         status = self.status_combo.currentText()
-        query = self.session.query(Printer)
-        if status != "Todos":
-            query = query.filter(Printer.status == status)
-        if texto.strip():
-            query = query.filter(Printer.patrimonio.like(f"%{texto.strip()}%"))
-        patrimonios = [p.patrimonio for p in query.order_by(Printer.patrimonio).all()]
+        patrimonios = self.printer_service.listar_patrimonios_por_busca(texto, status)
         completer = QCompleter(patrimonios)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.pat_input.setCompleter(completer)
 
         if texto.strip():
-            printer = self.session.query(Printer).filter(Printer.patrimonio == texto.strip()).first()
+            printer = self.printer_service.buscar_por_patrimonio(texto.strip())
             if printer:
                 if printer.modelo:
                     idx = self.modelo_combo.findText(printer.modelo)
@@ -256,7 +250,6 @@ class RelatorioDialog(QDialog):
     def gerar_relatorio(self):
         from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-        from app.models import Activity, Printer
         from app.services.relatorio_service import RelatorioService
 
         status_filtro = self.status_combo.currentText()
@@ -276,26 +269,25 @@ class RelatorioDialog(QDialog):
 
         try:
             if tipo_rel == 'impressoras':
-                query = self.session.query(Printer)
-                if status_filtro != "Todos": query = query.filter(Printer.status == status_filtro)
-                if patrimonio: query = query.filter(Printer.patrimonio.like(f"%{patrimonio}%"))
-                if modelo != "Todos": query = query.filter(Printer.modelo == modelo)
-                if local != "Todos": query = query.filter(Printer.local_atual.like(f"%{local}%"))
-                printers = query.order_by(Printer.patrimonio).all()
+                printers = self.printer_service.listar_por_filtros(status_filtro, patrimonio, modelo, local)
                 if not printers: QMessageBox.warning(self, "Aviso", "Nenhuma impressora encontrada!"); return
                 if formato == 'pdf' and detalhado: self._gerar_pdf_detalhado(printers, filepath)
                 elif formato == 'pdf': RelatorioService.exportar_impressoras_pdf(printers, filepath)
                 else: RelatorioService.exportar_impressoras_excel(printers, filepath)
             else:
-                query = self.session.query(Activity)
                 if patrimonio:
-                    ids = [p.id for p in self.session.query(Printer).filter(Printer.patrimonio.like(f"%{patrimonio}%")).all()]
-                    if ids: query = query.filter(Activity.printer_id.in_(ids))
-                atividades = query.order_by(Activity.event_at.desc()).limit(500).all()
+                    printer_obj = self.printer_service.buscar_por_patrimonio(patrimonio)
+                    atividades = self.activity_service.listar_por_impressora(printer_obj.id, limite=500) if printer_obj else []
+                else:
+                    atividades = self.activity_service.listar(limite=500)
                 if not atividades: QMessageBox.warning(self, "Aviso", "Nenhuma atividade encontrada!"); return
                 if formato == 'pdf': RelatorioService.exportar_atividades_pdf(atividades, filepath)
                 else: RelatorioService.exportar_atividades_excel(atividades, filepath)
-            if abrir: os.startfile(filepath)
+            if abrir:
+                try:
+                    os.startfile(filepath)
+                except Exception as e:
+                    QMessageBox.warning(self, "Aviso", f"Não foi possível abrir o arquivo:\n{e}")
             QMessageBox.information(self, "Sucesso", f"Relatório gerado com sucesso!\n\n{filepath}")
             self.accept()
         except Exception as e:
@@ -315,8 +307,6 @@ class RelatorioDialog(QDialog):
             Table,
             TableStyle,
         )
-
-        from app.models import Activity
 
         logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logo.png")
 
@@ -376,7 +366,7 @@ class RelatorioDialog(QDialog):
             elements.append(Paragraph(f"Relatório de Impressora - Patrimônio: {p.patrimonio}", style_title))
             elements.append(Spacer(1, 20))
 
-            maint_count = self.session.query(Activity).filter(Activity.printer_id == p.id, Activity.kind == "MANUTENCAO").count()
+            maint_count = self.activity_service.contar_por_impressora_e_kind(p.id, "MANUTENCAO")
 
             header_data = [
                 ["Patrimônio", p.patrimonio or "-"],
@@ -410,7 +400,7 @@ class RelatorioDialog(QDialog):
             elements.append(Paragraph("<b>Histórico de atividades:</b>", styles["Normal"]))
             elements.append(Spacer(1, 8))
 
-            atividades = self.session.query(Activity).filter(Activity.printer_id == p.id).order_by(Activity.event_at.desc()).limit(15).all()
+            atividades = self.activity_service.listar_por_impressora(p.id, limite=15)
 
             data_hist = [["Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"]]
             for a in atividades:

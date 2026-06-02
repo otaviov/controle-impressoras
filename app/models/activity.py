@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 
 class Activity(Base):
     __tablename__ = "activities"
+    __table_args__ = (
+        Index("ix_activity_kind", "kind"),
+        Index("ix_activity_numero_recibo", "numero_recibo"),
+        Index("ix_activity_status", "status_atividade"),
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     printer_id: Mapped[str] = mapped_column(String(36), ForeignKey("printers.id"), index=True)
     kind: Mapped[str] = mapped_column(String(30))
@@ -25,7 +30,7 @@ class Activity(Base):
     numero_recibo: Mapped[str] = mapped_column(String(50), default="")
     tecnico_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("technicians.id"), nullable=True)
     custo_servico: Mapped[float] = mapped_column(Float, default=0.0)
-    status_atividade: Mapped[str] = mapped_column(String(30), default="concluida")
+    status_atividade: Mapped[str] = mapped_column(String(30), default="Concluida")
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     event_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

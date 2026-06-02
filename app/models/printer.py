@@ -27,7 +27,7 @@ class Printer(Base):
 
     marca: Mapped[str] = mapped_column(String(80), default="")
     tipo: Mapped[str] = mapped_column(String(20), default="")
-    ip_rede: Mapped[str] = mapped_column(String(15), default="")
+    ip_rede: Mapped[str] = mapped_column(String(45), default="")
     mac_address: Mapped[str] = mapped_column(String(17), default="")
     empresa_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"), nullable=True)
     proxima_revisao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

@@ -27,7 +27,9 @@ from PySide6.QtWidgets import (
 
 from app.models import Activity, Attachment, Part
 from app.services.part_service import PartService
+from app.utils.ui_helpers import tratar_erro
 from app.utils.helpers import encurtar, formatar_data_hora
+from config import BASE_DIR
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -53,7 +55,7 @@ COR_STATUS = {
     "concluida": "#34d399",
 }
 
-ANEXOS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "anexos"
+ANEXOS_DIR = BASE_DIR / "anexos"
 
 
 class TransfersPage(QWidget):
@@ -633,12 +635,12 @@ class TransfersPage(QWidget):
         if saved_id[0] is not None:
             return self._criar_tab_anexos("activity", saved_id[0], dialog, None, tabs)
 
-        lbl_aviso = QLabel("Salve primeiro para anexar arquivos.")
+        lbl_aviso = QLabel("Area para anexar seus arquivos.")
         lbl_aviso.setStyleSheet("color: #94949f; font-size: 13px;")
         lbl_aviso.setAlignment(Qt.AlignCenter)
         layout.addWidget(lbl_aviso)
 
-        btn_add = QPushButton("\U0001f4ce Salvar e Adicionar Anexo")
+        btn_add = QPushButton("\U0001f4ce Adicionar Anexo")
         btn_add.setStyleSheet(ESTILO_BOTAO_AVISO)
 
         def _salvar_e_anexar():
@@ -806,7 +808,10 @@ class TransfersPage(QWidget):
 
     def _abrir_anexo(self, file_path):
         if os.path.exists(file_path):
-            os.startfile(file_path)
+            try:
+                os.startfile(file_path)
+            except Exception as e:
+                QMessageBox.warning(self, "Aviso", f"Não foi possível abrir o arquivo:\n{e}")
         else:
             QMessageBox.warning(self, "Aviso", "Arquivo não encontrado:\n" + file_path)
 
@@ -838,6 +843,7 @@ class TransfersPage(QWidget):
         if not pecas_texto:
             return
         nome_peca = pecas_texto.split(",")[0].strip()
-        part = self.part_service.buscar_por_nome(nome_peca)
-        if part and part.quantidade_estoque > 0:
-            self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)
+        with tratar_erro("dar baixa no estoque"):
+            part = self.part_service.buscar_por_nome(nome_peca)
+            if part and part.quantidade_estoque > 0:
+                self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)

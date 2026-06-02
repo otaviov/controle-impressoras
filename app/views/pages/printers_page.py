@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.utils.helpers import formatar_data_hora, limpar_local, parse_data
+from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -221,20 +222,21 @@ class PrintersPage(QWidget):
                 f"Status: {existente.status or 'N/A'}")
             return
 
-        self.printer_service.criar(
-            patrimonio=patrimonio,
-            modelo=mod.text().strip(),
-            marca=marca.text().strip(),
-            serial=serial.text().strip(),
-            tipo=tipo.currentText(),
-            local_atual=limpar_local(local.currentText()),
-            status=status.currentText(),
-            ip_rede=ip.text().strip(),
-            tecnico=tec.currentText().strip(),
-            observacao=obs.toPlainText().strip()
-        )
-        self.recarregar()
-        dialog.accept()
+        with tratar_erro("criar impressora"):
+            self.printer_service.criar(
+                patrimonio=patrimonio,
+                modelo=mod.text().strip(),
+                marca=marca.text().strip(),
+                serial=serial.text().strip(),
+                tipo=tipo.currentText(),
+                local_atual=limpar_local(local.currentText()),
+                status=status.currentText(),
+                ip_rede=ip.text().strip(),
+                tecnico=tec.currentText().strip(),
+                observacao=obs.toPlainText().strip()
+            )
+            self.recarregar()
+            dialog.accept()
 
     def _detalhes(self, row):
         patrimonio = self.tabela.item(row, 0).text()
@@ -501,24 +503,25 @@ class PrintersPage(QWidget):
                 QMessageBox.warning(dialog, "Patrimônio Duplicado", f"Já existe uma impressora com o patrimônio '{novo_pat}'!")
                 return
 
-        self.printer_service.atualizar(
-            printer,
-            patrimonio=novo_pat,
-            status=status.currentText(),
-            modelo=modelo.text().strip(),
-            marca=marca.text().strip(),
-            serial=serial.text().strip(),
-            tipo=tipo.currentText(),
-            local_atual=limpar_local(local.currentText()),
-            ip_rede=ip.text().strip(),
-            tecnico=tecnico.currentText().strip(),
-            proxima_revisao=parse_data(revisao.text()) or printer.proxima_revisao or dt.now(),
-            observacao=obs.toPlainText().strip(),
-            pecas_faltantes=pecas.toPlainText().strip()
-        )
-        self.recarregar()
-        if callback:
-            callback()
+        with tratar_erro("atualizar impressora"):
+            self.printer_service.atualizar(
+                printer,
+                patrimonio=novo_pat,
+                status=status.currentText(),
+                modelo=modelo.text().strip(),
+                marca=marca.text().strip(),
+                serial=serial.text().strip(),
+                tipo=tipo.currentText(),
+                local_atual=limpar_local(local.currentText()),
+                ip_rede=ip.text().strip(),
+                tecnico=tecnico.currentText().strip(),
+                proxima_revisao=parse_data(revisao.text()) or printer.proxima_revisao or dt.now(),
+                observacao=obs.toPlainText().strip(),
+                pecas_faltantes=pecas.toPlainText().strip()
+            )
+            self.recarregar()
+            if callback:
+                callback()
 
     def _editar_atividade(self, row, atividades, printer, parent_dialog):
         atividade = atividades[row]
@@ -694,19 +697,20 @@ class PrintersPage(QWidget):
         printer_pat = printer_combo.currentText().strip()
         printer_obj = self.printer_service.buscar_por_patrimonio(printer_pat)
 
-        self.activity_service.atualizar(
-            atividade,
-            printer_id=printer_obj.id if printer_obj else atividade.printer_id,
-            kind=tipo.currentText(),
-            event_at=event_at,
-            notes=desc.toPlainText().strip(),
-            parts_used=pecas.toPlainText().strip(),
-            from_location=origem.currentText().strip() if origem.isVisible() else "",
-            to_location=destino.currentText().strip() if destino.isVisible() else "",
-            status_atividade=status.currentText()
-        )
-        self.recarregar()
-        dialog.accept()
+        with tratar_erro("atualizar atividade"):
+            self.activity_service.atualizar(
+                atividade,
+                printer_id=printer_obj.id if printer_obj else atividade.printer_id,
+                kind=tipo.currentText(),
+                event_at=event_at,
+                notes=desc.toPlainText().strip(),
+                parts_used=pecas.toPlainText().strip(),
+                from_location=origem.currentText().strip() if origem.isVisible() else "",
+                to_location=destino.currentText().strip() if destino.isVisible() else "",
+                status_atividade=status.currentText()
+            )
+            self.recarregar()
+            dialog.accept()
 
     def _excluir_atividade(self, dialog, atividade):
         resposta = QMessageBox.question(
@@ -717,6 +721,7 @@ class PrintersPage(QWidget):
             QMessageBox.No
         )
         if resposta == QMessageBox.Yes:
-            self.activity_service.excluir(atividade)
-            self.recarregar()
-            dialog.accept()
+            with tratar_erro("excluir atividade"):
+                self.activity_service.excluir(atividade)
+                self.recarregar()
+                dialog.accept()

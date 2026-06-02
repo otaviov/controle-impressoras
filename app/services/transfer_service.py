@@ -11,21 +11,38 @@ from app.models import Transfer
 
 
 class TransferService:
-    def __init__(self, session):
+    def __init__(self, session, audit_service=None, user_id=None):
         self.session = session
+        self.audit_service = audit_service
+        self.user_id = user_id
 
-    def listar_todas(self, limite=200):
-        return self.session.query(Transfer).order_by(Transfer.created_at.desc()).limit(limite).all()
+    def listar_todas(self, limite=200, offset=None):
+        query = self.session.query(Transfer).order_by(Transfer.created_at.desc())
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
-    def listar_por_impressora(self, printer_id):
-        return self.session.query(Transfer).filter(
+    def listar_por_impressora(self, printer_id, limite=None, offset=None):
+        query = self.session.query(Transfer).filter(
             Transfer.printer_id == printer_id
-        ).order_by(Transfer.created_at.desc()).all()
+        ).order_by(Transfer.created_at.desc())
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
-    def listar_por_tipo(self, tipo, limite=100):
-        return self.session.query(Transfer).filter(
+    def listar_por_tipo(self, tipo, limite=100, offset=None):
+        query = self.session.query(Transfer).filter(
             Transfer.tipo == tipo
-        ).order_by(Transfer.created_at.desc()).limit(limite).all()
+        ).order_by(Transfer.created_at.desc())
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
     def buscar_por_id(self, transfer_id):
         return self.session.query(Transfer).filter(Transfer.id == transfer_id).first()
@@ -53,19 +70,29 @@ class TransferService:
         )
         self.session.add(t)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "criar", tabela_alvo="transfers", registro_id=t.id, dados_depois=t)
         return t
 
     def atualizar(self, transferencia, **kwargs):
+        if self.audit_service:
+            dados_antes = {chave: getattr(transferencia, chave, None) for chave in kwargs}
         for chave, valor in kwargs.items():
             if hasattr(transferencia, chave):
                 setattr(transferencia, chave, valor)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "atualizar", tabela_alvo="transfers", registro_id=transferencia.id, dados_antes=dados_antes, dados_depois=transferencia)
 
     def registrar_retorno(self, transferencia):
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "registrar_retorno", tabela_alvo="transfers", registro_id=transferencia.id, dados_antes=transferencia)
         transferencia.data_retorno_real = datetime.now()
         safe_commit(self.session)
 
     def excluir(self, transferencia):
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "excluir", tabela_alvo="transfers", registro_id=transferencia.id, dados_antes=transferencia)
         self.session.delete(transferencia)
         safe_commit(self.session)
 

@@ -8,10 +8,12 @@ log = logging.getLogger(__name__)
 
 
 class PrinterService:
-    def __init__(self, session):
+    def __init__(self, session, audit_service=None, user_id=None):
         self.session = session
+        self.audit_service = audit_service
+        self.user_id = user_id
 
-    def listar_todos(self, filtro=None):
+    def listar_todos(self, filtro=None, limite=None, offset=None):
         query = self.session.query(Printer)
         if filtro:
             f = f"%{filtro}%"
@@ -20,7 +22,12 @@ class PrinterService:
                 Printer.serial.like(f) | Printer.local_atual.like(f) |
                 Printer.marca.like(f)
             )
-        return query.order_by(Printer.patrimonio).all()
+        query = query.order_by(Printer.patrimonio)
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
     def buscar_por_patrimonio(self, patrimonio):
         return self.session.query(Printer).filter(Printer.patrimonio == patrimonio).first()
@@ -70,16 +77,24 @@ class PrinterService:
         )
         self.session.add(printer)
         self.session.commit()
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "criar", tabela_alvo="printers", registro_id=printer.id, dados_depois=printer)
         return printer
 
     def atualizar(self, printer, **kwargs):
+        if self.audit_service:
+            dados_antes = {chave: getattr(printer, chave, None) for chave in kwargs}
         for chave, valor in kwargs.items():
             if hasattr(printer, chave):
                 setattr(printer, chave, valor)
         printer.updated_at = func.now()
         self.session.commit()
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "atualizar", tabela_alvo="printers", registro_id=printer.id, dados_antes=dados_antes, dados_depois=printer)
 
     def excluir(self, printer):
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "excluir", tabela_alvo="printers", registro_id=printer.id, dados_antes=printer)
         self.session.delete(printer)
         self.session.commit()
 
@@ -133,3 +148,42 @@ class PrinterService:
         return self.session.query(Printer).filter(
             Printer.local_atual.like(f"%{nome_local}%")
         ).count()
+
+    def listar_patrimonios(self, status=None):
+        query = self.session.query(Printer.patrimonio)
+        if status and status != "Todos":
+            query = query.filter(Printer.status == status)
+        return [p[0] for p in query.order_by(Printer.patrimonio).all()]
+
+    def listar_patrimonios_por_busca(self, texto, status=None):
+        query = self.session.query(Printer.patrimonio)
+        if status and status != "Todos":
+            query = query.filter(Printer.status == status)
+        if texto.strip():
+            query = query.filter(Printer.patrimonio.like(f"%{texto.strip()}%"))
+        return [p[0] for p in query.order_by(Printer.patrimonio).all()]
+
+    def listar_por_local(self, local):
+        return self.session.query(Printer).filter(
+            Printer.local_atual == local
+        ).order_by(Printer.patrimonio).all()
+
+    def atualizar_local_por_nome_antigo(self, nome_antigo, nome_novo):
+        impressoraS = self.session.query(Printer).filter(
+            Printer.local_atual == nome_antigo
+        ).all()
+        for p in impressoraS:
+            p.local_atual = nome_novo
+        self.session.commit()
+
+    def listar_por_filtros(self, status=None, patrimonio=None, modelo=None, local=None):
+        query = self.session.query(Printer)
+        if status and status != "Todos":
+            query = query.filter(Printer.status == status)
+        if patrimonio:
+            query = query.filter(Printer.patrimonio.like(f"%{patrimonio}%"))
+        if modelo and modelo != "Todos":
+            query = query.filter(Printer.modelo == modelo)
+        if local and local != "Todos":
+            query = query.filter(Printer.local_atual.like(f"%{local}%"))
+        return query.order_by(Printer.patrimonio).all()

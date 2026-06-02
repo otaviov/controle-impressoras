@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = (Index("ix_company_cnpj", "cnpj"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome: Mapped[str] = mapped_column(String(150), nullable=False)
     cnpj: Mapped[str] = mapped_column(String(18), default="")

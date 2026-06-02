@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.utils.helpers import formatar_data_hora
+from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
@@ -268,16 +269,17 @@ class AlertasPage(QWidget):
             QMessageBox.warning(dialog, "Aviso", "Preencha o título!")
             return
 
-        self.alert_service.criar(
-            printer_id=printer_id,
-            tipo=tipo_combo.currentData(),
-            titulo=titulo,
-            descricao=desc_input.toPlainText().strip(),
-        )
-        ToastManager.atualizar_status(self.alert_service.contar_pendentes())
-        ToastManager.sucesso(f"Alerta criado: {titulo}")
-        self.recarregar()
-        dialog.accept()
+        with tratar_erro("criar alerta"):
+            self.alert_service.criar(
+                printer_id=printer_id,
+                tipo=tipo_combo.currentData(),
+                titulo=titulo,
+                descricao=desc_input.toPlainText().strip(),
+            )
+            ToastManager.atualizar_status(self.alert_service.contar_pendentes())
+            ToastManager.sucesso(f"Alerta criado: {titulo}")
+            self.recarregar()
+            dialog.accept()
 
     def _detalhes(self, row):
         alertas = self.alert_service.listar_todos(apenas_pendentes=self._apenas_pendentes)
@@ -462,8 +464,9 @@ class AlertasPage(QWidget):
             QMessageBox.Yes | QMessageBox.No
         )
         if resp == QMessageBox.Yes:
-            self.alert_service.resolver(alerta)
-            ToastManager.atualizar_status(self.alert_service.contar_pendentes())
-            ToastManager.info(f"Alerta resolvido: {alerta.titulo}")
-            self.recarregar()
-            dialog.accept()
+            with tratar_erro("resolver alerta"):
+                self.alert_service.resolver(alerta)
+                ToastManager.atualizar_status(self.alert_service.contar_pendentes())
+                ToastManager.info(f"Alerta resolvido: {alerta.titulo}")
+                self.recarregar()
+                dialog.accept()

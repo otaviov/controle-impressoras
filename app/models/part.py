@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, utcnow
@@ -10,6 +10,7 @@ from app.models.base import Base, utcnow
 
 class Part(Base):
     __tablename__ = "parts"
+    __table_args__ = (Index("ix_part_codigo", "codigo"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(50), default="")
     nome: Mapped[str] = mapped_column(String(150), nullable=False)

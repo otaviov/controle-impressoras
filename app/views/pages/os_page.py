@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from app.models import Part
 from app.services.part_service import PartService
+from app.utils.ui_helpers import tratar_erro
 from app.utils.helpers import formatar_data_hora, parse_data
 from app.views.styles.theme import (
     ESTILO_BOTAO_ERRO,
@@ -263,6 +264,14 @@ class OSPage(QWidget):
             self.recarregar()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao criar OS: {e}")
+
+    def editar_atividade_por_id(self, activity_id):
+        atividade = self.activity_service.buscar_por_id(activity_id)
+        if not atividade:
+            return
+        self._atividades = [atividade]
+        self._preencher_tabela(self._atividades)
+        self._editar(0)
 
     def _editar(self, row):
         if row < 0 or row >= len(self._atividades):
@@ -554,7 +563,11 @@ class OSPage(QWidget):
     def _dar_baixa_estoque(self, pecas_texto):
         if not pecas_texto:
             return
-        nome_peca = pecas_texto.split(",")[0].strip()
-        part = self.part_service.buscar_por_nome(nome_peca)
-        if part and part.quantidade_estoque > 0:
-            self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)
+        for nome_peca in pecas_texto.split(","):
+            nome_peca = nome_peca.strip()
+            if not nome_peca:
+                continue
+            with tratar_erro("dar baixa no estoque"):
+                part = self.part_service.buscar_por_nome(nome_peca)
+                if part and part.quantidade_estoque > 0:
+                    self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)

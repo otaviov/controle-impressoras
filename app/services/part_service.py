@@ -7,11 +7,18 @@ from app.models import Part
 
 
 class PartService:
-    def __init__(self, session):
+    def __init__(self, session, audit_service=None, user_id=None):
         self.session = session
+        self.audit_service = audit_service
+        self.user_id = user_id
 
-    def listar_todas(self):
-        return self.session.query(Part).order_by(Part.nome).all()
+    def listar_todas(self, limite=None, offset=None):
+        query = self.session.query(Part).order_by(Part.nome)
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
 
     def buscar_por_codigo(self, codigo):
         return self.session.query(Part).filter(Part.codigo == codigo).first()
@@ -34,15 +41,23 @@ class PartService:
         )
         self.session.add(peca)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "criar", tabela_alvo="parts", registro_id=peca.id, dados_depois=peca)
         return peca
 
     def atualizar(self, peca, **kwargs):
+        if self.audit_service:
+            dados_antes = {chave: getattr(peca, chave, None) for chave in kwargs}
         for chave, valor in kwargs.items():
             if hasattr(peca, chave):
                 setattr(peca, chave, valor)
         safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "atualizar", tabela_alvo="parts", registro_id=peca.id, dados_antes=dados_antes, dados_depois=peca)
 
     def excluir(self, peca):
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "excluir", tabela_alvo="parts", registro_id=peca.id, dados_antes=peca)
         self.session.delete(peca)
         safe_commit(self.session)
 

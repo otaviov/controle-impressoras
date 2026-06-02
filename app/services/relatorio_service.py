@@ -18,21 +18,21 @@ class RelatorioService:
         styles = getSampleStyleSheet()
         elements = []
 
-        # TÃ­tulo
+        # Título
         title_style = ParagraphStyle('Title2', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#cba6f7'), spaceAfter=6)
-        elements.append(Paragraph("RelatÃ³rio de Impressoras", title_style))
+        elements.append(Paragraph("Relatório de Impressoras", title_style))
         elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
         elements.append(Spacer(1, 15))
 
         # Resumo
         total = len(printers)
         operacionais = len([p for p in printers if p.status in ['Operacional', 'Em uso']])
-        manutencao = len([p for p in printers if p.status in ['Em manutenÃ§Ã£o', 'ManutenÃ§Ã£o', 'Aguardando peÃ§a', 'Parada']])
+        manutencao = len([p for p in printers if p.status in ['Em manutenção', 'Manutenção', 'Aguardando peça', 'Parada']])
 
         resumo_data = [
             ["Total Impressoras", str(total)],
             ["Operacionais", str(operacionais)],
-            ["Em ManutenÃ§Ã£o/Paradas", str(manutencao)],
+            ["Em Manutenção/Paradas", str(manutencao)],
         ]
         t_resumo = Table(resumo_data, colWidths=[200, 100])
         t_resumo.setStyle(TableStyle([
@@ -47,7 +47,7 @@ class RelatorioService:
         elements.append(Spacer(1, 20))
 
         # Tabela principal
-        header = ['PatrimÃ´nio', 'Modelo', 'Marca', 'Status', 'Local Atual', 'Ãšltima RevisÃ£o']
+        header = ['Patrimônio', 'Modelo', 'Marca', 'Status', 'Local Atual', 'Última Revisão']
         data = [header]
 
         for p in printers:
@@ -57,7 +57,7 @@ class RelatorioService:
                 p.marca or '-',
                 p.status,
                 p.local_atual or '-',
-                ''  # SerÃ¡ preenchido depois
+                p.proxima_revisao.strftime("%d/%m/%Y") if p.proxima_revisao else '-'
             ])
 
         t = Table(data, colWidths=[55, 115, 70, 75, 120, 70])
@@ -76,9 +76,9 @@ class RelatorioService:
         t.setStyle(t_style)
         elements.append(t)
 
-        # RodapÃ©
+        # Rodapé
         elements.append(Spacer(1, 20))
-        elements.append(Paragraph(f"Total de impressoras: {total} | Operacionais: {operacionais} | Em manutenÃ§Ã£o: {manutencao}", styles['Normal']))
+        elements.append(Paragraph(f"Total de impressoras: {total} | Operacionais: {operacionais} | Em manutenção: {manutencao}", styles['Normal']))
 
         doc.build(elements)
         return filepath
@@ -103,22 +103,22 @@ class RelatorioService:
             bottom=Side(style='thin', color='cba6f7')
         )
 
-        # TÃ­tulo
+        # Título
         ws.merge_cells('A1:G1')
-        ws['A1'] = f'RELATÃ“RIO DE IMPRESSORAS - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+        ws['A1'] = f'RELATÓRIO DE IMPRESSORAS - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
         ws['A1'].font = Font(name='Arial', size=14, bold=True, color='cba6f7')
         ws['A1'].alignment = Alignment(horizontal='center')
 
         # Resumo
         total = len(printers)
         op = len([p for p in printers if p.status in ['Operacional', 'Em uso']])
-        man = len([p for p in printers if p.status in ['Em manutenÃ§Ã£o', 'ManutenÃ§Ã£o', 'Aguardando peÃ§a', 'Parada']])
+        man = len([p for p in printers if p.status in ['Em manutenção', 'Manutenção', 'Aguardando peça', 'Parada']])
 
-        ws['A3'] = f'Total: {total} | Operacionais: {op} | Em ManutenÃ§Ã£o: {man}'
+        ws['A3'] = f'Total: {total} | Operacionais: {op} | Em Manutenção: {man}'
         ws['A3'].font = Font(name='Arial', size=11, bold=True, color='89b4fa')
 
-        # CabeÃ§alho
-        headers = ['PatrimÃ´nio', 'Modelo', 'Serial', 'Marca', 'Status', 'Local Atual', 'ObservaÃ§Ã£o']
+        # Cabeçalho
+        headers = ['Patrimônio', 'Modelo', 'Serial', 'Marca', 'Status', 'Local Atual', 'Observação']
         for col, h in enumerate(headers, 1):
             cell = ws.cell(row=5, column=col, value=h)
             cell.font = header_font
@@ -146,24 +146,24 @@ class RelatorioService:
 
     @staticmethod
     def exportar_atividades_pdf(atividades, filepath):
-        """Gera PDF com histÃ³rico de atividades"""
+        """Gera PDF com histórico de atividades"""
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=1*cm, rightMargin=1*cm, topMargin=2*cm, bottomMargin=2*cm)
         styles = getSampleStyleSheet()
         elements = []
 
         title_style = ParagraphStyle('T', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#cba6f7'))
-        elements.append(Paragraph("RelatÃ³rio de Atividades / OS", title_style))
+        elements.append(Paragraph("Relatório de Atividades / OS", title_style))
         elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Total: {len(atividades)}", styles['Normal']))
         elements.append(Spacer(1, 15))
 
-        header = ['Data', 'PatrimÃ´nio', 'Tipo', 'DescriÃ§Ã£o', 'PeÃ§as', 'Origem', 'Destino', 'Status']
+        header = ['Data', 'Patrimônio', 'Tipo', 'Descrição', 'Peças', 'Origem', 'Destino', 'Status']
         data = [header]
 
         for a in atividades:
             data.append([
                 a.event_at.strftime("%d/%m/%Y %H:%M") if a.event_at else '-',
-                '',  # patrimÃ´nio (serÃ¡ preenchido)
-                'ManutenÃ§Ã£o' if a.kind == 'MANUTENCAO' else 'MovimentaÃ§Ã£o',
+                a.printer.patrimonio if a.printer else '-',
+                'Manutenção' if a.kind == 'MANUTENCAO' else 'Movimentação',
                 a.notes or '-',
                 a.parts_used or '-',
                 a.from_location or '-',
@@ -205,14 +205,14 @@ class RelatorioService:
                         top=Side(style='thin', color='cba6f7'), bottom=Side(style='thin', color='cba6f7'))
 
         ws.merge_cells('A1:H1')
-        ws['A1'] = f'RELATÃ“RIO DE ATIVIDADES - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+        ws['A1'] = f'RELATÓRIO DE ATIVIDADES - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
         ws['A1'].font = Font(name='Arial', size=14, bold=True, color='cba6f7')
         ws['A1'].alignment = Alignment(horizontal='center')
 
         ws['A3'] = f'Total de atividades: {len(atividades)}'
         ws['A3'].font = Font(name='Arial', size=11, bold=True, color='89b4fa')
 
-        headers = ['Data/Hora', 'Tipo', 'DescriÃ§Ã£o', 'PeÃ§as', 'Origem', 'Destino', 'Recibo', 'Status']
+        headers = ['Data/Hora', 'Tipo', 'Descrição', 'Peças', 'Origem', 'Destino', 'Recibo', 'Status']
         for col, h in enumerate(headers, 1):
             cell = ws.cell(row=5, column=col, value=h)
             cell.font = header_font
@@ -223,7 +223,7 @@ class RelatorioService:
         for i, a in enumerate(atividades, 6):
             dados = [
                 a.event_at.strftime("%d/%m/%Y %H:%M") if a.event_at else '-',
-                'ManutenÃ§Ã£o' if a.kind == 'MANUTENCAO' else 'MovimentaÃ§Ã£o',
+                'Manutenção' if a.kind == 'MANUTENCAO' else 'Movimentação',
                 a.notes or '-',
                 a.parts_used or '-',
                 a.from_location or '-',

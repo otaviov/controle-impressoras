@@ -45,7 +45,7 @@ class CardWidget(QFrame):
 
         self.setStyleSheet(
             f"QFrame#cardFrame {{ border-radius: 12px; padding: 20px; {e['card']} }} "
-            f"QFrame#cardFrame:hover {{ border-color: {e['icon_color']} !important; }}"
+            f"QFrame#cardFrame:hover {{ border-color: {e['icon_color']}; }}"
         )
         self.setObjectName("cardFrame")
         self.setMinimumHeight(130)
@@ -146,19 +146,11 @@ class CardMiniClicavel(CardMiniWidget):
     def __init__(self, icon, titulo, valor_inicial, cor, ao_clicar=None, parent=None):
         super().__init__(icon, titulo, valor_inicial, cor, parent)
         self.setCursor(Qt.PointingHandCursor)
-        if ao_clicar:
-            self.mousePressEvent = lambda event: ao_clicar()
-
-    def enterEvent(self, event):
-        self.setStyleSheet(
-            f"QFrame#miniCard {{ background-color: rgba(30,30,46,0.6); "
-            f"border: 1px solid rgba(42,42,62,0.8); border-radius: 12px; padding: 16px; }}"
-        )
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
         self.setStyleSheet(
             f"QFrame#miniCard {{ background-color: rgba(20,20,31,0.5); "
             f"border: 1px solid rgba(42,42,62,0.5); border-radius: 12px; padding: 16px; }}"
+            f"QFrame#miniCard:hover {{ background-color: rgba(30,30,46,0.6); "
+            f"border: 1px solid rgba(42,42,62,0.8); border-radius: 12px; padding: 16px; }}"
         )
-        super().leaveEvent(event)
+        if ao_clicar:
+            self.mousePressEvent = lambda event: ao_clicar()
