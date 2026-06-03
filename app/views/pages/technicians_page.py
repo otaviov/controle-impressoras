@@ -21,6 +21,7 @@ from app.views.styles.theme import (
     ESTILO_INPUT,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.table_widget import TabelaPadrao
 
@@ -101,13 +102,11 @@ class _TechnicianDialog(QDialog):
         }
 
     def _confirmar_exclusao(self):
-        resposta = QMessageBox.question(
-            self, "Confirmar Exclusão",
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar Exclusão",
             "Tem certeza que deseja excluir este técnico?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if resposta == QMessageBox.Yes:
+            self,
+        ):
             self._excluir_confirmado = True
             self.accept()
 

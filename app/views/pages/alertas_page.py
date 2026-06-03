@@ -34,6 +34,7 @@ from app.views.styles.theme import (
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
@@ -585,12 +586,11 @@ class AlertasPage(QWidget):
         parent_dialog.accept()
 
     def _excluir(self, alerta, dialog):
-        resp = QMessageBox.question(
-            dialog, "Excluir Alerta",
-            f"Deseja realmente excluir o alerta \"{alerta.titulo}\"?\nEsta ação não pode ser desfeita.",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        if resp == QMessageBox.Yes:
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Excluir Alerta",
+            f"Deseja realmente excluir o alerta \"{alerta.titulo}\"?",
+            dialog,
+        ):
             try:
                 self.alert_service.excluir(alerta)
                 ToastManager.atualizar_status(self.alert_service.contar_pendentes())

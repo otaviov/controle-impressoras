@@ -43,6 +43,7 @@ from app.views.styles.theme import (
     STATUS_CORES,
     estilos_dialogo_tabs,
 )
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
@@ -539,13 +540,12 @@ class PrintersPage(QWidget):
         dialog.exec()
 
     def _excluir_impressora(self, dialog, printer):
-        resp = QMessageBox.question(
-            dialog, "Excluir Impressora",
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Excluir Impressora",
             f"Tem certeza que deseja excluir a impressora '{printer.patrimonio}'?\n\n"
-            f"Esta ação é reversível (vá em Configurações > Lixeira para restaurar).",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if resp == QMessageBox.Yes:
+            f"Esta ação é reversível (Entre em contato com o administrador do sistema).",
+            dialog,
+        ):
             with tratar_erro("excluir impressora"):
                 self.printer_service.excluir(printer)
                 self.recarregar()
@@ -774,14 +774,11 @@ class PrintersPage(QWidget):
             self.recarregar()
 
     def _excluir_atividade(self, dialog, atividade):
-        resposta = QMessageBox.question(
-            dialog,
+        if ConfirmacaoDigitarDialog.confirmar(
             "Confirmar Exclusão",
             "Deseja realmente excluir esta atividade?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        if resposta == QMessageBox.Yes:
+            dialog,
+        ):
             with tratar_erro("excluir atividade"):
                 self.activity_service.excluir(atividade)
                 self.recarregar()

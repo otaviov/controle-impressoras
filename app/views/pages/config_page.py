@@ -42,6 +42,7 @@ from app.views.styles.theme import (
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.table_widget import TabelaPadrao
 from config import DB_PATH
 
@@ -443,9 +444,12 @@ class ConfigPage(QWidget):
             QMessageBox.warning(self, "Aviso", "Selecione um registro para restaurar.")
             return
         obj = registros[row]
-        resp = QMessageBox.question(self, "Confirmar", f"Restaurar '{getattr(obj, 'nome', getattr(obj, 'patrimonio', obj.id))}'?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if resp == QMessageBox.Yes:
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar",
+            f"Restaurar '{getattr(obj, 'nome', getattr(obj, 'patrimonio', obj.id))}'?\n\n"
+            "O registro voltará a aparecer nas listagens normais.",
+            self,
+        ):
             with tratar_erro("restaurar registro"):
                 svc.restaurar(obj)
                 QMessageBox.information(self, "Restaurado", "Registro restaurado com sucesso.")

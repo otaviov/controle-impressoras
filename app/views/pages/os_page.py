@@ -36,6 +36,7 @@ from app.views.styles.theme import (
     configurar_combo,
 )
 from app.views.widgets.card_widget import CardMiniClicavel
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
@@ -371,11 +372,10 @@ class OSPage(QWidget):
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar: {e}")
 
         def excluir():
-            resp = QMessageBox.question(
-                dialog, "Confirmar", "Deseja realmente excluir esta OS?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            if resp == QMessageBox.Yes:
+            if ConfirmacaoDigitarDialog.confirmar(
+                "Confirmar", "Deseja realmente excluir esta OS?",
+                dialog,
+            ):
                 try:
                     self.activity_service.excluir(atividade)
                     resultado["acao"] = "excluir"

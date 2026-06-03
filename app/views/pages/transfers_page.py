@@ -48,6 +48,7 @@ from app.views.styles.theme import (
     estilos_dialogo_tabs,
 )
 from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 
@@ -626,13 +627,11 @@ class TransfersPage(QWidget):
         self.recarregar()
 
     def _confirmar_exclusao(self, dialog, mov):
-        resposta = QMessageBox.question(
-            dialog, "Confirmar Exclusão",
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar Exclusão",
             "Tem certeza que deseja excluir esta transferência?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if resposta == QMessageBox.Yes:
+            dialog,
+        ):
             try:
                 if self.transfer_service:
                     self.transfer_service.excluir(mov)
@@ -745,12 +744,11 @@ class TransfersPage(QWidget):
         return tab
 
     def _remover_anexo(self, anexo_id, entity_type, entity_id, dialog, callback_salvar, tabs):
-        resp = QMessageBox.question(
-            dialog, "Remover Anexo",
-            "Deseja realmente remover este anexo?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
-        if resp != QMessageBox.Yes:
+        if not ConfirmacaoDigitarDialog.confirmar(
+            "Remover Anexo",
+            "Deseja realmente remover este anexo?\n\nO arquivo será excluído permanentemente.",
+            dialog,
+        ):
             return
         try:
             anexo = self._session.query(Attachment).filter_by(id=anexo_id).first()

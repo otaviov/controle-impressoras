@@ -33,6 +33,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
 )
 from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
@@ -330,11 +331,10 @@ class PartsPage(QWidget):
                 self.recarregar()
 
         def excluir():
-            resp = QMessageBox.question(
-                dialog, "Confirmar", f"Excluir a peça '{peca.nome}'?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-            )
-            if resp == QMessageBox.Yes:
+            if ConfirmacaoDigitarDialog.confirmar(
+                "Confirmar", f"Excluir a peça '{peca.nome}'?",
+                dialog,
+            ):
                 with tratar_erro("excluir peça"):
                     self.part_service.excluir(peca)
                     dialog.accept()

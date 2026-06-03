@@ -38,6 +38,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     estilos_dialogo_tabs,
 )
+from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.table_widget import TabelaPadrao
@@ -341,16 +342,12 @@ class ClientsPage(QWidget):
             dialog.accept()
 
     def _excluir(self, dialog, empresa):
-        resposta = QMessageBox.question(
-            dialog,
-            "Confirmar Exclus\u00e3o",
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar Exclusão",
             f"Deseja realmente excluir a empresa '{empresa.nome}'?\n\n"
-            "As impressoras associadas N\u00c3O ser\u00e3o exclu\u00eddas, apenas ficar\u00e3o sem empresa vinculada.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if resposta == QMessageBox.Yes:
+            "As impressoras associadas NÃO serão excluídas, apenas ficarão sem empresa vinculada.",
+            dialog,
+        ):
             with tratar_erro("excluir empresa"):
                 self.company_service.excluir(empresa)
                 self.recarregar()
