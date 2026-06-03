@@ -1,4 +1,4 @@
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
@@ -9,6 +9,32 @@ from app.models import LoginHistory, User
 from app.utils.effects import sombra_glow
 from app.utils.security import verify_password
 from db import close_session, get_session
+
+MAX_TENTATIVAS = 5
+BLOQUEIO_MINUTOS = 5
+_attempts: dict[str, list[dt]] = {}
+
+
+def _limpar_attempts_velhos():
+    agora = dt.utcnow()
+    limite = agora - timedelta(minutes=BLOQUEIO_MINUTOS)
+    for usuario in list(_attempts.keys()):
+        _attempts[usuario] = [t for t in _attempts[usuario] if t > limite]
+        if not _attempts[usuario]:
+            del _attempts[usuario]
+
+
+def _esta_bloqueado(username: str) -> bool:
+    _limpar_attempts_velhos()
+    return len(_attempts.get(username, [])) >= MAX_TENTATIVAS
+
+
+def _registrar_tentativa(username: str):
+    _attempts.setdefault(username, []).append(dt.utcnow())
+
+
+def _resetar_tentativas(username: str):
+    _attempts.pop(username, None)
 
 
 class LoginDialog(QDialog):
@@ -219,22 +245,31 @@ class LoginDialog(QDialog):
             self.mostrar_erro("Preencha todos os campos!")
             return
 
+        if _esta_bloqueado(username):
+            self.mostrar_erro(f"Muitas tentativas! Aguarde {BLOQUEIO_MINUTOS} min.")
+            return
+
         session = get_session()
         try:
             user = session.query(User).filter(User.username == username).first()
 
             if not user:
+                _registrar_tentativa(username)
                 self.mostrar_erro("Usuário não encontrado!")
                 return
 
             if not user.ativo:
+                _registrar_tentativa(username)
                 self.mostrar_erro("Usuário desativado!")
                 return
 
             if not verify_password(senha, user.senha_hash):
-                self.mostrar_erro("Senha incorreta!")
+                _registrar_tentativa(username)
+                restam = MAX_TENTATIVAS - len(_attempts.get(username, []))
+                self.mostrar_erro(f"Senha incorreta! ({restam} tentativa(s) restante(s))")
                 return
 
+            _resetar_tentativas(username)
             user.ultimo_login = dt.utcnow()
             login_history = LoginHistory(user_id=user.id, login_at=dt.utcnow())
             session.add(login_history)

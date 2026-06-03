@@ -21,6 +21,7 @@ from app.models import Part
 from app.services.part_service import PartService
 from app.utils.ui_helpers import tratar_erro
 from app.utils.helpers import formatar_data_hora, parse_data
+from db import transacao
 from app.views.styles.theme import (
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
@@ -35,6 +36,7 @@ from app.views.styles.theme import (
     configurar_combo,
 )
 from app.views.widgets.card_widget import CardMiniClicavel
+from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 
@@ -129,11 +131,42 @@ class OSPage(QWidget):
         self.tabela.cellDoubleClicked.connect(self._editar)
         layout.addWidget(self.tabela)
 
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
+
+        self._filtro_status_atual = None
+        self._filtro_busca_atual = None
+
     def recarregar(self, filtro_tipo=None):
         if filtro_tipo:
             self._filtro_tipo_atual = filtro_tipo
-        atividades = self.activity_service.listar(filtro_tipo=self._filtro_tipo_atual)
+        self._filtro_status_atual = None
+        self._filtro_busca_atual = None
+        self._carregar()
+
+    def _carregar(self):
+        if self._filtro_status_atual:
+            atividades = self.activity_service.listar_por_status(
+                self._filtro_status_atual,
+                limite=self._paginacao.limit, offset=self._paginacao.offset,
+            )
+            total = self.activity_service.contar_por_status(self._filtro_status_atual)
+        elif self._filtro_busca_atual:
+            atividades = self.activity_service.buscar_por_filtro_busca(
+                self._filtro_busca_atual,
+                limite=self._paginacao.limit, offset=self._paginacao.offset,
+            )
+            total = len(atividades)
+        else:
+            atividades = self.activity_service.listar(
+                filtro_tipo=self._filtro_tipo_atual,
+                limite=self._paginacao.limit, offset=self._paginacao.offset,
+            )
+            total = self.activity_service.contar_total()
         self._atividades = atividades
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
         self._preencher_tabela(atividades)
         self._atualizar_cards()
 
@@ -191,17 +224,14 @@ class OSPage(QWidget):
         self.recarregar(filtro_tipo=tipo)
 
     def _filtrar_status(self, status):
-        atividades = self.activity_service.listar_por_status(status)
-        self._atividades = atividades
-        self._preencher_tabela(atividades)
+        self._filtro_status_atual = status
+        self._filtro_busca_atual = None
+        self._carregar()
 
     def _filtrar_busca(self, texto):
-        if not texto.strip():
-            self.recarregar()
-            return
-        atividades = self.activity_service.buscar_por_filtro_busca(texto)
-        self._atividades = atividades
-        self._preencher_tabela(atividades)
+        self._filtro_status_atual = None
+        self._filtro_busca_atual = texto.strip() if texto.strip() else None
+        self._carregar()
 
     def _atualizar_cards(self):
         total = self.activity_service.contar_total()
@@ -242,20 +272,19 @@ class OSPage(QWidget):
         tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
 
         try:
-            self.activity_service.criar(
-                printer_id=printer.id,
-                kind=kind,
-                notes=notes,
-                parts_used=parts_used,
-                from_location=from_location,
-                to_location=to_location,
-                status_atividade=status_atividade,
-                event_at=event_at,
-                tecnico_id=tecnico_id,
-            )
-            self._dar_baixa_estoque(parts_used)
-            atividade = self.activity_service.buscar_por_descricao(printer.id, notes)
-            if atividade:
+            with transacao(self.session):
+                atividade = self.activity_service.criar(
+                    printer_id=printer.id,
+                    kind=kind,
+                    notes=notes,
+                    parts_used=parts_used,
+                    from_location=from_location,
+                    to_location=to_location,
+                    status_atividade=status_atividade,
+                    event_at=event_at,
+                    tecnico_id=tecnico_id,
+                )
+                self._dar_baixa_estoque(parts_used)
                 self.activity_service.atualizar(
                     atividade,
                     from_company_id=from_company_id,
@@ -319,21 +348,22 @@ class OSPage(QWidget):
             tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
 
             try:
-                self.activity_service.atualizar(
-                    atividade,
-                    printer_id=printer.id,
-                    kind=kind,
-                    event_at=event_at,
-                    notes=notes,
-                    parts_used=parts_used,
-                    from_location=from_location,
-                    to_location=to_location,
-                    status_atividade=status_atividade,
-                    from_company_id=from_company_id,
-                    to_company_id=to_company_id,
-                    tecnico_id=tecnico_id,
-                )
-                self._dar_baixa_estoque(parts_used)
+                with transacao(self.session):
+                    self.activity_service.atualizar(
+                        atividade,
+                        printer_id=printer.id,
+                        kind=kind,
+                        event_at=event_at,
+                        notes=notes,
+                        parts_used=parts_used,
+                        from_location=from_location,
+                        to_location=to_location,
+                        status_atividade=status_atividade,
+                        from_company_id=from_company_id,
+                        to_company_id=to_company_id,
+                        tecnico_id=tecnico_id,
+                    )
+                    self._dar_baixa_estoque(parts_used)
                 resultado["acao"] = "salvar"
                 dialog.accept()
                 self.recarregar()

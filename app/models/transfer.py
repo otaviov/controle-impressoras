@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING, Optional
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, utcnow
+from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.company import Company
     from app.models.printer import Printer
 
 
-class Transfer(Base):
+class Transfer(Base, SoftDeleteMixin):
     __tablename__ = "transfers"
     __table_args__ = (
         Index("ix_transfer_numero_os", "numero_os"),

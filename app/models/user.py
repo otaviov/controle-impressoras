@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import Boolean, DateTime, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, utcnow
+from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.alert import Alert
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.models.login_history import LoginHistory
 
 
-class User(Base):
+class User(Base, SoftDeleteMixin):
     __tablename__ = "users"
     __table_args__ = (Index("ix_user_username", "username"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

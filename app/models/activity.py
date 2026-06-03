@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional
 from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, utcnow
+from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.company import Company
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.technician import Technician
 
 
-class Activity(Base):
+class Activity(Base, SoftDeleteMixin):
     __tablename__ = "activities"
     __table_args__ = (
         Index("ix_activity_kind", "kind"),

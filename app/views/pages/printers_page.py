@@ -43,6 +43,8 @@ from app.views.styles.theme import (
     STATUS_CORES,
     estilos_dialogo_tabs,
 )
+from app.views.widgets.import_dialog import ImportDialog
+from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 
@@ -86,6 +88,12 @@ class PrintersPage(QWidget):
         btn_nova.clicked.connect(self._nova)
         header.addWidget(btn_nova)
 
+        btn_importar = QPushButton("  Importar")
+        btn_importar.setCursor(Qt.PointingHandCursor)
+        btn_importar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_importar.clicked.connect(lambda: self._importar())
+        header.addWidget(btn_importar)
+
         btn_atualizar = QPushButton("  Atualizar")
         btn_atualizar.setCursor(Qt.PointingHandCursor)
         btn_atualizar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
@@ -99,10 +107,26 @@ class PrintersPage(QWidget):
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
-        self.recarregar()
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
 
-    def recarregar(self, filtro=None):
-        impressoras = self.printer_service.listar_todos(filtro)
+        self._filtro_atual = None
+        self._carregar()
+
+    def recarregar(self):
+        self._filtro_atual = None
+        self._paginacao.configurar(self.printer_service.contar_todos(), pagina_atual=1)
+        self._carregar()
+
+    def _carregar(self):
+        impressoras = self.printer_service.listar_todos(
+            filtro=self._filtro_atual, limite=self._paginacao.limit, offset=self._paginacao.offset
+        )
+        total = self.printer_service.contar_todos(filtro=self._filtro_atual)
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
+
         ids = [p.id for p in impressoras]
         counts = self.printer_service.contar_atividades(ids) if ids else {}
 
@@ -130,7 +154,8 @@ class PrintersPage(QWidget):
         self.tabela.redimensionar()
 
     def filtrar(self, texto):
-        self.recarregar(texto if texto else None)
+        self._filtro_atual = texto if texto else None
+        self._carregar()
 
     def _nova(self):
         dialog = QDialog(self)
@@ -142,18 +167,22 @@ class PrintersPage(QWidget):
 
         patrimonio_input = QLineEdit()
         patrimonio_input.setPlaceholderText("Número do patrimônio")
+        patrimonio_input.setMaxLength(80)
         layout.addRow("Patrimônio *:", patrimonio_input)
 
         modelo_input = QLineEdit()
         modelo_input.setPlaceholderText("Modelo da impressora")
+        modelo_input.setMaxLength(80)
         layout.addRow("Modelo:", modelo_input)
 
         marca_input = QLineEdit()
         marca_input.setPlaceholderText("Marca (HP, Brother, etc)")
+        marca_input.setMaxLength(80)
         layout.addRow("Marca:", marca_input)
 
         serial_input = QLineEdit()
         serial_input.setPlaceholderText("Número de série")
+        serial_input.setMaxLength(80)
         layout.addRow("Serial:", serial_input)
 
         tipo_combo = QComboBox()
@@ -183,6 +212,7 @@ class PrintersPage(QWidget):
 
         ip_input = QLineEdit()
         ip_input.setPlaceholderText("192.168.0.100")
+        ip_input.setMaxLength(45)
         layout.addRow("IP Rede:", ip_input)
 
         tec_combo = QComboBox()
@@ -271,6 +301,7 @@ class PrintersPage(QWidget):
         dados_layout.addWidget(QLabel("Patrimônio:"), 0, 0)
         pat_input = QLineEdit(printer.patrimonio)
         pat_input.setReadOnly(True)
+        pat_input.setMaxLength(80)
         pat_input.setStyleSheet(ESTILO_INPUT_READONLY)
         dados_layout.addWidget(pat_input, 0, 1)
 
@@ -285,16 +316,19 @@ class PrintersPage(QWidget):
         dados_layout.addWidget(QLabel("Modelo:"), 1, 0)
         modelo_input = QLineEdit(printer.modelo or "")
         modelo_input.setReadOnly(True)
+        modelo_input.setMaxLength(80)
         dados_layout.addWidget(modelo_input, 1, 1)
 
         dados_layout.addWidget(QLabel("Marca:"), 1, 2)
         marca_input = QLineEdit(printer.marca or "")
         marca_input.setReadOnly(True)
+        marca_input.setMaxLength(80)
         dados_layout.addWidget(marca_input, 1, 3)
 
         dados_layout.addWidget(QLabel("Serial:"), 2, 0)
         serial_input = QLineEdit(printer.serial or "")
         serial_input.setReadOnly(True)
+        serial_input.setMaxLength(80)
         dados_layout.addWidget(serial_input, 2, 1)
 
         dados_layout.addWidget(QLabel("Tipo:"), 2, 2)
@@ -332,6 +366,7 @@ class PrintersPage(QWidget):
         dados_layout.addWidget(QLabel("IP Rede:"), 3, 2)
         ip_input = QLineEdit(printer.ip_rede or "")
         ip_input.setReadOnly(True)
+        ip_input.setMaxLength(45)
         dados_layout.addWidget(ip_input, 3, 3)
 
         dados_layout.addWidget(QLabel("Técnico:"), 4, 0)
@@ -452,12 +487,18 @@ class PrintersPage(QWidget):
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_fechar.clicked.connect(dialog.accept)
 
+        btn_excluir_printer = QPushButton("\U0001f5d1 Excluir Impressora")
+        btn_excluir_printer.setCursor(Qt.PointingHandCursor)
+        btn_excluir_printer.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir_printer.clicked.connect(lambda: self._excluir_impressora(dialog, printer))
+
         widgets_editaveis = [pat_input, status_combo, modelo_input, marca_input, serial_input, tipo_combo, local_combo, ip_input, tec_combo, rev_input, obs_input, pecas_input]
 
         def entrar_modo_edicao():
             btn_editar.setVisible(False)
             btn_salvar.setVisible(True)
             btn_cancelar.setVisible(True)
+            btn_excluir_printer.setVisible(False)
             for w in widgets_editaveis:
                 if isinstance(w, QLineEdit):
                     w.setReadOnly(False)
@@ -472,6 +513,7 @@ class PrintersPage(QWidget):
             btn_editar.setVisible(True)
             btn_salvar.setVisible(False)
             btn_cancelar.setVisible(False)
+            btn_excluir_printer.setVisible(True)
             for w in widgets_editaveis:
                 if isinstance(w, QLineEdit):
                     w.setReadOnly(True)
@@ -490,10 +532,24 @@ class PrintersPage(QWidget):
         btn_layout.addWidget(btn_salvar)
         btn_layout.addWidget(btn_cancelar)
         btn_layout.addStretch()
+        btn_layout.addWidget(btn_excluir_printer)
         btn_layout.addWidget(btn_fechar)
 
         layout.addLayout(btn_layout)
         dialog.exec()
+
+    def _excluir_impressora(self, dialog, printer):
+        resp = QMessageBox.question(
+            dialog, "Excluir Impressora",
+            f"Tem certeza que deseja excluir a impressora '{printer.patrimonio}'?\n\n"
+            f"Esta ação é reversível (vá em Configurações > Lixeira para restaurar).",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if resp == QMessageBox.Yes:
+            with tratar_erro("excluir impressora"):
+                self.printer_service.excluir(printer)
+                self.recarregar()
+                dialog.accept()
 
     def _salvar_edicao(self, dialog, printer, pat_input, status, modelo, marca, serial, tipo, local, ip, tecnico, revisao, obs, pecas, callback=None):
         novo_pat = pat_input.text().strip()
@@ -711,6 +767,11 @@ class PrintersPage(QWidget):
             )
             self.recarregar()
             dialog.accept()
+
+    def _importar(self):
+        dialog = ImportDialog(self, "printers", "Impressoras", self.printer_service, self.session)
+        if dialog.exec() == ImportDialog.Accepted:
+            self.recarregar()
 
     def _excluir_atividade(self, dialog, atividade):
         resposta = QMessageBox.question(

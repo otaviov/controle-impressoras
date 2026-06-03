@@ -33,6 +33,7 @@ from app.views.styles.theme import (
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 from app.views.widgets.toast import ToastManager
@@ -142,7 +143,12 @@ class AlertasPage(QWidget):
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
-        self.recarregar()
+        self._alertas_visiveis = []
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
+
+        self._carregar()
 
     def _estilo_filtro(self, ativo):
         if ativo:
@@ -161,23 +167,28 @@ class AlertasPage(QWidget):
         self._apenas_pendentes = apenas_pendentes
         self.btn_todos.setStyleSheet(self._estilo_filtro(not apenas_pendentes))
         self.btn_pendentes.setStyleSheet(self._estilo_filtro(apenas_pendentes))
-        self.recarregar()
+        self._carregar()
 
     def _buscar(self, texto):
         self._filtro_busca = texto
-        self.recarregar()
+        self._carregar()
 
-    def recarregar(self, filtro=None):
-        alertas = self.alert_service.listar_todos(apenas_pendentes=self._apenas_pendentes)
-        termo = (self._filtro_busca or "").lower()
+    def recarregar(self):
+        self._filtro_busca = ""
+        self._carregar()
 
-        if termo:
-            alertas = [
-                a for a in alertas
-                if termo in (a.titulo or "").lower()
-                or termo in (a.tipo or "").lower()
-                or termo in str(getattr(a, "_patrimonio_cache", "")).lower()
-            ]
+    def _carregar(self):
+        filtro = self._filtro_busca or None
+        alertas = self.alert_service.listar_todos(
+            apenas_pendentes=self._apenas_pendentes, filtro_busca=filtro,
+            limite=self._paginacao.limit, offset=self._paginacao.offset,
+        )
+        total = self.alert_service.contar_todos(
+            apenas_pendentes=self._apenas_pendentes, filtro_busca=filtro,
+        )
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
+        self._alertas_visiveis = alertas
 
         total_pendentes = self.alert_service.contar_pendentes()
         self.lbl_contador.setText(f"{total_pendentes} pendente(s)")
@@ -282,10 +293,9 @@ class AlertasPage(QWidget):
             dialog.accept()
 
     def _detalhes(self, row):
-        alertas = self.alert_service.listar_todos(apenas_pendentes=self._apenas_pendentes)
-        if row < 0 or row >= len(alertas):
+        if row < 0 or row >= len(self._alertas_visiveis):
             return
-        alerta = alertas[row]
+        alerta = self._alertas_visiveis[row]
         printer = alerta.printer or self.printer_service.buscar_por_id(alerta.printer_id)
         pat = printer.patrimonio if printer else alerta.printer_id
 

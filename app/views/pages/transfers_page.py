@@ -28,7 +28,9 @@ from PySide6.QtWidgets import (
 from app.models import Activity, Attachment, Part
 from app.services.part_service import PartService
 from app.utils.ui_helpers import tratar_erro
+from db import safe_commit, transacao
 from app.utils.helpers import encurtar, formatar_data_hora
+from app.views.widgets.pagination import PaginacaoWidget
 from config import BASE_DIR
 from app.views.styles.theme import (
     COR,
@@ -61,12 +63,13 @@ ANEXOS_DIR = BASE_DIR / "anexos"
 class TransfersPage(QWidget):
     COLUNAS = ["Data", "Patrimônio", "Origem", "Destino", "Peças/Equipamento", "Nº Recibo", "Status"]
 
-    def __init__(self, session, printer_service, activity_service, company_service, parent=None):
+    def __init__(self, session, printer_service, activity_service, company_service, transfer_service=None, parent=None):
         super().__init__(parent)
         self._session = session
         self.printer_service = printer_service
         self.activity_service = activity_service
         self.company_service = company_service
+        self.transfer_service = transfer_service
         self.part_service = PartService(session)
 
         layout = QVBoxLayout(self)
@@ -107,12 +110,31 @@ class TransfersPage(QWidget):
 
         self._mov_cache = []
         self._mapa_cache = {}
+        self._filtro_transf = None
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
 
     def recarregar(self):
-        movimentacoes = self.activity_service.listar_movimentacoes(limite=200)
+        self._filtro_transf = None
+        self._carregar()
+
+    def _carregar(self):
+        if self._filtro_transf:
+            movimentacoes = self.activity_service.buscar_movimentacoes_por_filtro(
+                self._filtro_transf, limite=self._paginacao.limit, offset=self._paginacao.offset,
+            )
+            total = len(movimentacoes)
+        else:
+            movimentacoes = self.activity_service.listar_movimentacoes(
+                limite=self._paginacao.limit, offset=self._paginacao.offset,
+            )
+            total = self.activity_service.contar_total()
         printer_ids = [m.printer_id for m in movimentacoes if m.printer_id]
         self._mapa_cache = self.printer_service.mapa_patrimonio(printer_ids) if printer_ids else {}
         self._mov_cache = movimentacoes
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
         self._preencher_tabela(movimentacoes)
 
     def _preencher_tabela(self, movimentacoes):
@@ -144,14 +166,8 @@ class TransfersPage(QWidget):
 
     def _filtrar(self, texto):
         texto = texto.strip()
-        if not texto:
-            self._preencher_tabela(self._mov_cache)
-            return
-        movimentacoes = self.activity_service.buscar_movimentacoes_por_filtro(texto, limite=200)
-        printer_ids = [m.printer_id for m in movimentacoes if m.printer_id]
-        self._mapa_cache = self.printer_service.mapa_patrimonio(printer_ids) if printer_ids else {}
-        self._mov_cache = movimentacoes
-        self._preencher_tabela(movimentacoes)
+        self._filtro_transf = texto if texto else None
+        self._carregar()
 
     def _nova(self):
         dialog = QDialog(self)
@@ -282,46 +298,45 @@ class TransfersPage(QWidget):
                 desc_clean = desc_text.toPlainText().strip()
                 tipo = tipo_combo.currentText()
 
-                activity = Activity(
-                    printer_id=printer.id,
-                    kind="MOVIMENTACAO",
-                    event_at=event_at,
-                    parts_used=parts,
-                    from_location=from_loc,
-                    to_location=to_loc,
-                    notes=desc_clean,
-                    numero_recibo=recibo,
-                    status_atividade=status,
-                )
-                self._session.add(activity)
-                self._dar_baixa_estoque(parts)
+                with transacao(self._session):
+                    activity = Activity(
+                        printer_id=printer.id,
+                        kind="MOVIMENTACAO",
+                        event_at=event_at,
+                        parts_used=parts,
+                        from_location=from_loc,
+                        to_location=to_loc,
+                        notes=desc_clean,
+                        numero_recibo=recibo,
+                        status_atividade=status,
+                    )
+                    self._session.add(activity)
+                    self._dar_baixa_estoque(parts)
 
-                if tipo == "Apenas Peça(s)":
-                    dest_texto = printer_destino_combo.currentText().split(" - ")[0].strip()
-                    if dest_texto:
-                        printer_dest = self.printer_service.buscar_por_patrimonio(dest_texto)
-                        if printer_dest:
-                            notes_dest = f"Recebeu peça da {patrimonio_texto}"
-                            if desc_clean:
-                                notes_dest += f" — {desc_clean}"
-                            activity_dest = Activity(
-                                printer_id=printer_dest.id,
-                                kind="MOVIMENTACAO",
-                                event_at=event_at,
-                                parts_used=parts,
-                                from_location=from_loc,
-                                to_location=to_loc,
-                                notes=notes_dest,
-                                numero_recibo=recibo,
-                                status_atividade=status,
-                            )
-                            self._session.add(activity_dest)
+                    if tipo == "Apenas Peça(s)":
+                        dest_texto = printer_destino_combo.currentText().split(" - ")[0].strip()
+                        if dest_texto:
+                            printer_dest = self.printer_service.buscar_por_patrimonio(dest_texto)
+                            if printer_dest:
+                                notes_dest = f"Recebeu peça da {patrimonio_texto}"
+                                if desc_clean:
+                                    notes_dest += f" — {desc_clean}"
+                                activity_dest = Activity(
+                                    printer_id=printer_dest.id,
+                                    kind="MOVIMENTACAO",
+                                    event_at=event_at,
+                                    parts_used=parts,
+                                    from_location=from_loc,
+                                    to_location=to_loc,
+                                    notes=notes_dest,
+                                    numero_recibo=recibo,
+                                    status_atividade=status,
+                                )
+                                self._session.add(activity_dest)
 
-                self._session.commit()
                 saved_id[0] = activity.id
                 return activity.id
             except Exception as e:
-                self._session.rollback()
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar:\n{e}")
                 return None
 
@@ -338,10 +353,9 @@ class TransfersPage(QWidget):
             self.recarregar()
 
     def _editar(self, row):
-        movimentacoes = self.activity_service.listar_movimentacoes(limite=200)
-        if row < 0 or row >= len(movimentacoes):
+        if row < 0 or row >= len(self._mov_cache):
             return
-        mov = movimentacoes[row]
+        mov = self._mov_cache[row]
         printer = self.printer_service.buscar_por_id(mov.printer_id)
         patrimonio = f"{printer.patrimonio} - {printer.modelo}" if printer else mov.printer_id
 
@@ -503,50 +517,49 @@ class TransfersPage(QWidget):
             if novos == orig:
                 return
             try:
-                for chave, valor in novos.items():
-                    setattr(mov, chave, valor)
-                self._dar_baixa_estoque(parts)
+                with transacao(self._session):
+                    for chave, valor in novos.items():
+                        setattr(mov, chave, valor)
+                    self._dar_baixa_estoque(parts)
 
-                if tipo_edit_combo.currentText() == "Apenas Peça(s)":
-                    dest_texto = printer_destino_edit_combo.currentText().split(" - ")[0].strip()
-                    if dest_texto:
-                        printer_dest = self.printer_service.buscar_por_patrimonio(dest_texto)
-                        if printer_dest:
-                            src_pat = printer.patrimonio if printer else str(orig['printer_id'])
-                            existing = self._session.query(Activity).filter(
-                                Activity.printer_id == printer_dest.id,
-                                Activity.kind == "MOVIMENTACAO",
-                                Activity.notes.like(f"Recebeu peça da {src_pat}%"),
-                            ).first()
-                            notes_dest = f"Recebeu peça da {src_pat}"
-                            if desc_clean:
-                                notes_dest += f" — {desc_clean}"
-                            if existing:
-                                existing.notes = notes_dest
-                                existing.parts_used = parts
-                                existing.from_location = from_loc
-                                existing.to_location = to_loc
-                                existing.numero_recibo = recibo
-                            else:
-                                event_at = parse_data(data_texto) if data_texto else mov.event_at
-                                activity_dest = Activity(
-                                    printer_id=printer_dest.id,
-                                    kind="MOVIMENTACAO",
-                                    event_at=event_at,
-                                    parts_used=parts,
-                                    from_location=from_loc,
-                                    to_location=to_loc,
-                                    notes=notes_dest,
-                                    numero_recibo=recibo,
-                                    status_atividade=status,
-                                )
-                                self._session.add(activity_dest)
+                    if tipo_edit_combo.currentText() == "Apenas Peça(s)":
+                        dest_texto = printer_destino_edit_combo.currentText().split(" - ")[0].strip()
+                        if dest_texto:
+                            printer_dest = self.printer_service.buscar_por_patrimonio(dest_texto)
+                            if printer_dest:
+                                src_pat = printer.patrimonio if printer else str(orig['printer_id'])
+                                existing = self._session.query(Activity).filter(
+                                    Activity.printer_id == printer_dest.id,
+                                    Activity.kind == "MOVIMENTACAO",
+                                    Activity.notes.like(f"Recebeu peça da {src_pat}%"),
+                                ).first()
+                                notes_dest = f"Recebeu peça da {src_pat}"
+                                if desc_clean:
+                                    notes_dest += f" — {desc_clean}"
+                                if existing:
+                                    existing.notes = notes_dest
+                                    existing.parts_used = parts
+                                    existing.from_location = from_loc
+                                    existing.to_location = to_loc
+                                    existing.numero_recibo = recibo
+                                else:
+                                    event_at = parse_data(data_texto) if data_texto else mov.event_at
+                                    activity_dest = Activity(
+                                        printer_id=printer_dest.id,
+                                        kind="MOVIMENTACAO",
+                                        event_at=event_at,
+                                        parts_used=parts,
+                                        from_location=from_loc,
+                                        to_location=to_loc,
+                                        notes=notes_dest,
+                                        numero_recibo=recibo,
+                                        status_atividade=status,
+                                    )
+                                    self._session.add(activity_dest)
 
-                self._session.commit()
                 orig.update(novos)
                 QMessageBox.information(dialog, "Sucesso", "Alterações salvas!")
             except Exception as e:
-                self._session.rollback()
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar:\n{e}")
 
         tab_anexos = self._criar_tab_anexos("activity", mov.id, dialog, None, tabs)
@@ -621,8 +634,11 @@ class TransfersPage(QWidget):
         )
         if resposta == QMessageBox.Yes:
             try:
-                self._session.delete(mov)
-                self._session.commit()
+                if self.transfer_service:
+                    self.transfer_service.excluir(mov)
+                else:
+                    mov.deleted_at = dt.utcnow()
+                    safe_commit(self._session)
                 dialog.accept()
             except Exception as e:
                 self._session.rollback()
@@ -742,7 +758,7 @@ class TransfersPage(QWidget):
                 if os.path.exists(anexo.file_path):
                     os.remove(anexo.file_path)
                 self._session.delete(anexo)
-                self._session.commit()
+                safe_commit(self._session)
             idx = tabs.currentIndex()
             tabs.removeTab(1)
             nova_tab = self._criar_tab_anexos(entity_type, entity_id, dialog, callback_salvar, tabs)
@@ -795,7 +811,7 @@ class TransfersPage(QWidget):
                 categoria="recibo",
             )
             self._session.add(attachment)
-            self._session.commit()
+            safe_commit(self._session)
 
             idx = tabs.currentIndex()
             tabs.removeTab(1)

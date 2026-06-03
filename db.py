@@ -1,4 +1,5 @@
 import logging
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
@@ -33,9 +34,33 @@ def close_session(session: Session | None) -> None:
         except Exception as exc:
             log.warning("Erro ao fechar sessão: %s", exc)
 
-def safe_commit(session: Session) -> None:
+
+@contextmanager
+def transacao(session: Session):
+    """Context manager for atomic transactions.
+    
+    Service calls inside this block use flush() instead of commit(),
+    so the entire block is committed atomically on success,
+    or fully rolled back on any error.
+    """
+    session.info["_em_transacao"] = True
     try:
+        yield
         session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.info.pop("_em_transacao", None)
+
+
+def safe_commit(session: Session) -> None:
+    """Commits or flushes depending on whether we're inside a transacao() block."""
+    try:
+        if session.info.get("_em_transacao"):
+            session.flush()
+        else:
+            session.commit()
     except Exception:
         session.rollback()
         raise

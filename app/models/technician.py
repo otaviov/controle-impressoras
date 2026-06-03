@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING, List
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, utcnow
+from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.activity import Activity
 
 
-class Technician(Base):
+class Technician(Base, SoftDeleteMixin):
     __tablename__ = "technicians"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome_completo: Mapped[str] = mapped_column(String(150), nullable=False)

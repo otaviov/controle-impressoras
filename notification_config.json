@@ -1,0 +1,10 @@
+{
+  "desktop_ativado": true,
+  "email_ativado": true,
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_usuario": "otavioveira32@gmail.com",
+  "smtp_senha": "ergz roxa wxfp qkfw",
+  "email_remetente": "otavioveira32@gmail.com",
+  "email_destinatario": "amandavv32@gmail.com"
+}

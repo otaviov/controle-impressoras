@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, utcnow
+from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.activity import Activity
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.transfer import Transfer
 
 
-class Company(Base):
+class Company(Base, SoftDeleteMixin):
     __tablename__ = "companies"
     __table_args__ = (Index("ix_company_cnpj", "cnpj"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

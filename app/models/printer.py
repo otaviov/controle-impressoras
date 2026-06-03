@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, utcnow
+from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.activity import Activity
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from app.models.transfer import Transfer
 
 
-class Printer(Base):
+class Printer(Base, SoftDeleteMixin):
     __tablename__ = "printers"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     patrimonio: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)

@@ -26,6 +26,7 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
+    ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_SUBTITULO,
     configurar_combo,
@@ -37,6 +38,8 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     estilos_dialogo_tabs,
 )
+from app.views.widgets.import_dialog import ImportDialog
+from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.table_widget import TabelaPadrao
 
 
@@ -67,18 +70,40 @@ class ClientsPage(QWidget):
         btn_nova.clicked.connect(self._nova)
         header.addWidget(btn_nova)
 
+        btn_importar = QPushButton("  Importar")
+        btn_importar.setCursor(Qt.PointingHandCursor)
+        btn_importar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_importar.clicked.connect(lambda: self._importar())
+        header.addWidget(btn_importar)
+
         layout.addLayout(header)
 
         subtitulo = QLabel("Gerencie as empresas e clientes")
         subtitulo.setStyleSheet(ESTILO_SUBTITULO)
         layout.addWidget(subtitulo)
 
+        self._empresas_visiveis = []
         self.tabela = TabelaPadrao(["Nome", "CNPJ", "Cidade/UF", "Telefone", "Email", "Impressoras"])
         self.tabela.cellDoubleClicked.connect(self._editar)
         layout.addWidget(self.tabela)
 
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
+
+        self._carregar()
+
     def recarregar(self):
-        empresas = self.company_service.listar_todas()
+        self._carregar()
+
+    def _carregar(self):
+        empresas = self.company_service.listar_todas(
+            limite=self._paginacao.limit, offset=self._paginacao.offset
+        )
+        total = self.company_service.contar_todas()
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
+        self._empresas_visiveis = empresas
         self.tabela.setRowCount(len(empresas))
         for i, emp in enumerate(empresas):
             self.tabela.setItem(i, 0, QTableWidgetItem(emp.nome))
@@ -102,18 +127,22 @@ class ClientsPage(QWidget):
 
         nome_input = QLineEdit()
         nome_input.setPlaceholderText("Nome da empresa")
+        nome_input.setMaxLength(150)
         layout.addRow("Nome:", nome_input)
 
         cnpj_input = QLineEdit()
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
+        cnpj_input.setMaxLength(18)
         layout.addRow("CNPJ:", cnpj_input)
 
         telefone_input = QLineEdit()
         telefone_input.setPlaceholderText("(00) 00000-0000")
+        telefone_input.setMaxLength(20)
         layout.addRow("Telefone:", telefone_input)
 
         email_input = QLineEdit()
         email_input.setPlaceholderText("email@empresa.com")
+        email_input.setMaxLength(120)
         layout.addRow("Email:", email_input)
 
         tipo_input = QComboBox()
@@ -162,10 +191,12 @@ class ClientsPage(QWidget):
         form.setSpacing(8)
 
         nome_input = QLineEdit(empresa.nome or "")
+        nome_input.setMaxLength(150)
         form.addRow("Nome:", nome_input)
 
         cnpj_input = QLineEdit(empresa.cnpj or "")
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
+        cnpj_input.setMaxLength(18)
         form.addRow("CNPJ:", cnpj_input)
 
         tipo_combo = QComboBox()
@@ -176,18 +207,22 @@ class ClientsPage(QWidget):
 
         tel_input = QLineEdit(empresa.telefone or "")
         tel_input.setPlaceholderText("(00) 00000-0000")
+        tel_input.setMaxLength(20)
         form.addRow("Telefone:", tel_input)
 
         email_input = QLineEdit(empresa.email or "")
         email_input.setPlaceholderText("email@empresa.com")
+        email_input.setMaxLength(120)
         form.addRow("Email:", email_input)
 
         end_input = QLineEdit(empresa.endereco or "")
         end_input.setPlaceholderText("Rua/Av, n\u00famero")
+        end_input.setMaxLength(255)
         form.addRow("Endere\u00e7o:", end_input)
 
         cidade_input = QLineEdit(empresa.cidade or "")
         cidade_input.setPlaceholderText("Cidade")
+        cidade_input.setMaxLength(100)
         form.addRow("Cidade:", cidade_input)
 
         uf_input = QLineEdit(empresa.uf or "")
@@ -320,6 +355,11 @@ class ClientsPage(QWidget):
                 self.company_service.excluir(empresa)
                 self.recarregar()
                 dialog.accept()
+
+    def _importar(self):
+        dialog = ImportDialog(self, "companies", "Empresas", self.company_service, self.session)
+        if dialog.exec() == ImportDialog.Accepted:
+            self.recarregar()
 
     def _abrir_impressora_por_patrimonio(self, patrimonio, parent_dialog):
         parent_dialog.accept()

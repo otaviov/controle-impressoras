@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIntValidator
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -33,6 +33,8 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
 )
 from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.import_dialog import ImportDialog
+from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 
@@ -74,6 +76,12 @@ class PartsPage(QWidget):
         self.btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
+
+        btn_importar = QPushButton("  Importar")
+        btn_importar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_importar.clicked.connect(lambda: self._importar())
+        header.addWidget(btn_importar)
+
         layout.addLayout(header)
 
         cards = QHBoxLayout()
@@ -86,20 +94,33 @@ class PartsPage(QWidget):
         cards.addWidget(self.card_sem_estoque)
         layout.addLayout(cards)
 
-        self._pecas_filtradas = None
+        self._filtro_atual = None
+        self._partes_visiveis = []
         self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque", "Mín."])
         self.tabela.cellDoubleClicked.connect(self._editar)
         layout.addWidget(self.tabela)
 
-        self.recarregar()
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
+
+        self._carregar()
 
     def recarregar(self):
-        self._pecas = self.part_service.listar_todas()
-        pecas = self._pecas
+        self._filtro_atual = None
+        self._carregar()
+
+    def _carregar(self):
+        filtro = self._filtro_atual
+        pecas = self.part_service.listar_todas(filtro=filtro, limite=self._paginacao.limit, offset=self._paginacao.offset)
+        total = self.part_service.contar(filtro=filtro)
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
+
+        self._partes_visiveis = pecas
         self.tabela.limpar()
         self.tabela.setRowCount(len(pecas))
 
-        total = len(pecas)
         soma_estoque = 0
         sem_estoque = 0
 
@@ -139,46 +160,10 @@ class PartsPage(QWidget):
         self.card_total.atualizar_valor(total)
         self.card_em_estoque.atualizar_valor(soma_estoque)
         self.card_sem_estoque.atualizar_valor(sem_estoque)
-        self._pecas_filtradas = None
 
     def _filtrar(self, texto):
-        if not texto:
-            self.recarregar()
-            return
-        self._pecas_filtradas = filtradas = [
-            p for p in self._pecas
-            if texto.lower() in (p.nome or "").lower()
-            or texto.lower() in (p.codigo or "").lower()
-            or texto.lower() in (p.modelo_compativel or "").lower()
-        ]
-        self.tabela.limpar()
-        self.tabela.setRowCount(len(filtradas))
-        for i, p in enumerate(filtradas):
-            items = [
-                (p.codigo, None),
-                (p.nome, None),
-                (p.descricao, None),
-                (p.modelo_compativel, None),
-                (str(p.quantidade_estoque), None),
-                (str(p.estoque_minimo), None),
-            ]
-            for j, (texto, _) in enumerate(items):
-                item = QTableWidgetItem(texto)
-                item.setTextAlignment(Qt.AlignCenter if j >= 4 else Qt.AlignLeft)
-                self.tabela.setItem(i, j, item)
-            qtd = p.quantidade_estoque
-            if qtd >= p.estoque_minimo:
-                cor = COR["status_ok"]
-            elif qtd > 0:
-                cor = COR["status_alerta"]
-            else:
-                cor = COR["status_ruim"]
-            self.tabela.item(i, 4).setForeground(QColor(cor))
-            self.tabela.item(i, 4).setTextAlignment(Qt.AlignCenter)
-            self.tabela.item(i, 5).setTextAlignment(Qt.AlignCenter)
-            if qtd < p.estoque_minimo:
-                self.tabela.item(i, 5).setForeground(QColor("#fb923c"))
-        self.tabela.redimensionar()
+        self._filtro_atual = texto if texto else None
+        self._carregar()
 
     def _nova(self):
         dialog = QDialog(self)
@@ -200,6 +185,7 @@ class PartsPage(QWidget):
 
         edit_nome = QLineEdit()
         edit_nome.setStyleSheet(ESTILO_INPUT)
+        edit_nome.setMaxLength(150)
         edit_nome.setPlaceholderText("* Obrigatório")
         form.addRow("Nome:", edit_nome)
 
@@ -217,10 +203,12 @@ class PartsPage(QWidget):
 
         edit_qtd = QLineEdit("0")
         edit_qtd.setStyleSheet(ESTILO_INPUT)
+        edit_qtd.setValidator(QIntValidator(0, 999999, edit_qtd))
         form.addRow("Quantidade:", edit_qtd)
 
         edit_minimo = QLineEdit("1")
         edit_minimo.setStyleSheet(ESTILO_INPUT)
+        edit_minimo.setValidator(QIntValidator(0, 999999, edit_minimo))
         form.addRow("Estoque Mín.:", edit_minimo)
 
         botoes = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -255,10 +243,10 @@ class PartsPage(QWidget):
             self.recarregar()
 
     def _editar(self, row):
-        if row < 0:
+        if row < 0 or row >= len(self._partes_visiveis):
             return
 
-        peca = (self._pecas_filtradas or self._pecas)[row]
+        peca = self._partes_visiveis[row]
 
         dialog = QDialog(self)
         dialog.setWindowTitle("Editar Peça")
@@ -277,6 +265,7 @@ class PartsPage(QWidget):
 
         edit_nome = QLineEdit(peca.nome)
         edit_nome.setStyleSheet(ESTILO_INPUT)
+        edit_nome.setMaxLength(150)
         form.addRow("Nome:", edit_nome)
 
         edit_descricao = QLineEdit(peca.descricao)
@@ -299,10 +288,12 @@ class PartsPage(QWidget):
 
         edit_qtd = QLineEdit(str(peca.quantidade_estoque))
         edit_qtd.setStyleSheet(ESTILO_INPUT)
+        edit_qtd.setValidator(QIntValidator(0, 999999, edit_qtd))
         form.addRow("Quantidade:", edit_qtd)
 
         edit_minimo = QLineEdit(str(peca.estoque_minimo))
         edit_minimo.setStyleSheet(ESTILO_INPUT)
+        edit_minimo.setValidator(QIntValidator(0, 999999, edit_minimo))
         form.addRow("Estoque Mín.:", edit_minimo)
 
         botoes = QDialogButtonBox()
@@ -408,6 +399,11 @@ class PartsPage(QWidget):
         layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
 
         dialog.exec()
+
+    def _importar(self):
+        dialog = ImportDialog(self, "parts", "Peças", self.part_service, self.session)
+        if dialog.exec() == ImportDialog.Accepted:
+            self.recarregar()
 
     def _abrir_atividade_historico(self, activity_id, dialog):
         self.abrir_atividade.emit(activity_id)

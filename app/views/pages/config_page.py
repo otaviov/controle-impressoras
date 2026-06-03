@@ -3,6 +3,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -13,15 +14,22 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from app.utils.helpers import formatar_data_hora
 from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import (
+    COR,
     ESTILO_BOTAO_AVISO,
+    ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_PRIMARIO,
     ESTILO_BOTAO_SUCESSO,
+    ESTILO_BOTAO_ERRO,
     configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
@@ -34,10 +42,18 @@ from config import DB_PATH
 
 
 class ConfigPage(QWidget):
-    def __init__(self, session, user_service, user, parent=None):
+    def __init__(self, session, user_service, user, notificador=None, printer_service=None, part_service=None, company_service=None, activity_service=None, transfer_service=None, technician_service=None, alert_service=None, parent=None):
         super().__init__(parent)
         self.session = session
         self.user_service = user_service
+        self.notificador = notificador
+        self.printer_service = printer_service
+        self.part_service = part_service
+        self.company_service = company_service
+        self.activity_service = activity_service
+        self.transfer_service = transfer_service
+        self.technician_service = technician_service
+        self.alert_service = alert_service
         self.user = user
         self._setup_ui()
         self.recarregar()
@@ -59,43 +75,55 @@ class ConfigPage(QWidget):
         header_layout.addStretch()
         layout.addLayout(header_layout)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background-color: #2e2e4a; max-height: 1px; margin: 16px 0;")
-        layout.addWidget(sep)
+        self.abas = QTabWidget()
+        self.abas.setStyleSheet("""
+            QTabWidget::pane { border: none; background: transparent; margin-top: -1px; }
+            QTabBar::tab { padding: 10px 20px; color: #94949f; font-weight: 600;
+                background: transparent; border: none; border-bottom: 2px solid transparent; }
+            QTabBar::tab:selected { color: #a78bfa; border-bottom: 2px solid #a78bfa; }
+            QTabBar::tab:hover { color: #e8e8f0; }
+        """)
+        self.abas.addTab(self._criar_aba_usuarios(), "👥  Usuários")
+        self.abas.addTab(self._criar_aba_backup(), "💾  Backup")
+        self.abas.addTab(self._criar_aba_lixeira(), "🗑️  Lixeira")
+        self.abas.addTab(self._criar_aba_notificacoes(), "🔔  Notificações")
+        layout.addWidget(self.abas)
 
-        # ── Seção Usuários ────────────────────────────────────
-        secao_titulo = QLabel("👥 Usuários do Sistema")
-        secao_titulo.setStyleSheet("color: #60a5fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
-        layout.addWidget(secao_titulo)
+    def _criar_aba_usuarios(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(12)
 
         self.tabela = TabelaPadrao(["Nome", "Usuário", "Email", "Perfil", "Ativo"])
         layout.addWidget(self.tabela)
 
-        botoes_layout = QHBoxLayout()
-        botoes_layout.setSpacing(10)
-
+        botoes = QHBoxLayout()
+        botoes.setSpacing(10)
         self.btn_novo = QPushButton("➕ Novo Usuário")
         self.btn_novo.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         self.btn_novo.clicked.connect(self._novo_usuario)
-        botoes_layout.addWidget(self.btn_novo)
-
-        self.btn_editar = QPushButton("✏️ Editar")
+        botoes.addWidget(self.btn_novo)
+        self.btn_editar = QPushButton("✏️  Editar")
         self.btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
         self.btn_editar.clicked.connect(self._editar_usuario)
-        botoes_layout.addWidget(self.btn_editar)
+        botoes.addWidget(self.btn_editar)
+        botoes.addStretch()
+        layout.addLayout(botoes)
+        return tab
 
-        botoes_layout.addStretch()
-        layout.addLayout(botoes_layout)
+    def _criar_aba_backup(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(12)
 
-        layout.addSpacing(20)
+        desc = QLabel("Faça backup do banco de dados SQLite para evitar perda de dados.")
+        desc.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
 
-        # ── Seção Backup ──────────────────────────────────────
-        secao_titulo2 = QLabel("💾 Backup do Banco de Dados")
-        secao_titulo2.setStyleSheet("color: #60a5fa; font-size: 16px; font-weight: 700; background: transparent; margin-bottom: 8px;")
-        layout.addWidget(secao_titulo2)
-
-        self.btn_backup = QPushButton("📦 Fazer Backup Agora")
+        self.btn_backup = QPushButton("📦  Fazer Backup Agora")
         self.btn_backup.setMinimumHeight(48)
         self.btn_backup.setCursor(Qt.PointingHandCursor)
         self.btn_backup.setStyleSheet("""
@@ -119,6 +147,183 @@ class ConfigPage(QWidget):
         layout.addWidget(self.label_backup)
 
         layout.addStretch()
+        return tab
+
+    def _criar_aba_lixeira(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(12)
+
+        desc = QLabel("Restaura registros que foram excluídos (soft delete).")
+        desc.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        self.btn_lixeira = QPushButton("📂  Ver Registros Excluídos")
+        self.btn_lixeira.setMinimumHeight(44)
+        self.btn_lixeira.setCursor(Qt.PointingHandCursor)
+        self.btn_lixeira.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #ef4444, stop:1 #dc2626);
+                color: #ffffff;
+                border: none; border-radius: 10px;
+                padding: 12px 20px; font-size: 13px; font-weight: 700;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 #f87171, stop:1 #ef4444);
+            }
+        """)
+        self.btn_lixeira.clicked.connect(self._abrir_lixeira)
+        layout.addWidget(self.btn_lixeira)
+
+        layout.addStretch()
+        return tab
+
+    def _criar_aba_notificacoes(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(12)
+
+        desc = QLabel("Configure notificações para alertas críticos do sistema.")
+        desc.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        self._criar_notificacao_ui(layout)
+
+        layout.addStretch()
+        return tab
+
+    def _criar_notificacao_ui(self, parent_layout):
+        from app.services.notification_service import NotificacaoConfig
+
+        self._notif_config = NotificacaoConfig.carregar()
+
+        self._chk_desktop = QCheckBox("Notificação na área de trabalho (sistema)")
+        self._chk_desktop.setChecked(self._notif_config.desktop_ativado)
+        self._chk_desktop.setStyleSheet(
+            "QCheckBox { color: #e2e8f0; font-size: 12px; spacing: 8px; }"
+            " QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px;"
+            " border: 2px solid #475569; background: transparent; }"
+            " QCheckBox::indicator:checked { background-color: #a78bfa; border-color: #a78bfa; }"
+        )
+        parent_layout.addWidget(self._chk_desktop)
+
+        self._chk_email = QCheckBox("Notificação por e-mail")
+        self._chk_email.setChecked(self._notif_config.email_ativado)
+        self._chk_email.setStyleSheet(
+            "QCheckBox { color: #e2e8f0; font-size: 12px; spacing: 8px; margin-top: 4px; }"
+            " QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px;"
+            " border: 2px solid #475569; background: transparent; }"
+            " QCheckBox::indicator:checked { background-color: #a78bfa; border-color: #a78bfa; }"
+        )
+        parent_layout.addWidget(self._chk_email)
+
+        form_notif = QFormLayout()
+        form_notif.setSpacing(8)
+        form_notif.setContentsMargins(16, 8, 16, 0)
+
+        self._input_smtp_host = QLineEdit()
+        self._input_smtp_host.setStyleSheet(ESTILO_INPUT)
+        self._input_smtp_host.setText(self._notif_config.smtp_host)
+        self._input_smtp_host.setPlaceholderText("smtp.gmail.com")
+        form_notif.addRow("SMTP Servidor:", self._input_smtp_host)
+
+        self._input_smtp_port = QSpinBox()
+        self._input_smtp_port.setRange(1, 65535)
+        self._input_smtp_port.setValue(self._notif_config.smtp_port)
+        self._input_smtp_port.setStyleSheet(ESTILO_INPUT)
+        form_notif.addRow("SMTP Porta:", self._input_smtp_port)
+
+        self._input_smtp_user = QLineEdit()
+        self._input_smtp_user.setStyleSheet(ESTILO_INPUT)
+        self._input_smtp_user.setText(self._notif_config.smtp_usuario)
+        self._input_smtp_user.setPlaceholderText("seuemail@gmail.com")
+        form_notif.addRow("SMTP Usuário:", self._input_smtp_user)
+
+        self._input_smtp_senha = QLineEdit()
+        self._input_smtp_senha.setStyleSheet(ESTILO_INPUT)
+        self._input_smtp_senha.setText(self._notif_config.smtp_senha)
+        self._input_smtp_senha.setEchoMode(QLineEdit.Password)
+        self._input_smtp_senha.setPlaceholderText("senha ou app password")
+        form_notif.addRow("SMTP Senha:", self._input_smtp_senha)
+
+        self._input_email_de = QLineEdit()
+        self._input_email_de.setStyleSheet(ESTILO_INPUT)
+        self._input_email_de.setText(self._notif_config.email_remetente)
+        self._input_email_de.setPlaceholderText("remetente@email.com")
+        form_notif.addRow("E-mail remetente:", self._input_email_de)
+
+        self._input_email_para = QLineEdit()
+        self._input_email_para.setStyleSheet(ESTILO_INPUT)
+        self._input_email_para.setText(self._notif_config.email_destinatario)
+        self._input_email_para.setPlaceholderText("destinatario@email.com")
+        form_notif.addRow("E-mail destinatário:", self._input_email_para)
+
+        parent_layout.addLayout(form_notif)
+
+        botoes_notif = QHBoxLayout()
+        botoes_notif.setSpacing(10)
+
+        btn_salvar_notif = QPushButton("💾 Salvar Configuração")
+        btn_salvar_notif.setCursor(Qt.PointingHandCursor)
+        btn_salvar_notif.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar_notif.clicked.connect(self._salvar_notificacao)
+        botoes_notif.addWidget(btn_salvar_notif)
+
+        btn_testar = QPushButton("📧 Testar E-mail")
+        btn_testar.setCursor(Qt.PointingHandCursor)
+        btn_testar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_testar.clicked.connect(self._testar_email)
+        botoes_notif.addWidget(btn_testar)
+
+        botoes_notif.addStretch()
+        parent_layout.addLayout(botoes_notif)
+
+        self._lbl_status_notif = QLabel("")
+        self._lbl_status_notif.setStyleSheet("color: #475569; font-size: 12px; background: transparent; padding: 4px 0;")
+        parent_layout.addWidget(self._lbl_status_notif)
+
+    def _salvar_notificacao(self):
+        cfg = self._notif_config
+        cfg.desktop_ativado = self._chk_desktop.isChecked()
+        cfg.email_ativado = self._chk_email.isChecked()
+        cfg.smtp_host = self._input_smtp_host.text().strip()
+        cfg.smtp_port = self._input_smtp_port.value()
+        cfg.smtp_usuario = self._input_smtp_user.text().strip()
+        cfg.smtp_senha = self._input_smtp_senha.text()
+        cfg.email_remetente = self._input_email_de.text().strip()
+        cfg.email_destinatario = self._input_email_para.text().strip()
+        cfg.salvar()
+        if hasattr(self, "_notificador"):
+            self._notificador.recarregar_config()
+        self._lbl_status_notif.setStyleSheet("color: #34d399; font-size: 12px; background: transparent;")
+        self._lbl_status_notif.setText("Configuração salva com sucesso!")
+
+    def _testar_email(self):
+        from app.services.notification_service import NotificacaoConfig
+        cfg = NotificacaoConfig()
+        cfg.desktop_ativado = self._chk_desktop.isChecked()
+        cfg.email_ativado = True
+        cfg.smtp_host = self._input_smtp_host.text().strip()
+        cfg.smtp_port = self._input_smtp_port.value()
+        cfg.smtp_usuario = self._input_smtp_user.text().strip()
+        cfg.smtp_senha = self._input_smtp_senha.text()
+        cfg.email_remetente = self._input_email_de.text().strip()
+        cfg.email_destinatario = self._input_email_para.text().strip()
+
+        self._lbl_status_notif.setStyleSheet("color: #fbbf24; font-size: 12px; background: transparent;")
+        self._lbl_status_notif.setText("Enviando e-mail de teste...")
+        ok, msg = cfg.testar_email()
+        if ok:
+            self._lbl_status_notif.setStyleSheet("color: #34d399; font-size: 12px; background: transparent;")
+        else:
+            self._lbl_status_notif.setStyleSheet("color: #f87171; font-size: 12px; background: transparent;")
+        self._lbl_status_notif.setText(msg)
 
     def recarregar(self):
         usuarios = self.user_service.listar_todos()
@@ -154,6 +359,91 @@ class ConfigPage(QWidget):
         dialog = _UserDialog(self, self.user_service, modo="editar", usuario=usuario)
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
+
+    def _abrir_lixeira(self):
+        servicos = [
+            ("Impressoras", self.printer_service, ["Patrimônio", "Modelo", "Marca", "Serial", "Status", "Local", "Excluído em"],
+             lambda r: [r.patrimonio or "-", r.modelo or "-", r.marca or "-", r.serial or "-", r.status or "-", r.local_atual or "-", formatar_data_hora(r.deleted_at)]),
+            ("Peças", self.part_service, ["Nome", "Código", "Modelo Compatível", "Qtd Estoque", "Estoque Mín.", "Excluído em"],
+             lambda r: [r.nome or "-", r.codigo or "-", r.modelo_compativel or "-", str(r.quantidade_estoque), str(r.estoque_minimo), formatar_data_hora(r.deleted_at)]),
+            ("Clientes", self.company_service, ["Nome", "CNPJ", "Telefone", "Email", "Tipo", "Excluído em"],
+             lambda r: [r.nome or "-", r.cnpj or "-", r.telefone or "-", r.email or "-", r.tipo or "-", formatar_data_hora(r.deleted_at)]),
+            ("OS", self.activity_service, ["Tipo", "Impressora", "Data", "Status", "Recibo", "Excluído em"],
+             lambda r: [r.kind or "-", r.printer.patrimonio if r.printer else "-", formatar_data_hora(r.event_at), r.status_atividade or "-", r.numero_recibo or "-", formatar_data_hora(r.deleted_at)]),
+            ("Transferências", self.transfer_service, ["Nº OS", "Tipo", "Data Saída", "Responsável", "Excluído em"],
+             lambda r: [r.numero_os or "-", r.tipo or "-", formatar_data_hora(r.data_saida) if r.data_saida else "-", r.responsavel_entrega or "-", formatar_data_hora(r.deleted_at)]),
+            ("Técnicos", self.technician_service, ["Nome", "Exibição", "Telefone", "Email", "Excluído em"],
+             lambda r: [r.nome_completo or "-", r.nome_exibicao or "-", r.telefone or "-", r.email or "-", formatar_data_hora(r.deleted_at)]),
+            ("Alertas", self.alert_service, ["Título", "Tipo", "Descrição", "Data", "Excluído em"],
+             lambda r: [r.titulo or "-", r.tipo or "-", (r.descricao or "")[:80] + ("..." if len(r.descricao or "") > 80 else ""), formatar_data_hora(r.data_alerta) if r.data_alerta else "-", formatar_data_hora(r.deleted_at)]),
+        ]
+        dialog = QDialog(self)
+        dialog.setWindowTitle("🗑️ Lixeira — Registros Excluídos")
+        dialog.setMinimumSize(850, 500)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+
+        abas = QTabWidget()
+        abas.setStyleSheet("""
+            QTabWidget::pane { border: none; background: transparent; }
+            QTabBar::tab { padding: 8px 18px; color: #94949f; font-weight: 600;
+                background: transparent; border: none; border-bottom: 2px solid transparent; }
+            QTabBar::tab:selected { color: #ef4444; border-bottom: 2px solid #ef4444; }
+            QTabBar::tab:hover { color: #e8e8f0; }
+        """)
+
+        for nome_tab, svc, colunas, extrair in servicos:
+            if not svc:
+                continue
+            registros = svc.listar_excluidos() if hasattr(svc, "listar_excluidos") else []
+            tab = self._criar_tab_lixeira(registros, colunas, extrair, svc, dialog)
+            abas.addTab(tab, f"{nome_tab} ({len(registros)})")
+
+        layout.addWidget(abas)
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.clicked.connect(dialog.accept)
+        layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
+        dialog.exec()
+
+    def _criar_tab_lixeira(self, registros, colunas, extrair, svc, parent_dialog):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(8)
+        if not registros:
+            layout.addWidget(QLabel("Nenhum registro excluído."))
+            return tab
+
+        tabela = TabelaPadrao(colunas)
+        tabela.setRowCount(len(registros))
+        for i, r in enumerate(registros):
+            valores = extrair(r)
+            for j, val in enumerate(valores):
+                tabela.setItem(i, j, QTableWidgetItem(val))
+        tabela.redimensionar()
+        layout.addWidget(tabela)
+
+        btn_restaurar = QPushButton("♻️ Restaurar Selecionado")
+        btn_restaurar.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+        btn_restaurar.clicked.connect(lambda: self._restaurar_selecionado(tabela, registros, svc, parent_dialog))
+        layout.addWidget(btn_restaurar, alignment=Qt.AlignCenter)
+        return tab
+
+    def _restaurar_selecionado(self, tabela, registros, svc, dialog):
+        row = tabela.currentRow()
+        if row < 0 or row >= len(registros):
+            QMessageBox.warning(self, "Aviso", "Selecione um registro para restaurar.")
+            return
+        obj = registros[row]
+        resp = QMessageBox.question(self, "Confirmar", f"Restaurar '{getattr(obj, 'nome', getattr(obj, 'patrimonio', obj.id))}'?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if resp == QMessageBox.Yes:
+            with tratar_erro("restaurar registro"):
+                svc.restaurar(obj)
+                QMessageBox.information(self, "Restaurado", "Registro restaurado com sucesso.")
+                dialog.accept()
+                self._abrir_lixeira()
 
     def _fazer_backup(self):
         try:
@@ -194,6 +484,7 @@ class _UserDialog(QDialog):
 
         self.input_nome = QLineEdit()
         self.input_nome.setStyleSheet(ESTILO_INPUT)
+        self.input_nome.setMaxLength(120)
         self.input_nome.setPlaceholderText("Nome completo")
         if self.usuario:
             self.input_nome.setText(self.usuario.nome)
@@ -201,6 +492,7 @@ class _UserDialog(QDialog):
 
         self.input_username = QLineEdit()
         self.input_username.setStyleSheet(ESTILO_INPUT)
+        self.input_username.setMaxLength(50)
         self.input_username.setPlaceholderText("Nome de usuário")
         if self.usuario:
             self.input_username.setText(self.usuario.username)
@@ -211,6 +503,7 @@ class _UserDialog(QDialog):
 
         self.input_email = QLineEdit()
         self.input_email.setStyleSheet(ESTILO_INPUT)
+        self.input_email.setMaxLength(120)
         self.input_email.setPlaceholderText("email@exemplo.com")
         if self.usuario:
             self.input_email.setText(self.usuario.email)

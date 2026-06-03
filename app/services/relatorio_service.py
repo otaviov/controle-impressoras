@@ -103,7 +103,7 @@ class RelatorioService:
             bottom=Side(style='thin', color='cba6f7')
         )
 
-        # Título
+        # Titulo
         ws.merge_cells('A1:G1')
         ws['A1'] = f'RELATÓRIO DE IMPRESSORAS - {datetime.now().strftime("%d/%m/%Y %H:%M")}'
         ws['A1'].font = Font(name='Arial', size=14, bold=True, color='cba6f7')

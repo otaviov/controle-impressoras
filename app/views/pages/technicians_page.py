@@ -21,6 +21,7 @@ from app.views.styles.theme import (
     ESTILO_INPUT,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.table_widget import TabelaPadrao
 
 
@@ -38,12 +39,12 @@ class _TechnicianDialog(QDialog):
         self.input_nome = QLineEdit()
         self.input_nome.setStyleSheet(ESTILO_INPUT)
         self.input_nome.setPlaceholderText("Nome completo do técnico")
-        self.input_nome.setMaxLength(100)
+        self.input_nome.setMaxLength(150)
 
         self.input_exibicao = QLineEdit()
         self.input_exibicao.setStyleSheet(ESTILO_INPUT)
         self.input_exibicao.setPlaceholderText("Nome de exibição (apelido)")
-        self.input_exibicao.setMaxLength(60)
+        self.input_exibicao.setMaxLength(80)
 
         self.input_telefone = QLineEdit()
         self.input_telefone.setStyleSheet(ESTILO_INPUT)
@@ -53,7 +54,7 @@ class _TechnicianDialog(QDialog):
         self.input_email = QLineEdit()
         self.input_email.setStyleSheet(ESTILO_INPUT)
         self.input_email.setPlaceholderText("email@exemplo.com")
-        self.input_email.setMaxLength(100)
+        self.input_email.setMaxLength(120)
 
         form.addRow("Nome Completo:", self.input_nome)
         form.addRow("Nome Exibição:", self.input_exibicao)
@@ -139,12 +140,28 @@ class TechniciansPage(QWidget):
 
         layout.addLayout(header)
 
+        self._tecnicos_visiveis = []
         self.tabela = TabelaPadrao(self.COLUNAS)
         self.tabela.cellDoubleClicked.connect(self._editar)
         layout.addWidget(self.tabela, 1)
 
+        self._paginacao = PaginacaoWidget()
+        self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
+        layout.addWidget(self._paginacao)
+
+        self._carregar()
+
     def recarregar(self):
-        tecnicos = self._technician_service.listar_todos()
+        self._carregar()
+
+    def _carregar(self):
+        tecnicos = self._technician_service.listar_todos(
+            limite=self._paginacao.limit, offset=self._paginacao.offset
+        )
+        total = self._technician_service.contar_todos()
+        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+                                   itens_por_pagina=self._paginacao.limit)
+        self._tecnicos_visiveis = tecnicos
         self.tabela.limpar()
         self.tabela.setRowCount(len(tecnicos))
         for i, t in enumerate(tecnicos):
@@ -172,10 +189,9 @@ class TechniciansPage(QWidget):
                 QMessageBox.critical(self, "Erro", f"Erro ao criar técnico:\n{e}")
 
     def _editar(self, row):
-        tecnicos = self._technician_service.listar_todos()
-        if row < 0 or row >= len(tecnicos):
+        if row < 0 or row >= len(self._tecnicos_visiveis):
             return
-        tecnico = tecnicos[row]
+        tecnico = self._tecnicos_visiveis[row]
         dados = {
             "nome_completo": tecnico.nome_completo,
             "nome_exibicao": tecnico.nome_exibicao,

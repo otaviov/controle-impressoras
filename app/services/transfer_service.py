@@ -8,6 +8,7 @@ from datetime import datetime
 from sqlalchemy import func
 
 from app.models import Transfer
+from app.utils.sanitize import sanitizar
 
 
 class TransferService:
@@ -17,7 +18,7 @@ class TransferService:
         self.user_id = user_id
 
     def listar_todas(self, limite=200, offset=None):
-        query = self.session.query(Transfer).order_by(Transfer.created_at.desc())
+        query = self.session.query(Transfer).filter(Transfer.deleted_at == None).order_by(Transfer.created_at.desc())
         if limite is not None:
             query = query.limit(limite)
         if offset is not None:
@@ -25,7 +26,7 @@ class TransferService:
         return query.all()
 
     def listar_por_impressora(self, printer_id, limite=None, offset=None):
-        query = self.session.query(Transfer).filter(
+        query = self.session.query(Transfer).filter(Transfer.deleted_at == None).filter(
             Transfer.printer_id == printer_id
         ).order_by(Transfer.created_at.desc())
         if limite is not None:
@@ -35,7 +36,7 @@ class TransferService:
         return query.all()
 
     def listar_por_tipo(self, tipo, limite=100, offset=None):
-        query = self.session.query(Transfer).filter(
+        query = self.session.query(Transfer).filter(Transfer.deleted_at == None).filter(
             Transfer.tipo == tipo
         ).order_by(Transfer.created_at.desc())
         if limite is not None:
@@ -45,11 +46,11 @@ class TransferService:
         return query.all()
 
     def buscar_por_id(self, transfer_id):
-        return self.session.query(Transfer).filter(Transfer.id == transfer_id).first()
+        return self.session.query(Transfer).filter(Transfer.deleted_at == None, Transfer.id == transfer_id).first()
 
     def buscar_por_numero_os(self, numero_os):
         return self.session.query(Transfer).filter(
-            Transfer.numero_os == numero_os
+            Transfer.deleted_at == None, Transfer.numero_os == numero_os
         ).order_by(Transfer.created_at.desc()).all()
 
     def criar(self, printer_id, numero_os="", tipo="saida",
@@ -58,12 +59,12 @@ class TransferService:
               data_saida=None, data_retorno_prev=None, observacao=""):
         t = Transfer(
             printer_id=printer_id,
-            numero_os=numero_os,
-            tipo=tipo,
+            numero_os=sanitizar(numero_os, "Transfer", "numero_os"),
+            tipo=sanitizar(tipo, "Transfer", "tipo"),
             from_company_id=from_company_id,
             to_company_id=to_company_id,
-            responsavel_entrega=responsavel_entrega,
-            responsavel_recebimento=responsavel_recebimento,
+            responsavel_entrega=sanitizar(responsavel_entrega, "Transfer", "responsavel_entrega"),
+            responsavel_recebimento=sanitizar(responsavel_recebimento, "Transfer", "responsavel_recebimento"),
             data_saida=data_saida or datetime.now(),
             data_retorno_prev=data_retorno_prev,
             observacao=observacao,
@@ -79,6 +80,8 @@ class TransferService:
             dados_antes = {chave: getattr(transferencia, chave, None) for chave in kwargs}
         for chave, valor in kwargs.items():
             if hasattr(transferencia, chave):
+                if isinstance(valor, str):
+                    valor = sanitizar(valor, "Transfer", chave)
                 setattr(transferencia, chave, valor)
         safe_commit(self.session)
         if self.audit_service:
@@ -93,12 +96,12 @@ class TransferService:
     def excluir(self, transferencia):
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="transfers", registro_id=transferencia.id, dados_antes=transferencia)
-        self.session.delete(transferencia)
+        transferencia.deleted_at = datetime.utcnow()
         safe_commit(self.session)
 
     def contar_pendentes(self):
         return self.session.query(Transfer).filter(
-            Transfer.data_retorno_real == None
+            Transfer.deleted_at == None, Transfer.data_retorno_real == None
         ).count()
 
     def contar_por_tipo(self):
@@ -111,4 +114,15 @@ class TransferService:
         return self.session.query(Transfer).filter(
             Transfer.created_at >= inicio, Transfer.created_at < fim
         ).count()
+
+    def listar_excluidos(self, limite=50):
+        return self.session.query(Transfer).filter(
+            Transfer.deleted_at != None
+        ).order_by(Transfer.deleted_at.desc()).limit(limite).all()
+
+    def restaurar(self, obj):
+        obj.deleted_at = None
+        safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "restaurar", tabela_alvo="transfers", registro_id=obj.id)
 

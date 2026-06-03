@@ -1,6 +1,7 @@
 import logging
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -10,11 +11,13 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QStackedWidget,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
 from datetime import datetime as dt
 
+from app.services.notification_service import NotificadorService
 from app.utils.ui_helpers import exportar_em_thread
 from app.services import (
     ActivityService,
@@ -65,6 +68,17 @@ class MainWindow(QMainWindow):
         self.alert_service = AlertService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.transfer_service = TransferService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.login_history_service = LoginHistoryService(session)
+
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon.fromTheme("printer"))
+        self.tray_icon.setToolTip("Controle de Impressoras Pro")
+        self.tray_icon.show()
+
+        self.notificador = NotificadorService(tray_icon=self.tray_icon)
+
+        for svc in [self.alert_service]:
+            if hasattr(svc, "notificador"):
+                svc.notificador = self.notificador
 
         self.menu_buttons = []
         self._menu_indices = []
@@ -205,7 +219,8 @@ class MainWindow(QMainWindow):
         )
         self.pagina_transferencias = TransfersPage(
             self.session, self.printer_service,
-            self.activity_service, self.company_service
+            self.activity_service, self.company_service,
+            transfer_service=self.transfer_service
         )
         self.pagina_tecnicos = TechniciansPage(
             self.session, self.technician_service
@@ -235,7 +250,15 @@ class MainWindow(QMainWindow):
 
         if self.user.get('perfil') == 'admin':
             self.pagina_config = ConfigPage(
-                self.session, self.user_service, self.user
+                self.session, self.user_service, self.user,
+                notificador=self.notificador,
+                printer_service=self.printer_service,
+                part_service=self.part_service,
+                company_service=self.company_service,
+                activity_service=self.activity_service,
+                transfer_service=self.transfer_service,
+                technician_service=self.technician_service,
+                alert_service=self.alert_service,
             )
             self.content_area.addWidget(self.pagina_config)       # 10
 
