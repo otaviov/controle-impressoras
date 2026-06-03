@@ -35,6 +35,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     configurar_combo,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniClicavel
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
@@ -378,6 +379,11 @@ class OSPage(QWidget):
             ):
                 try:
                     self.activity_service.excluir(atividade)
+                    ToastManager.mostrar(
+                        "OS excluída.",
+                        "aviso", duracao=8000,
+                        acao=("Desfazer", lambda o=atividade, svc=self.activity_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                    )
                     resultado["acao"] = "excluir"
                     dialog.accept()
                     self.recarregar()

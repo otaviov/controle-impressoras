@@ -47,6 +47,7 @@ from app.views.styles.theme import (
     configurar_combo,
     estilos_dialogo_tabs,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniWidget
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.search_bar import SearchBar
@@ -635,6 +636,11 @@ class TransfersPage(QWidget):
             try:
                 if self.transfer_service:
                     self.transfer_service.excluir(mov)
+                    ToastManager.mostrar(
+                        "Transferência excluída.",
+                        "aviso", duracao=8000,
+                        acao=("Desfazer", lambda o=mov, svc=self.transfer_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                    )
                 else:
                     mov.deleted_at = dt.utcnow()
                     safe_commit(self._session)

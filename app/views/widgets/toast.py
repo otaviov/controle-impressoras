@@ -11,25 +11,25 @@ class ToastManager:
             cls._container = _ToastContainer(parent)
 
     @classmethod
-    def mostrar(cls, mensagem: str, tipo: str = "info", duracao: int = 4000, persistente: bool = False):
+    def mostrar(cls, mensagem: str, tipo: str = "info", duracao: int = 4000, persistente: bool = False, acao: tuple = None):
         if cls._container:
-            cls._container.adicionar(mensagem, tipo, duracao, persistente)
+            cls._container.adicionar(mensagem, tipo, duracao, persistente, acao)
 
     @classmethod
-    def info(cls, mensagem: str, persistente: bool = False):
-        cls.mostrar(mensagem, "info", persistente=persistente)
+    def info(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+        cls.mostrar(mensagem, "info", persistente=persistente, acao=acao)
 
     @classmethod
-    def sucesso(cls, mensagem: str, persistente: bool = False):
-        cls.mostrar(mensagem, "sucesso", persistente=persistente)
+    def sucesso(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+        cls.mostrar(mensagem, "sucesso", persistente=persistente, acao=acao)
 
     @classmethod
-    def aviso(cls, mensagem: str, persistente: bool = False):
-        cls.mostrar(mensagem, "aviso", persistente=persistente)
+    def aviso(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+        cls.mostrar(mensagem, "aviso", persistente=persistente, acao=acao)
 
     @classmethod
-    def erro(cls, mensagem: str, persistente: bool = False):
-        cls.mostrar(mensagem, "erro", persistente=persistente)
+    def erro(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+        cls.mostrar(mensagem, "erro", persistente=persistente, acao=acao)
 
     @classmethod
     def limpar_persistentes(cls):
@@ -70,8 +70,8 @@ class _ToastContainer(QWidget):
             self.move(p.width() - self.width() - self._margem, 10)
             self.raise_()
 
-    def adicionar(self, mensagem, tipo, duracao, persistente=False):
-        toast = _Toast(self, mensagem, tipo, duracao, persistente)
+    def adicionar(self, mensagem, tipo, duracao, persistente=False, acao=None):
+        toast = _Toast(self, mensagem, tipo, duracao, persistente, acao)
         self._toasts.append(toast)
         toast.mostrar()
         self._reposicionar_toasts()
@@ -102,14 +102,19 @@ class _ToastContainer(QWidget):
 
 
 class _Toast(QFrame):
-    def __init__(self, container, mensagem, tipo, duracao, persistente=False):
+    def __init__(self, container, mensagem, tipo, duracao, persistente=False, acao=None):
         super().__init__(container)
         self._container = container
         self._duracao = duracao
         self._persistente = persistente
         cor = CORES_TOAST.get(tipo, CORES_TOAST["info"])
 
-        self.setFixedWidth(340)
+        self._acao = acao
+
+        if acao:
+            self.setFixedWidth(400)
+        else:
+            self.setFixedWidth(340)
         self.setStyleSheet(f"""
             _Toast {{
                 background-color: {cor['bg']};
@@ -131,6 +136,20 @@ class _Toast(QFrame):
         lbl_msg.setWordWrap(True)
         lbl_msg.setStyleSheet("color: #e2e8f0; font-size: 12px; background: transparent;")
         layout.addWidget(lbl_msg, 1)
+
+        if acao:
+            texto, callback = acao
+            btn_acao = QPushButton(texto)
+            btn_acao.setFixedHeight(28)
+            btn_acao.setCursor(Qt.PointingHandCursor)
+            btn_acao.setStyleSheet(
+                "QPushButton { background: rgba(99,102,241,0.15); color: #818cf8;"
+                " border: 1px solid rgba(99,102,241,0.3); border-radius: 6px;"
+                " font-size: 11px; font-weight: 700; padding: 0 12px; }"
+                " QPushButton:hover { background: rgba(99,102,241,0.25); color: #a5b4fc; }"
+            )
+            btn_acao.clicked.connect(lambda: (callback(), self.fechar()))
+            layout.addWidget(btn_acao)
 
         btn_fechar = QPushButton("X")
         btn_fechar.setFixedSize(24, 24)

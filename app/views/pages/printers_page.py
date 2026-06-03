@@ -43,6 +43,7 @@ from app.views.styles.theme import (
     STATUS_CORES,
     estilos_dialogo_tabs,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
@@ -548,6 +549,11 @@ class PrintersPage(QWidget):
         ):
             with tratar_erro("excluir impressora"):
                 self.printer_service.excluir(printer)
+                ToastManager.mostrar(
+                    f"Impressora '{printer.patrimonio}' excluída.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=printer, svc=self.printer_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                )
                 self.recarregar()
                 dialog.accept()
 
@@ -781,5 +787,10 @@ class PrintersPage(QWidget):
         ):
             with tratar_erro("excluir atividade"):
                 self.activity_service.excluir(atividade)
+                ToastManager.mostrar(
+                    "Atividade excluída.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=atividade, svc=self.activity_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                )
                 self.recarregar()
                 dialog.accept()

@@ -32,6 +32,7 @@ from app.views.styles.theme import (
     ESTILO_INPUT_READONLY,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniWidget
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
@@ -337,6 +338,11 @@ class PartsPage(QWidget):
             ):
                 with tratar_erro("excluir peça"):
                     self.part_service.excluir(peca)
+                    ToastManager.mostrar(
+                        f"Peça '{peca.nome}' excluída.",
+                        "aviso", duracao=8000,
+                        acao=("Desfazer", lambda o=peca, svc=self.part_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                    )
                     dialog.accept()
                     self.recarregar()
 

@@ -38,6 +38,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     estilos_dialogo_tabs,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
@@ -350,6 +351,11 @@ class ClientsPage(QWidget):
         ):
             with tratar_erro("excluir empresa"):
                 self.company_service.excluir(empresa)
+                ToastManager.mostrar(
+                    f"Empresa '{empresa.nome}' excluída.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=empresa, svc=self.company_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                )
                 self.recarregar()
                 dialog.accept()
 

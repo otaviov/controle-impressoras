@@ -21,6 +21,7 @@ from app.views.styles.theme import (
     ESTILO_INPUT,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.table_widget import TabelaPadrao
@@ -202,6 +203,11 @@ class TechniciansPage(QWidget):
             if dialogo.excluir_confirmado():
                 try:
                     self._technician_service.excluir(tecnico)
+                    ToastManager.mostrar(
+                        f"Técnico '{tecnico.nome_exibicao or tecnico.nome_completo}' excluído.",
+                        "aviso", duracao=8000,
+                        acao=("Desfazer", lambda o=tecnico, svc=self._technician_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                    )
                     self.recarregar()
                 except Exception as e:
                     QMessageBox.critical(self, "Erro", f"Erro ao excluir técnico:\n{e}")

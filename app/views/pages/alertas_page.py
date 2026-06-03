@@ -594,7 +594,11 @@ class AlertasPage(QWidget):
             try:
                 self.alert_service.excluir(alerta)
                 ToastManager.atualizar_status(self.alert_service.contar_pendentes())
-                ToastManager.info(f"Alerta excluído: {alerta.titulo}")
+                ToastManager.mostrar(
+                    f"Alerta '{alerta.titulo}' excluído.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=alerta, svc=self.alert_service, pag=self: (svc.restaurar(o), ToastManager.atualizar_status(svc.contar_pendentes()), pag.recarregar())),
+                )
                 self.recarregar()
                 dialog.accept()
             except Exception as e:
