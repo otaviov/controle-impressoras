@@ -26,6 +26,7 @@ import json
 
 from app.utils.helpers import formatar_data_hora
 from app.utils.ui_helpers import tratar_erro
+from app.utils.validacao import ValidadorCampo, obrigatorio, email, minimo
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -42,6 +43,7 @@ from app.views.styles.theme import (
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.table_widget import TabelaPadrao
 from config import DB_PATH
@@ -241,6 +243,12 @@ class ConfigPage(QWidget):
         self._input_smtp_host.setPlaceholderText("smtp.gmail.com")
         form_notif.addRow("SMTP Servidor:", self._input_smtp_host)
 
+        erro_host = QLabel()
+        erro_host.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_host.hide()
+        form_notif.addRow("", erro_host)
+        ValidadorCampo(self._input_smtp_host, obrigatorio, erro_host)
+
         self._input_smtp_port = QSpinBox()
         self._input_smtp_port.setRange(1, 65535)
         self._input_smtp_port.setValue(self._notif_config.smtp_port)
@@ -266,11 +274,23 @@ class ConfigPage(QWidget):
         self._input_email_de.setPlaceholderText("remetente@email.com")
         form_notif.addRow("E-mail remetente:", self._input_email_de)
 
+        erro_de = QLabel()
+        erro_de.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_de.hide()
+        form_notif.addRow("", erro_de)
+        ValidadorCampo(self._input_email_de, email, erro_de)
+
         self._input_email_para = QLineEdit()
         self._input_email_para.setStyleSheet(ESTILO_INPUT)
         self._input_email_para.setText(self._notif_config.email_destinatario)
         self._input_email_para.setPlaceholderText("destinatario@email.com")
         form_notif.addRow("E-mail destinatário:", self._input_email_para)
+
+        erro_para = QLabel()
+        erro_para.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_para.hide()
+        form_notif.addRow("", erro_para)
+        ValidadorCampo(self._input_email_para, email, erro_para)
 
         parent_layout.addLayout(form_notif)
 
@@ -641,6 +661,12 @@ class _UserDialog(QDialog):
             self.input_nome.setText(self.usuario.nome)
         form.addRow("Nome:", self.input_nome)
 
+        erro_nome = QLabel()
+        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_nome.hide()
+        form.addRow("", erro_nome)
+        ValidadorCampo(self.input_nome, obrigatorio, erro_nome)
+
         self.input_username = QLineEdit()
         self.input_username.setStyleSheet(ESTILO_INPUT)
         self.input_username.setMaxLength(50)
@@ -652,6 +678,13 @@ class _UserDialog(QDialog):
             self.input_username.setStyleSheet(ESTILO_INPUT_READONLY)
         form.addRow("Usuário:", self.input_username)
 
+        erro_user = QLabel()
+        erro_user.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_user.hide()
+        form.addRow("", erro_user)
+        if self.modo == "novo":
+            ValidadorCampo(self.input_username, minimo(3), erro_user)
+
         self.input_email = QLineEdit()
         self.input_email.setStyleSheet(ESTILO_INPUT)
         self.input_email.setMaxLength(120)
@@ -659,6 +692,12 @@ class _UserDialog(QDialog):
         if self.usuario:
             self.input_email.setText(self.usuario.email)
         form.addRow("Email:", self.input_email)
+
+        erro_email = QLabel()
+        erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_email.hide()
+        form.addRow("", erro_email)
+        ValidadorCampo(self.input_email, email, erro_email)
 
         self.input_senha = QLineEdit()
         self.input_senha.setStyleSheet(ESTILO_INPUT)

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from app.utils.helpers import formatar_data_hora
 from app.utils.ui_helpers import tratar_erro
+from app.utils.validacao import ValidadorCampo, obrigatorio
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
@@ -285,6 +286,12 @@ class AlertasPage(QWidget):
         titulo_input.setStyleSheet(ESTILO_INPUT)
         layout.addRow("Título *:", titulo_input)
 
+        erro_titulo = QLabel()
+        erro_titulo.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_titulo.hide()
+        layout.addRow("", erro_titulo)
+        ValidadorCampo(titulo_input, obrigatorio, erro_titulo)
+
         desc_input = QTextEdit()
         desc_input.setPlaceholderText("Descrição detalhada...")
         desc_input.setMaximumHeight(80)
@@ -510,6 +517,12 @@ class AlertasPage(QWidget):
         titulo_input.setText(alerta.titulo or "")
         titulo_input.setStyleSheet(ESTILO_INPUT)
         layout.addRow("Título *:", titulo_input)
+
+        erro_titulo = QLabel()
+        erro_titulo.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_titulo.hide()
+        layout.addRow("", erro_titulo)
+        ValidadorCampo(titulo_input, obrigatorio, erro_titulo)
 
         desc_input = QTextEdit()
         desc_input.setPlainText(alerta.descricao or "")

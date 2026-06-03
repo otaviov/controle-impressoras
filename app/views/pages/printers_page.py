@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from app.utils.helpers import formatar_data_hora, limpar_local, parse_data
 from app.utils.ui_helpers import tratar_erro
+from app.utils.validacao import ValidadorCampo, obrigatorio
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -171,6 +172,12 @@ class PrintersPage(QWidget):
         patrimonio_input.setPlaceholderText("Número do patrimônio")
         patrimonio_input.setMaxLength(80)
         layout.addRow("Patrimônio *:", patrimonio_input)
+
+        erro_pat = QLabel()
+        erro_pat.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_pat.hide()
+        layout.addRow("", erro_pat)
+        ValidadorCampo(patrimonio_input, obrigatorio, erro_pat)
 
         modelo_input = QLineEdit()
         modelo_input.setPlaceholderText("Modelo da impressora")

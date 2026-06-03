@@ -21,6 +21,7 @@ from app.views.styles.theme import (
     ESTILO_INPUT,
     ESTILO_TITULO_PAGINA,
 )
+from app.utils.validacao import ValidadorCampo, obrigatorio, email
 from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
@@ -50,7 +51,7 @@ class _TechnicianDialog(QDialog):
 
         self.input_telefone = QLineEdit()
         self.input_telefone.setStyleSheet(ESTILO_INPUT)
-        self.input_telefone.setPlaceholderText("(11) 99999-9999")
+        self.input_telefone.setPlaceholderText("(81) 99999-9999")
         self.input_telefone.setMaxLength(20)
 
         self.input_email = QLineEdit()
@@ -59,9 +60,23 @@ class _TechnicianDialog(QDialog):
         self.input_email.setMaxLength(120)
 
         form.addRow("Nome Completo:", self.input_nome)
+
+        erro_nome = QLabel()
+        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_nome.hide()
+        form.addRow("", erro_nome)
+
         form.addRow("Nome Exibição:", self.input_exibicao)
         form.addRow("Telefone:", self.input_telefone)
         form.addRow("Email:", self.input_email)
+
+        erro_email = QLabel()
+        erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_email.hide()
+        form.addRow("", erro_email)
+
+        ValidadorCampo(self.input_nome, obrigatorio, erro_nome)
+        ValidadorCampo(self.input_email, email, erro_email)
         layout.addLayout(form)
 
         if dados:

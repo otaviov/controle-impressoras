@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QDialog, QFrame, QLabel, QLineEdit, QPushButton, Q
 from app.models import LoginHistory, User
 from app.utils.effects import sombra_glow
 from app.utils.security import verify_password
+from app.utils.validacao import ValidadorCampo, obrigatorio
 from db import close_session, get_session
 
 MAX_TENTATIVAS = 5
@@ -137,6 +138,12 @@ class LoginDialog(QDialog):
         self.user_input.setStyleSheet(self._input_style())
         card_layout.addWidget(self.user_input)
 
+        erro_user = QLabel("")
+        erro_user.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent; min-height: 14px;")
+        erro_user.hide()
+        card_layout.addWidget(erro_user)
+        ValidadorCampo(self.user_input, obrigatorio, erro_user)
+
         card_layout.addSpacing(6)
 
         # SENHA
@@ -151,6 +158,12 @@ class LoginDialog(QDialog):
         self.senha_input.setStyleSheet(self._input_style())
         self.senha_input.setFocus()
         card_layout.addWidget(self.senha_input)
+
+        erro_senha = QLabel("")
+        erro_senha.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent; min-height: 14px;")
+        erro_senha.hide()
+        card_layout.addWidget(erro_senha)
+        ValidadorCampo(self.senha_input, obrigatorio, erro_senha)
 
         # ERRO
         self.error_label = QLabel("")

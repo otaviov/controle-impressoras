@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.utils.ui_helpers import tratar_erro
+from app.utils.validacao import ValidadorCampo, obrigatorio
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -270,6 +271,12 @@ class PartsPage(QWidget):
         edit_nome.setMaxLength(150)
         form.addRow("Nome:", edit_nome)
 
+        erro_nome = QLabel()
+        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_nome.hide()
+        form.addRow("", erro_nome)
+        ValidadorCampo(edit_nome, obrigatorio, erro_nome)
+
         edit_descricao = QLineEdit(peca.descricao)
         edit_descricao.setStyleSheet(ESTILO_INPUT)
         form.addRow("Descrição:", edit_descricao)
@@ -313,9 +320,6 @@ class PartsPage(QWidget):
 
         def salvar():
             nome = edit_nome.text().strip()
-            if not nome:
-                QMessageBox.warning(dialog, "Aviso", "O campo Nome é obrigatório.")
-                return
             descricao = edit_descricao.text().strip()
             modelo = combo_modelo.currentText().strip()
             try:

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.utils.ui_helpers import tratar_erro
+from app.utils.validacao import ValidadorCampo, obrigatorio, email
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_ERRO,
@@ -132,6 +133,12 @@ class ClientsPage(QWidget):
         nome_input.setMaxLength(150)
         layout.addRow("Nome:", nome_input)
 
+        erro_nome = QLabel()
+        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_nome.hide()
+        layout.addRow("", erro_nome)
+        ValidadorCampo(nome_input, obrigatorio, erro_nome)
+
         cnpj_input = QLineEdit()
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
         cnpj_input.setMaxLength(18)
@@ -146,6 +153,12 @@ class ClientsPage(QWidget):
         email_input.setPlaceholderText("email@empresa.com")
         email_input.setMaxLength(120)
         layout.addRow("Email:", email_input)
+
+        erro_email = QLabel()
+        erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_email.hide()
+        layout.addRow("", erro_email)
+        ValidadorCampo(email_input, email, erro_email)
 
         tipo_input = QComboBox()
         configurar_combo(tipo_input)
@@ -196,6 +209,12 @@ class ClientsPage(QWidget):
         nome_input.setMaxLength(150)
         form.addRow("Nome:", nome_input)
 
+        erro_nome = QLabel()
+        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_nome.hide()
+        form.addRow("", erro_nome)
+        ValidadorCampo(nome_input, obrigatorio, erro_nome)
+
         cnpj_input = QLineEdit(empresa.cnpj or "")
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
         cnpj_input.setMaxLength(18)
@@ -216,6 +235,12 @@ class ClientsPage(QWidget):
         email_input.setPlaceholderText("email@empresa.com")
         email_input.setMaxLength(120)
         form.addRow("Email:", email_input)
+
+        erro_email = QLabel()
+        erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_email.hide()
+        form.addRow("", erro_email)
+        ValidadorCampo(email_input, email, erro_email)
 
         end_input = QLineEdit(empresa.endereco or "")
         end_input.setPlaceholderText("Rua/Av, n\u00famero")
