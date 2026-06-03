@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -64,12 +65,13 @@ TIPO_OPCOES = ["revisao", "critico", "aviso", "info", "estoque"]
 
 
 class AlertasPage(QWidget):
-    def __init__(self, session, alert_service, printer_service):
+    def __init__(self, session, alert_service, printer_service, part_service=None):
         super().__init__()
         self.session = session
         self.alert_service = alert_service
         self.printer_service = printer_service
-        self._apenas_pendentes = False
+        self.part_service = part_service
+        self._filtro_status = None
         self._filtro_busca = ""
 
         layout = QVBoxLayout(self)
@@ -117,20 +119,25 @@ class AlertasPage(QWidget):
         self.btn_todos = QPushButton("📋  Todos")
         self.btn_todos.setCursor(Qt.PointingHandCursor)
         self.btn_todos.setStyleSheet(self._estilo_filtro(True))
-        self.btn_todos.clicked.connect(lambda: self._alternar_filtro(False))
+        self.btn_todos.clicked.connect(lambda: self._alternar_filtro(None))
 
         self.btn_pendentes = QPushButton("⏳  Pendentes")
         self.btn_pendentes.setCursor(Qt.PointingHandCursor)
         self.btn_pendentes.setStyleSheet(self._estilo_filtro(False))
-        self.btn_pendentes.clicked.connect(lambda: self._alternar_filtro(True))
+        self.btn_pendentes.clicked.connect(lambda: self._alternar_filtro("pendentes"))
+
+        self.btn_resolvidos = QPushButton("✅  Resolvidos")
+        self.btn_resolvidos.setCursor(Qt.PointingHandCursor)
+        self.btn_resolvidos.setStyleSheet(self._estilo_filtro(False))
+        self.btn_resolvidos.clicked.connect(lambda: self._alternar_filtro("resolvidos"))
 
         filtros.addWidget(self.btn_todos)
         filtros.addWidget(self.btn_pendentes)
+        filtros.addWidget(self.btn_resolvidos)
         filtros.addStretch()
 
         self.lbl_contador = QLabel("")
         self.lbl_contador.setStyleSheet("color: #475569; font-size: 12px; background: transparent;")
-        filtros.addWidget(self.lbl_contador)
 
         layout.addLayout(filtros)
 
@@ -138,7 +145,7 @@ class AlertasPage(QWidget):
         self.search.textChanged().connect(lambda texto: self._buscar(texto))
         layout.addWidget(self.search)
 
-        colunas = ["Impressora", "Tipo", "Título", "Descrição", "Data", "Status"]
+        colunas = ["Referência", "Tipo", "Título", "Descrição", "Data", "Status"]
         self.tabela = TabelaPadrao(colunas)
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
@@ -163,10 +170,14 @@ class AlertasPage(QWidget):
             " QPushButton:hover { border-color: #4a4a6a; color: #94a3b8; }"
         )
 
-    def _alternar_filtro(self, apenas_pendentes):
-        self._apenas_pendentes = apenas_pendentes
-        self.btn_todos.setStyleSheet(self._estilo_filtro(not apenas_pendentes))
-        self.btn_pendentes.setStyleSheet(self._estilo_filtro(apenas_pendentes))
+    def _atualizar_botoes_filtro(self):
+        self.btn_todos.setStyleSheet(self._estilo_filtro(self._filtro_status is None))
+        self.btn_pendentes.setStyleSheet(self._estilo_filtro(self._filtro_status == "pendentes"))
+        self.btn_resolvidos.setStyleSheet(self._estilo_filtro(self._filtro_status == "resolvidos"))
+
+    def _alternar_filtro(self, status):
+        self._filtro_status = status
+        self._atualizar_botoes_filtro()
         self._carregar()
 
     def _buscar(self, texto):
@@ -179,12 +190,18 @@ class AlertasPage(QWidget):
 
     def _carregar(self):
         filtro = self._filtro_busca or None
+        apenas_pendentes = self._filtro_status == "pendentes"
+        apenas_resolvidos = self._filtro_status == "resolvidos"
         alertas = self.alert_service.listar_todos(
-            apenas_pendentes=self._apenas_pendentes, filtro_busca=filtro,
+            apenas_pendentes=apenas_pendentes,
+            apenas_resolvidos=apenas_resolvidos,
+            filtro_busca=filtro,
             limite=self._paginacao.limit, offset=self._paginacao.offset,
         )
         total = self.alert_service.contar_todos(
-            apenas_pendentes=self._apenas_pendentes, filtro_busca=filtro,
+            apenas_pendentes=apenas_pendentes,
+            apenas_resolvidos=apenas_resolvidos,
+            filtro_busca=filtro,
         )
         self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
                                    itens_por_pagina=self._paginacao.limit)
@@ -196,10 +213,15 @@ class AlertasPage(QWidget):
         self.tabela.setRowCount(len(alertas))
 
         for i, a in enumerate(alertas):
-            printer = a.printer or self.printer_service.buscar_por_id(a.printer_id)
-            pat = printer.patrimonio if printer else a.printer_id
+            if a.printer_id:
+                printer = a.printer or self.printer_service.buscar_por_id(a.printer_id)
+                ref = printer.patrimonio if printer else a.printer_id
+            elif a.part_id:
+                ref = a.part.nome if a.part else f"Peça #{a.part_id}"
+            else:
+                ref = "-"
 
-            self.tabela.setItem(i, 0, self.tabela.item_colorido(pat, "#e2e8f0"))
+            self.tabela.setItem(i, 0, self.tabela.item_colorido(ref, "#e2e8f0"))
             cor_tipo = CORES_TIPO.get(a.tipo, "#94949f")
             label_tipo = TIPO_LABELS.get(a.tipo, a.tipo)
             self.tabela.definir_badge(i, 1, label_tipo, cor_tipo)
@@ -228,18 +250,28 @@ class AlertasPage(QWidget):
     def _novo(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Novo Alerta")
-        dialog.setFixedSize(500, 380)
+        dialog.setMinimumSize(520, 500)
         dialog.setStyleSheet(ESTILO_DIALOG)
         layout = QFormLayout(dialog)
         layout.setSpacing(8)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         printer_combo = QComboBox()
         configurar_combo(printer_combo)
         impressoras = self.printer_service.listar_todos()
-        printer_combo.addItem("Selecione uma impressora...", None)
+        printer_combo.addItem("(nenhuma impressora)", None)
         for p in impressoras:
             printer_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
-        layout.addRow("Impressora *:", printer_combo)
+        layout.addRow("Impressora:", printer_combo)
+
+        part_combo = QComboBox()
+        configurar_combo(part_combo)
+        part_combo.addItem("(nenhuma peça)", None)
+        if self.part_service:
+            partes = self.part_service.listar_todas()
+            for p in partes:
+                part_combo.addItem(f"{p.nome} ({p.codigo})", p.id)
+        layout.addRow("Peça:", part_combo)
 
         tipo_combo = QComboBox()
         configurar_combo(tipo_combo)
@@ -258,6 +290,14 @@ class AlertasPage(QWidget):
         desc_input.setStyleSheet(ESTILO_INPUT)
         layout.addRow("Descrição:", desc_input)
 
+        from PySide6.QtWidgets import QDateEdit
+        data_agendada = QDateEdit()
+        data_agendada.setCalendarPopup(True)
+        data_agendada.setDate(data_agendada.date().addDays(1))
+        data_agendada.setStyleSheet(ESTILO_INPUT)
+        data_agendada.setSpecialValueText("Sem data")
+        layout.addRow("Agendar para:", data_agendada)
+
         layout.addRow("", None)
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.setStyleSheet(
@@ -265,30 +305,38 @@ class AlertasPage(QWidget):
             " QPushButton[text='OK'] { background-color: #a78bfa; color: white; }"
             " QPushButton[text='Cancel'] { background-color: #1f2937; color: #94a3b8; }"
         )
-        botoes.accepted.connect(lambda: self._salvar_novo(dialog, printer_combo, tipo_combo, titulo_input, desc_input))
+        botoes.accepted.connect(lambda: self._salvar_novo(dialog, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, data_agendada))
         botoes.rejected.connect(dialog.reject)
         layout.addRow(botoes)
         dialog.exec()
 
-    def _salvar_novo(self, dialog, printer_combo, tipo_combo, titulo_input, desc_input):
-        printer_id = printer_combo.currentData()
-        if not printer_id:
-            QMessageBox.warning(dialog, "Aviso", "Selecione uma impressora!")
-            return
+    def _salvar_novo(self, dialog, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, data_agendada):
         titulo = titulo_input.text().strip()
         if not titulo:
             QMessageBox.warning(dialog, "Aviso", "Preencha o título!")
             return
 
+        printer_id = printer_combo.currentData()
+        part_id = part_combo.currentData()
+        data_ag = data_agendada.date().toPython() if data_agendada.date() != data_agendada.minimumDate() else None
+        from datetime import datetime, time
+        data_agendada_dt = datetime.combine(data_ag, time(0, 0)) if data_ag else None
+
         with tratar_erro("criar alerta"):
             self.alert_service.criar(
                 printer_id=printer_id,
+                part_id=part_id,
                 tipo=tipo_combo.currentData(),
                 titulo=titulo,
                 descricao=desc_input.toPlainText().strip(),
+                data_agendada=data_agendada_dt,
             )
             ToastManager.atualizar_status(self.alert_service.contar_pendentes())
             ToastManager.sucesso(f"Alerta criado: {titulo}")
+            agendados = self.alert_service.verificar_agendados()
+            for a in agendados:
+                ref = a.printer.patrimonio if a.printer else (a.part.nome if a.part else "")
+                ToastManager.aviso(f"⏰ {a.titulo}{' — '+ref if ref else ''}")
             self.recarregar()
             dialog.accept()
 
@@ -296,65 +344,119 @@ class AlertasPage(QWidget):
         if row < 0 or row >= len(self._alertas_visiveis):
             return
         alerta = self._alertas_visiveis[row]
-        printer = alerta.printer or self.printer_service.buscar_por_id(alerta.printer_id)
-        pat = printer.patrimonio if printer else alerta.printer_id
+        printer = alerta.printer if alerta.printer_id else None
+        pat = printer.patrimonio if printer else (alerta.printer_id or "-")
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Alerta - {alerta.titulo}")
-        dialog.setFixedSize(520, 380)
+        dialog.setMinimumSize(560, 500)
         dialog.setStyleSheet(ESTILO_DIALOG)
 
         layout = QVBoxLayout(dialog)
-        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(14)
 
-        layout.addWidget(QLabel(f"<b style='color:#a78bfa;font-size:16px'>{alerta.titulo}</b>"))
+        header_row = QHBoxLayout()
+        header_row.setSpacing(10)
+        header_row.addWidget(QLabel(f"<b style='color:#a78bfa;font-size:18px'>{alerta.titulo}</b>"), stretch=1)
 
-        info = QVBoxLayout()
-        info.setSpacing(6)
-        info.addWidget(QLabel(f"<b style='color:#60a5fa'>Impressora:</b>  <span style='color:#e2e8f0'>{pat}</span>"))
-        info.addWidget(QLabel(f"<b style='color:#60a5fa'>Tipo:</b>  <span style='color:#e2e8f0'>{TIPO_LABELS.get(alerta.tipo, alerta.tipo)}</span>"))
-        info.addWidget(QLabel(f"<b style='color:#60a5fa'>Data:</b>  <span style='color:#e2e8f0'>{formatar_data_hora(alerta.data_alerta or alerta.created_at)}</span>"))
-        info.addWidget(QLabel(f"<b style='color:#60a5fa'>Criado em:</b>  <span style='color:#e2e8f0'>{formatar_data_hora(alerta.created_at)}</span>"))
-        layout.addLayout(info)
+        cor_tipo = CORES_TIPO.get(alerta.tipo, "#94949f")
+        label_tipo = TIPO_LABELS.get(alerta.tipo, alerta.tipo)
+        badge_tipo = QLabel(label_tipo)
+        badge_tipo.setStyleSheet(
+            f"background-color: {cor_tipo}22; color: {cor_tipo};"
+            " padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700;"
+        )
+        header_row.addWidget(badge_tipo)
 
-        layout.addWidget(QLabel("<b style='color:#60a5fa'>Descrição:</b>"))
-        desc = QTextEdit()
-        desc.setPlainText(alerta.descricao or "")
-        desc.setReadOnly(True)
-        desc.setMaximumHeight(100)
-        desc.setStyleSheet(ESTILO_INPUT_READONLY)
-        layout.addWidget(desc)
+        label_status, cor_status = STATUS_ALERTA.get(alerta.resolvido, ("-", "#4b5563"))
+        badge_status = QLabel(label_status)
+        badge_status.setStyleSheet(
+            f"background-color: {cor_status}22; color: {cor_status};"
+            " padding: 4px 12px; border-radius: 10px; font-size: 11px; font-weight: 700;"
+        )
+        header_row.addWidget(badge_status)
 
+        layout.addLayout(header_row)
+
+        linha = QFrame()
+        linha.setFrameShape(QFrame.HLine)
+        linha.setStyleSheet("border: none; border-top: 1px solid #2a2a3e;")
+        layout.addWidget(linha)
+
+        grid = QVBoxLayout()
+        grid.setSpacing(6)
+        campos = [
+            ("🖨️ Impressora:", pat),
+        ]
+        if alerta.part_id:
+            nome_peca = alerta.part.nome if alerta.part else f"ID {alerta.part_id}"
+            campos.append(("🔧 Peça:", nome_peca))
+        campos += [
+            ("📋 Tipo:", label_tipo),
+            ("📅 Data:", formatar_data_hora(alerta.data_alerta or alerta.created_at)),
+        ]
+        if alerta.data_agendada:
+            campos.append(("⏰ Agendado:", formatar_data_hora(alerta.data_agendada)))
+        campos.append(("🕐 Criado em:", formatar_data_hora(alerta.created_at)))
         if alerta.resolvido:
-            res = QLabel(f"<b style='color:#34d399'>Resolvido em:</b>  <span style='color:#e2e8f0'>{formatar_data_hora(alerta.resolvido_em)}</span>")
-            layout.addWidget(res)
+            campos.append(("✅ Resolvido em:", formatar_data_hora(alerta.resolvido_em)))
+        for rotulo, valor in campos:
+            linha_info = QHBoxLayout()
+            linha_info.setSpacing(8)
+            lbl_r = QLabel(rotulo)
+            lbl_r.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent; min-width: 100px;")
+            linha_info.addWidget(lbl_r)
+            lbl_v = QLabel(str(valor))
+            lbl_v.setStyleSheet("color: #e2e8f0; font-size: 12px; background: transparent;")
+            lbl_v.setWordWrap(True)
+            linha_info.addWidget(lbl_v, stretch=1)
+            grid.addLayout(linha_info)
+        layout.addLayout(grid)
 
-        layout.addStretch()
+        linha2 = QFrame()
+        linha2.setFrameShape(QFrame.HLine)
+        linha2.setStyleSheet("border: none; border-top: 1px solid #2a2a3e;")
+        layout.addWidget(linha2)
+
+        layout.addWidget(QLabel("<b style='color:#94a3b8;font-size:13px'>📝 Descrição</b>"))
+        desc = QTextEdit()
+        desc.setPlainText(alerta.descricao or "(sem descrição)")
+        desc.setReadOnly(True)
+        desc.setMinimumHeight(80)
+        desc.setStyleSheet(ESTILO_INPUT_READONLY + " QTextEdit { background: #16162a; }")
+        layout.addWidget(desc, stretch=1)
 
         botoes = QHBoxLayout()
-        botoes.addStretch()
+        botoes.setSpacing(10)
+
+        if not alerta.resolvido:
+            btn_resolver = QPushButton("✅  Resolver Alerta")
+            btn_resolver.setCursor(Qt.PointingHandCursor)
+            btn_resolver.setMinimumHeight(38)
+            btn_resolver.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+            btn_resolver.clicked.connect(lambda: self._resolver(alerta, dialog))
+            botoes.addWidget(btn_resolver)
 
         btn_editar = QPushButton("✏️  Editar")
         btn_editar.setCursor(Qt.PointingHandCursor)
+        btn_editar.setMinimumHeight(38)
         btn_editar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         btn_editar.clicked.connect(lambda: self._editar(alerta, dialog))
         botoes.addWidget(btn_editar)
 
         btn_excluir = QPushButton("\U0001f5d1 Excluir")
         btn_excluir.setCursor(Qt.PointingHandCursor)
+        btn_excluir.setMinimumHeight(38)
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_excluir.clicked.connect(lambda: self._excluir(alerta, dialog))
         botoes.addWidget(btn_excluir)
 
-        if not alerta.resolvido:
-            btn_resolver = QPushButton("✅  Resolver Alerta")
-            btn_resolver.setCursor(Qt.PointingHandCursor)
-            btn_resolver.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
-            btn_resolver.clicked.connect(lambda: self._resolver(alerta, dialog))
-            botoes.addWidget(btn_resolver)
+        botoes.addStretch()
 
         btn_fechar = QPushButton("🔙  Fechar")
         btn_fechar.setCursor(Qt.PointingHandCursor)
+        btn_fechar.setMinimumHeight(38)
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_fechar.clicked.connect(dialog.accept)
         botoes.addWidget(btn_fechar)
@@ -365,22 +467,36 @@ class AlertasPage(QWidget):
     def _editar(self, alerta, parent_dialog):
         dialog = QDialog(parent_dialog)
         dialog.setWindowTitle("Editar Alerta")
-        dialog.setFixedSize(500, 420)
+        dialog.setMinimumSize(520, 540)
         dialog.setStyleSheet(ESTILO_DIALOG)
         layout = QFormLayout(dialog)
         layout.setSpacing(8)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         printer_combo = QComboBox()
         configurar_combo(printer_combo)
         impressoras = self.printer_service.listar_todos()
-        printer_combo.addItem("Selecione uma impressora...", None)
+        printer_combo.addItem("(nenhuma impressora)", None)
         idx_selecionado = 0
         for i, p in enumerate(impressoras):
             printer_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
             if p.id == alerta.printer_id:
                 idx_selecionado = i + 1
         printer_combo.setCurrentIndex(idx_selecionado)
-        layout.addRow("Impressora *:", printer_combo)
+        layout.addRow("Impressora:", printer_combo)
+
+        part_combo = QComboBox()
+        configurar_combo(part_combo)
+        part_combo.addItem("(nenhuma peça)", None)
+        idx_part = 0
+        if self.part_service:
+            partes = self.part_service.listar_todas()
+            for i, p in enumerate(partes):
+                part_combo.addItem(f"{p.nome} ({p.codigo})", p.id)
+                if p.id == alerta.part_id:
+                    idx_part = i + 1
+        part_combo.setCurrentIndex(idx_part)
+        layout.addRow("Peça:", part_combo)
 
         tipo_combo = QComboBox()
         configurar_combo(tipo_combo)
@@ -400,7 +516,7 @@ class AlertasPage(QWidget):
         desc_input.setStyleSheet(ESTILO_INPUT)
         layout.addRow("Descrição:", desc_input)
 
-        from PySide6.QtWidgets import QCheckBox
+        from PySide6.QtWidgets import QCheckBox, QDateEdit
         chk_resolvido = QCheckBox("Alerta resolvido")
         chk_resolvido.setChecked(alerta.resolvido)
         chk_resolvido.setStyleSheet(
@@ -411,6 +527,17 @@ class AlertasPage(QWidget):
         )
         layout.addRow("Status:", chk_resolvido)
 
+        data_agendada = QDateEdit()
+        data_agendada.setCalendarPopup(True)
+        data_agendada.setStyleSheet(ESTILO_INPUT)
+        data_agendada.setSpecialValueText("Sem data")
+        if alerta.data_agendada:
+            from datetime import datetime
+            data_agendada.setDate(data_agendada.date().fromPython(alerta.data_agendada.date()))
+        else:
+            data_agendada.setDate(data_agendada.minimumDate())
+        layout.addRow("Agendar para:", data_agendada)
+
         layout.addRow("", None)
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.setStyleSheet(
@@ -418,25 +545,27 @@ class AlertasPage(QWidget):
             " QPushButton[text='OK'] { background-color: #a78bfa; color: white; }"
             " QPushButton[text='Cancel'] { background-color: #1f2937; color: #94a3b8; }"
         )
-        botoes.accepted.connect(lambda: self._salvar_edicao(dialog, alerta, printer_combo, tipo_combo, titulo_input, desc_input, chk_resolvido, parent_dialog))
+        botoes.accepted.connect(lambda: self._salvar_edicao(dialog, alerta, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, chk_resolvido, data_agendada, parent_dialog))
         botoes.rejected.connect(dialog.reject)
         layout.addRow(botoes)
         dialog.exec()
 
-    def _salvar_edicao(self, dialog, alerta, printer_combo, tipo_combo, titulo_input, desc_input, chk_resolvido, parent_dialog):
-        printer_id = printer_combo.currentData()
-        if not printer_id:
-            QMessageBox.warning(dialog, "Aviso", "Selecione uma impressora!")
-            return
+    def _salvar_edicao(self, dialog, alerta, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, chk_resolvido, data_agendada, parent_dialog):
         titulo = titulo_input.text().strip()
         if not titulo:
             QMessageBox.warning(dialog, "Aviso", "Preencha o título!")
             return
 
-        alerta.printer_id = printer_id
+        alerta.printer_id = printer_combo.currentData()
+        alerta.part_id = part_combo.currentData()
         alerta.tipo = tipo_combo.currentData()
         alerta.titulo = titulo
         alerta.descricao = desc_input.toPlainText().strip()
+
+        data_ag = data_agendada.date().toPython() if data_agendada.date() != data_agendada.minimumDate() else None
+        from datetime import datetime, time
+        alerta.data_agendada = datetime.combine(data_ag, time(0, 0)) if data_ag else None
+
         if chk_resolvido.isChecked() and not alerta.resolvido:
             alerta.resolvido = True
             alerta.resolvido_em = dt.now()
@@ -445,6 +574,10 @@ class AlertasPage(QWidget):
             alerta.resolvido_em = None
         from db import safe_commit
         safe_commit(self.session)
+        agendados = self.alert_service.verificar_agendados()
+        for a in agendados:
+            ref = a.printer.patrimonio if a.printer else (a.part.nome if a.part else "")
+            ToastManager.aviso(f"⏰ {a.titulo}{' — '+ref if ref else ''}", persistente=True)
         ToastManager.atualizar_status(self.alert_service.contar_pendentes())
         ToastManager.info(f"Alerta atualizado: {titulo}")
         self.recarregar()

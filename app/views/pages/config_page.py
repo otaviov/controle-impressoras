@@ -15,11 +15,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
+
+import json
 
 from app.utils.helpers import formatar_data_hora
 from app.utils.ui_helpers import tratar_erro
@@ -28,9 +31,11 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
+    ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_BOTAO_ERRO,
     configurar_combo,
+    ESTILO_COMBO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
@@ -42,11 +47,12 @@ from config import DB_PATH
 
 
 class ConfigPage(QWidget):
-    def __init__(self, session, user_service, user, notificador=None, printer_service=None, part_service=None, company_service=None, activity_service=None, transfer_service=None, technician_service=None, alert_service=None, parent=None):
+    def __init__(self, session, user_service, user, notificador=None, audit_service=None, printer_service=None, part_service=None, company_service=None, activity_service=None, transfer_service=None, technician_service=None, alert_service=None, parent=None):
         super().__init__(parent)
         self.session = session
         self.user_service = user_service
         self.notificador = notificador
+        self.audit_service = audit_service
         self.printer_service = printer_service
         self.part_service = part_service
         self.company_service = company_service
@@ -86,6 +92,7 @@ class ConfigPage(QWidget):
         self.abas.addTab(self._criar_aba_usuarios(), "👥  Usuários")
         self.abas.addTab(self._criar_aba_backup(), "💾  Backup")
         self.abas.addTab(self._criar_aba_lixeira(), "🗑️  Lixeira")
+        self.abas.addTab(self._criar_aba_auditoria(), "📋  Auditoria")
         self.abas.addTab(self._criar_aba_notificacoes(), "🔔  Notificações")
         layout.addWidget(self.abas)
 
@@ -444,6 +451,146 @@ class ConfigPage(QWidget):
                 QMessageBox.information(self, "Restaurado", "Registro restaurado com sucesso.")
                 dialog.accept()
                 self._abrir_lixeira()
+
+    def _criar_aba_auditoria(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 16, 0, 0)
+        layout.setSpacing(12)
+
+        desc = QLabel("Histórico de alterações feitas no sistema.")
+        desc.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        filtros = QHBoxLayout()
+        filtros.setSpacing(8)
+
+        lbl_tabela = QLabel("Tabela:")
+        lbl_tabela.setStyleSheet("color: #c8c8d8; font-size: 12px; background: transparent;")
+        filtros.addWidget(lbl_tabela)
+
+        self._combo_filtro_tabela = QComboBox()
+        self._combo_filtro_tabela.addItems(["Todas", "printers", "activities", "companies", "parts", "technicians", "users", "alerts", "transfers"])
+        self._combo_filtro_tabela.setStyleSheet(ESTILO_COMBO)
+        self._combo_filtro_tabela.currentIndexChanged.connect(self._recarregar_auditoria)
+        filtros.addWidget(self._combo_filtro_tabela)
+
+        filtros.addStretch()
+
+        btn_recarregar = QPushButton("🔄 Recarregar")
+        btn_recarregar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_recarregar.clicked.connect(self._recarregar_auditoria)
+        filtros.addWidget(btn_recarregar)
+
+        layout.addLayout(filtros)
+
+        self._tabela_auditoria = TabelaPadrao(["Data/Hora", "Usuário", "Ação", "Tabela", "Registro"])
+        self._tabela_auditoria.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tabela_auditoria.setSelectionBehavior(QTableWidget.SelectRows)
+        self._tabela_auditoria.setAlternatingRowColors(True)
+        self._tabela_auditoria.verticalHeader().setVisible(False)
+        layout.addWidget(self._tabela_auditoria, stretch=1)
+
+        botoes = QHBoxLayout()
+        botoes.setSpacing(10)
+
+        btn_detalhes = QPushButton("🔍 Ver Detalhes")
+        btn_detalhes.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_detalhes.clicked.connect(self._detalhes_auditoria)
+        botoes.addWidget(btn_detalhes)
+
+        botoes.addStretch()
+        layout.addLayout(botoes)
+
+        self._logs_auditoria: list = []
+        self._recarregar_auditoria()
+        return tab
+
+    def _recarregar_auditoria(self):
+        if not self.audit_service:
+            return
+        filtro_tabela = self._combo_filtro_tabela.currentText()
+        if filtro_tabela == "Todas":
+            self._logs_auditoria = self.audit_service.listar(limite=200)
+        else:
+            self._logs_auditoria = self.audit_service.listar_por_tabela(filtro_tabela, limite=200)
+
+        self._tabela_auditoria.limpar()
+        self._tabela_auditoria.setRowCount(len(self._logs_auditoria))
+        for i, log in enumerate(self._logs_auditoria):
+            self._tabela_auditoria.setItem(i, 0, QTableWidgetItem(formatar_data_hora(log.created_at)))
+            nome_user = log.user.nome if log.user else "-"
+            self._tabela_auditoria.setItem(i, 1, QTableWidgetItem(nome_user))
+            self._tabela_auditoria.setItem(i, 2, QTableWidgetItem(log.acao))
+            self._tabela_auditoria.setItem(i, 3, QTableWidgetItem(log.tabela_alvo))
+            self._tabela_auditoria.setItem(i, 4, QTableWidgetItem(log.registro_id))
+        self._tabela_auditoria.redimensionar()
+
+    def _detalhes_auditoria(self):
+        row = self._tabela_auditoria.currentRow()
+        if row < 0 or row >= len(self._logs_auditoria):
+            QMessageBox.warning(self, "Aviso", "Selecione um registro para ver detalhes.")
+            return
+        log = self._logs_auditoria[row]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Detalhes — #{log.id}")
+        dialog.setMinimumSize(600, 400)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        info = QLabel(
+            f"<b style='color:#a78bfa'>#{log.id}</b> — "
+            f"<b style='color:#e8e8f0'>{log.acao}</b> "
+            f"em <b style='color:#60a5fa'>{log.tabela_alvo}</b> "
+            f"(registro {log.registro_id})<br>"
+            f"<span style='color:#94949f'>Por: {log.user.nome if log.user else '-'} • {formatar_data_hora(log.created_at)}</span>"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("background: transparent; padding: 8px 0;")
+        layout.addWidget(info)
+
+        abas = QTabWidget()
+        abas.setStyleSheet("""
+            QTabWidget::pane { border: 1px solid #2a2a3e; background: #16162a; border-radius: 6px; }
+            QTabBar::tab { padding: 8px 16px; color: #94949f; font-weight: 600;
+                background: transparent; border: none; }
+            QTabBar::tab:selected { color: #a78bfa; border-bottom: 2px solid #a78bfa; }
+        """)
+
+        for titulo_aba, dado, cor in [("📦 Antes", log.dados_antes, "#f87171"),
+                                       ("📦 Depois", log.dados_depois, "#34d399")]:
+            tab_aba = QWidget()
+            lay = QVBoxLayout(tab_aba)
+            lay.setContentsMargins(12, 12, 12, 12)
+
+            txt = QLabel()
+            txt.setWordWrap(True)
+            txt.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            if dado:
+                try:
+                    parsed = json.loads(dado)
+                    formatted = json.dumps(parsed, indent=2, ensure_ascii=False)
+                    txt.setText(f"<pre style='color:{cor}; font-size:12px; font-family:Courier New;'>{formatted}</pre>")
+                except json.JSONDecodeError:
+                    txt.setText(f"<pre style='color:{cor};'>{dado}</pre>")
+            else:
+                txt.setText("<span style='color:#475569;'>Sem dados</span>")
+            lay.addWidget(txt)
+            abas.addTab(tab_aba, titulo_aba)
+
+        layout.addWidget(abas)
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.clicked.connect(dialog.accept)
+        layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
+
+        dialog.exec()
 
     def _fazer_backup(self):
         try:

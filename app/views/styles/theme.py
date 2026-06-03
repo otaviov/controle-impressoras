@@ -149,14 +149,37 @@ ESTILO_BOTAO_FECHAR = """\
 """
 
 ESTILO_INPUT = """\
-    QLineEdit, QTextEdit {
+    QLineEdit, QTextEdit, QDateEdit, QTimeEdit, QDateTimeEdit {
         background-color: #1e1e2e; color: #e8e8f0;
         border: 1px solid #2a2a3e; border-radius: 8px;
         padding: 8px 12px; font-size: 13px;
         selection-background-color: rgba(99, 102, 241, 0.25);
     }
-    QLineEdit:hover, QTextEdit:hover { border-color: #3a3a50; }
-    QLineEdit:focus, QTextEdit:focus { border-color: #6366f1; }
+    QLineEdit:hover, QTextEdit:hover, QDateEdit:hover, QTimeEdit:hover, QDateTimeEdit:hover { border-color: #3a3a50; }
+    QLineEdit:focus, QTextEdit:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus { border-color: #6366f1; }
+    QDateEdit::drop-down, QTimeEdit::drop-down, QDateTimeEdit::drop-down {
+        border: none; width: 30px; background: transparent;
+    }
+    QDateEdit::down-arrow, QTimeEdit::down-arrow, QDateTimeEdit::down-arrow {
+        image: none; border-left: 5px solid transparent; border-right: 5px solid transparent;
+        border-top: 6px solid #717182; width: 0; height: 0; margin-right: 8px;
+    }
+    QDateEdit:hover::down-arrow, QTimeEdit:hover::down-arrow, QDateTimeEdit:hover::down-arrow {
+        border-top-color: #6366f1;
+    }
+    QCalendarWidget {
+        background-color: #1e1e2e; color: #e8e8f0;
+        border: 1px solid #2a2a3e; border-radius: 8px;
+    }
+    QCalendarWidget QToolButton {
+        color: #e8e8f0; background: transparent;
+        padding: 6px 12px; border-radius: 6px; font-weight: 600;
+    }
+    QCalendarWidget QToolButton:hover { background: rgba(99, 102, 241, 0.15); }
+    QCalendarWidget QMenu { background-color: #1e1e2e; color: #e8e8f0; border: 1px solid #2a2a3e; }
+    QCalendarWidget QSpinBox { background-color: #1e1e2e; color: #e8e8f0; border: 1px solid #2a2a3e; border-radius: 6px; padding: 4px; }
+    QCalendarWidget QTableView { border: none; background-color: #16162a; selection-background-color: rgba(99, 102, 241, 0.3); }
+    QCalendarWidget QTableView::item:hover { background-color: rgba(99, 102, 241, 0.15); }
 """
 
 ESTILO_INPUT_READONLY = """\

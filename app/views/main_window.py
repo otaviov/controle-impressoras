@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
             self.session, self.printer_service, self.activity_service, self.company_service
         )
         self.pagina_alertas = AlertasPage(
-            self.session, self.alert_service, self.printer_service
+            self.session, self.alert_service, self.printer_service, part_service=self.part_service
         )
 
         self.content_area.addWidget(self.pagina_dashboard)        # 0
@@ -252,6 +252,7 @@ class MainWindow(QMainWindow):
             self.pagina_config = ConfigPage(
                 self.session, self.user_service, self.user,
                 notificador=self.notificador,
+                audit_service=self.audit_service,
                 printer_service=self.printer_service,
                 part_service=self.part_service,
                 company_service=self.company_service,
@@ -587,6 +588,16 @@ class MainWindow(QMainWindow):
             ToastManager.aviso(f"{pendentes} alerta(s) pendente(s) — clique em 🔔 Alertas para ver", persistente=True)
         else:
             ToastManager.sucesso("Nenhum alerta pendente")
+
+        try:
+            alertas_agendados = self.alert_service.verificar_agendados()
+            for a in alertas_agendados:
+                ref = a.printer.patrimonio if a.printer else (a.part.nome if a.part else "")
+                ToastManager.aviso(f"⏰ {a.titulo}{' — '+ref if ref else ''}")
+            if alertas_agendados:
+                log.info(f"Notificados {len(alertas_agendados)} alerta(s) agendados")
+        except Exception as e:
+            log.warning(f"Erro ao verificar alertas agendados: {e}")
 
     # ── Exportação ───────────────────────────────────────────────
     def _exportar(self, tipo: str, formato: str):

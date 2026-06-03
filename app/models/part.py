@@ -1,11 +1,15 @@
 ﻿from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, Float, Index, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, SoftDeleteMixin, utcnow
+
+if TYPE_CHECKING:
+    from app.models.alert import Alert
 
 
 class Part(Base, SoftDeleteMixin):
@@ -20,5 +24,7 @@ class Part(Base, SoftDeleteMixin):
     preco_unitario: Mapped[float] = mapped_column(Float, default=0.0)
     modelo_compativel: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    alerts: Mapped[list[Alert]] = relationship(back_populates="part")
 
 
