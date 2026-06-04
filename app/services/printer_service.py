@@ -73,7 +73,8 @@ class PrinterService:
     def criar(self, patrimonio: str, modelo: str = "", marca: str = "", serial: str = "", tipo: str = "",
               local_atual: str = "", status: str = "Operacional", ip_rede: str = "",
               mac_address: str = "", tecnico: str = "", observacao: str = "",
-              pecas_faltantes: str = "", foto_path: Optional[str] = None) -> Printer:
+              pecas_faltantes: str = "", foto_path: Optional[str] = None,
+              proxima_revisao: Any = None) -> Printer:
         printer = Printer(
             patrimonio=sanitizar(patrimonio, "Printer", "patrimonio"),
             modelo=sanitizar(modelo, "Printer", "modelo"),
@@ -87,7 +88,8 @@ class PrinterService:
             tecnico=sanitizar(tecnico, "Printer", "tecnico"),
             observacao=sanitizar(observacao, "Printer", "observacao"),
             pecas_faltantes=sanitizar(pecas_faltantes, "Printer", "pecas_faltantes"),
-            foto_path=foto_path
+            foto_path=foto_path,
+            proxima_revisao=proxima_revisao,
         )
         self.session.add(printer)
         safe_commit(self.session)
