@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QCompleter,
     QDialog,
     QFileDialog,
     QFrame,
@@ -312,6 +313,10 @@ class _PrinterForm(QWidget):
         self.local = QComboBox()
         self.local.setEditable(True)
         configurar_combo(self.local)
+        cmp = self.local.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.local.addItem("")
         for emp in self._company_service.listar_todas():
             self.local.addItem(f"\U0001f3e2 {emp.nome}")
@@ -346,7 +351,8 @@ class _PrinterForm(QWidget):
         for t in self._technician_service.listar_ativos():
             self.tec.addItem(t.nome_exibicao)
 
-        self.revisao = self._campo_texto("dd/mm/aaaa", 30)
+        self.revisao = self._campo_texto("dd/mm/aaaa", 10)
+        self.revisao.textChanged.connect(self._mascara_data)
 
         tec_grid.addWidget(_input_label("Técnico Responsável"), 0, 0)
         tec_grid.addWidget(self.tec, 1, 0)
@@ -359,27 +365,21 @@ class _PrinterForm(QWidget):
 
         # ── SEÇÃO: Observações ───────────────────────────────
         obs_box, obs_layout = _group_box("Observações")
-        obs_inner = QGridLayout()
-        obs_inner.setSpacing(8)
-        obs_inner.setHorizontalSpacing(16)
 
         self.obs = QTextEdit()
         self.obs.setPlaceholderText("Observações gerais sobre a impressora...")
         self.obs.setStyleSheet(ESTILO_INPUT)
-        self.obs.setFixedHeight(72)
+        self.obs.setFixedHeight(100)
 
         self.pecas = QTextEdit()
         self.pecas.setPlaceholderText("Peças faltantes ou que precisam de reposição...")
         self.pecas.setStyleSheet(ESTILO_INPUT)
-        self.pecas.setFixedHeight(72)
+        self.pecas.setFixedHeight(100)
 
-        obs_inner.addWidget(_input_label("Observações"), 0, 0)
-        obs_inner.addWidget(self.obs, 1, 0)
-        obs_inner.addWidget(_input_label("Peças Faltantes"), 0, 1)
-        obs_inner.addWidget(self.pecas, 1, 1)
-        obs_inner.setColumnStretch(0, 1)
-        obs_inner.setColumnStretch(1, 1)
-        obs_layout.addLayout(obs_inner)
+        obs_layout.addWidget(_input_label("Observações"))
+        obs_layout.addWidget(self.obs)
+        obs_layout.addWidget(_input_label("Peças Faltantes"))
+        obs_layout.addWidget(self.pecas)
         content.addWidget(obs_box)
 
         content.addStretch()
@@ -409,6 +409,29 @@ class _PrinterForm(QWidget):
         )
         lbl.hide()
         return lbl
+
+    def _mascara_data(self, texto: str) -> None:
+        le = self.sender()
+        if not isinstance(le, QLineEdit):
+            return
+        old_pos = le.cursorPosition()
+        digits = "".join(c for c in texto if c.isdigit())[:8]
+        if not digits and texto:
+            le.blockSignals(True)
+            le.clear()
+            le.blockSignals(False)
+            return
+        partes = [digits[:2]]
+        if len(digits) > 2:
+            partes.append(digits[2:4])
+        if len(digits) > 4:
+            partes.append(digits[4:8])
+        nova = "/".join(partes)
+        if nova != texto:
+            le.blockSignals(True)
+            le.setText(nova)
+            le.blockSignals(False)
+            le.setCursorPosition(old_pos + (len(nova) - len(texto)))
 
     def _preencher(self, p: Any) -> None:
         self.pat.setText(p.patrimonio or "")
@@ -565,12 +588,14 @@ class _PrinterDialog(QDialog):
         f_layout.setSpacing(10)
 
         btn_salvar = QPushButton("\U0001f4be  Salvar")
+        btn_salvar.setToolTip("Salvar as alterações")
         btn_salvar.setCursor(Qt.PointingHandCursor)
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         btn_salvar.setMinimumWidth(120)
         btn_salvar.clicked.connect(self._salvar)
 
         btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Descartar alterações e fechar")
         btn_cancelar.setCursor(Qt.PointingHandCursor)
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_cancelar.clicked.connect(self.reject)
@@ -698,13 +723,7 @@ class _PrinterDetailDialog(QDialog):
 
     def _build_header(self) -> QWidget:
         header = QFrame()
-        header.setStyleSheet(
-            "QFrame {"
-            " background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-            "  stop:0 rgba(99,102,241,0.08), stop:1 rgba(10,10,15,0));"
-            " border-bottom: 1px solid rgba(42,42,62,0.7);"
-            "}"
-        )
+        header.setStyleSheet("QFrame { background: transparent; }")
         layout = QHBoxLayout(header)
         layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(20)
@@ -1017,18 +1036,21 @@ class PrintersPage(QWidget):
         header.addWidget(self.search)
 
         btn_nova = QPushButton("\u2795  Nova Impressora")
+        btn_nova.setToolTip("Cadastrar uma nova impressora")
         btn_nova.setCursor(Qt.PointingHandCursor)
         btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         btn_nova.clicked.connect(self._nova)
         header.addWidget(btn_nova)
 
         btn_importar = QPushButton("\U0001f4e5  Importar")
+        btn_importar.setToolTip("Importar impressoras de um arquivo CSV ou XLSX")
         btn_importar.setCursor(Qt.PointingHandCursor)
         btn_importar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         btn_importar.clicked.connect(lambda: self._importar())
         header.addWidget(btn_importar)
 
         btn_atualizar = QPushButton("\U0001f504  Atualizar")
+        btn_atualizar.setToolTip("Recarregar a lista de impressoras")
         btn_atualizar.setCursor(Qt.PointingHandCursor)
         btn_atualizar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         btn_atualizar.clicked.connect(self.recarregar)
@@ -1121,16 +1143,19 @@ class PrintersPage(QWidget):
         f_lay.setSpacing(10)
 
         btn_edit = QPushButton("\u270f\ufe0f  Editar")
+        btn_edit.setToolTip("Abrir formulário de edição desta impressora")
         btn_edit.setCursor(Qt.PointingHandCursor)
         btn_edit.setStyleSheet(ESTILO_BOTAO_AVISO)
         btn_edit.clicked.connect(lambda: self._editar_impressora(printer, row, detail_dlg))
 
         btn_del = QPushButton("\U0001f5d1  Excluir")
+        btn_del.setToolTip("Excluir esta impressora (pode ser desfeito pela Lixeira)")
         btn_del.setCursor(Qt.PointingHandCursor)
         btn_del.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_del.clicked.connect(lambda: self._excluir_impressora(detail_dlg, printer))
 
         btn_imp = QPushButton("\U0001f4c1  Importar Locais")
+        btn_imp.setToolTip("Importar histórico de localizações desta impressora a partir de um arquivo CSV ou XLSX")
         btn_imp.setCursor(Qt.PointingHandCursor)
         btn_imp.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         btn_imp.clicked.connect(lambda: self._importar_locais(detail_dlg, printer))
@@ -1170,9 +1195,6 @@ class PrintersPage(QWidget):
     # ── Editar ────────────────────────────────────────────────
 
     def _editar_impressora(self, printer: Any, row: int, parent_dialog: QDialog | None = None) -> None:
-        if parent_dialog:
-            parent_dialog.accept()
-
         dlg = _PrinterDialog(
             printer_service=self.printer_service,
             company_service=self.company_service,
@@ -1187,13 +1209,14 @@ class PrintersPage(QWidget):
                     self.printer_service.atualizar(printer, **dados)
                     ToastManager.sucesso(f"Impressora '{printer.patrimonio}' atualizada!")
                     self.recarregar()
-                    # Reabre detalhes
-                    idx = next(
-                        (i for i, p in enumerate(self._impressoras_visiveis) if p.id == printer.id),
-                        -1,
-                    )
-                    if idx >= 0:
-                        self._detalhes(idx)
+                if parent_dialog:
+                    parent_dialog.accept()
+                idx = next(
+                    (i for i, p in enumerate(self._impressoras_visiveis) if p.id == printer.id),
+                    -1,
+                )
+                if idx >= 0:
+                    self._detalhes(idx)
 
     # ── Excluir ───────────────────────────────────────────────
 
