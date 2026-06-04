@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -37,7 +41,6 @@ from app.views.styles.theme import (
     ESTILO_LABEL_CAMPO,
     ESTILO_TABELA_SIMPLES,
     ESTILO_TITULO_PAGINA,
-    estilos_dialogo_tabs,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
@@ -47,16 +50,23 @@ from app.views.widgets.table_widget import TabelaPadrao
 
 
 class ClientsPage(QWidget):
-    abrir_impressora = Signal(str)
+    abrir_impressora: Signal = Signal(str)
 
-    def __init__(self, session, company_service, printer_service, parent=None):
+    session: Any
+    company_service: Any
+    printer_service: Any
+    _empresas_visiveis: list[Any]
+    tabela: TabelaPadrao
+    _paginacao: PaginacaoWidget
+
+    def __init__(self, session: Any, company_service: Any, printer_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.company_service = company_service
         self.printer_service = printer_service
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
@@ -96,10 +106,10 @@ class ClientsPage(QWidget):
 
         self._carregar()
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         self._carregar()
 
-    def _carregar(self):
+    def _carregar(self) -> None:
         empresas = self.company_service.listar_todas(
             limite=self._paginacao.limit, offset=self._paginacao.offset
         )
@@ -119,7 +129,7 @@ class ClientsPage(QWidget):
             self.tabela.setItem(i, 5, QTableWidgetItem(str(num)))
         self.tabela.redimensionar()
 
-    def _nova(self):
+    def _nova(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Nova Empresa")
         dialog.setFixedSize(400, 300)
@@ -172,7 +182,7 @@ class ClientsPage(QWidget):
 
         dialog.exec()
 
-    def _salvar_nova(self, dialog, nome, cnpj, telefone, email, tipo):
+    def _salvar_nova(self, dialog: QDialog, nome: QLineEdit, cnpj: QLineEdit, telefone: QLineEdit, email: QLineEdit, tipo: QComboBox) -> None:
         nome_text = nome.text().strip()
         if not nome_text:
             return
@@ -187,7 +197,7 @@ class ClientsPage(QWidget):
             self.recarregar()
             dialog.accept()
 
-    def _editar(self, row):
+    def _editar(self, row: int) -> None:
         nome_empresa = self.tabela.item(row, 0).text()
         empresa = self.company_service.buscar_por_nome(nome_empresa)
 
@@ -197,7 +207,7 @@ class ClientsPage(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"\u270f\ufe0f Editar Empresa: {empresa.nome}")
         dialog.setMinimumSize(600, 500)
-        dialog.setStyleSheet(ESTILO_DIALOG + ESTILO_INPUT + ESTILO_COMBO + ESTILO_TABELA_SIMPLES + estilos_dialogo_tabs())
+        dialog.setStyleSheet(ESTILO_DIALOG + ESTILO_INPUT + ESTILO_COMBO + ESTILO_TABELA_SIMPLES)
 
         tabs = QTabWidget()
 
@@ -346,7 +356,7 @@ class ClientsPage(QWidget):
         main_layout.addWidget(tabs)
         dialog.exec()
 
-    def _salvar_edicao(self, dialog, empresa, nome, cnpj, tipo, telefone, email, endereco, cidade, uf, obs):
+    def _salvar_edicao(self, dialog: QDialog, empresa: Any, nome: QLineEdit, cnpj: QLineEdit, tipo: QComboBox, telefone: QLineEdit, email: QLineEdit, endereco: QLineEdit, cidade: QLineEdit, uf: QLineEdit, obs: QTextEdit) -> None:
         nome_antigo = empresa.nome
         nome_novo = nome.text().strip()
 
@@ -367,7 +377,7 @@ class ClientsPage(QWidget):
             self.recarregar()
             dialog.accept()
 
-    def _excluir(self, dialog, empresa):
+    def _excluir(self, dialog: QDialog, empresa: Any) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
             "Confirmar Exclusão",
             f"Deseja realmente excluir a empresa '{empresa.nome}'?\n\n"
@@ -384,11 +394,11 @@ class ClientsPage(QWidget):
                 self.recarregar()
                 dialog.accept()
 
-    def _importar(self):
-        dialog = ImportDialog(self, "companies", "Empresas", self.company_service, self.session)
+    def _importar(self) -> None:
+        dialog: ImportDialog = ImportDialog(self, "companies", "Empresas", self.company_service, self.session)
         if dialog.exec() == ImportDialog.Accepted:
             self.recarregar()
 
-    def _abrir_impressora_por_patrimonio(self, patrimonio, parent_dialog):
+    def _abrir_impressora_por_patrimonio(self, patrimonio: str, parent_dialog: QDialog) -> None:
         parent_dialog.accept()
         self.abrir_impressora.emit(patrimonio)

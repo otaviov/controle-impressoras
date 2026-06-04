@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import csv
 from datetime import datetime
@@ -8,10 +8,13 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.models.activity import Activity
+from app.models.printer import Printer
+
 
 class ReportService:
     @staticmethod
-    def export_history_csv(path: str, printer, activities):
+    def export_history_csv(path: str, printer: Printer, activities: list[Activity]) -> None:
         with open(path, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, delimiter=";")
             w.writerow(["Patrimônio", "Modelo", "Serial", "Data/Hora", "Tipo", "Descrição", "Peças", "De", "Para"])
@@ -27,7 +30,7 @@ class ReportService:
                 ])
 
     @staticmethod
-    def export_pdf(path: str, printer, activities, maintenance_count: int):
+    def export_pdf(path: str, printer: Printer, activities: list[Activity], maintenance_count: int) -> None:
         styles = getSampleStyleSheet()
         doc = SimpleDocTemplate(path, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=28)
         elems = []

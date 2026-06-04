@@ -1,4 +1,6 @@
-﻿from datetime import datetime
+from __future__ import annotations
+
+from datetime import datetime
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -8,11 +10,14 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.models.activity import Activity
+from app.models.printer import Printer
+
 
 class RelatorioService:
 
     @staticmethod
-    def exportar_impressoras_pdf(printers, filepath):
+    def exportar_impressoras_pdf(printers: list[Printer], filepath: str) -> str:
         """Gera PDF com lista de impressoras"""
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=1.5*cm, rightMargin=1.5*cm, topMargin=2*cm, bottomMargin=2*cm)
         styles = getSampleStyleSheet()
@@ -84,7 +89,7 @@ class RelatorioService:
         return filepath
 
     @staticmethod
-    def exportar_impressoras_excel(printers, filepath):
+    def exportar_impressoras_excel(printers: list[Printer], filepath: str) -> str:
         """Gera planilha Excel com lista de impressoras"""
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -145,7 +150,7 @@ class RelatorioService:
         return filepath
 
     @staticmethod
-    def exportar_atividades_pdf(atividades, filepath):
+    def exportar_atividades_pdf(atividades: list[Activity], filepath: str) -> str:
         """Gera PDF com histórico de atividades"""
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=1*cm, rightMargin=1*cm, topMargin=2*cm, bottomMargin=2*cm)
         styles = getSampleStyleSheet()
@@ -190,7 +195,7 @@ class RelatorioService:
         return filepath
 
     @staticmethod
-    def exportar_atividades_excel(atividades, filepath):
+    def exportar_atividades_excel(atividades: list[Activity], filepath: str) -> str:
         """Gera Excel com atividades"""
         wb = openpyxl.Workbook()
         ws = wb.active

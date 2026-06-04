@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.activity import Activity
     from app.models.alert import Alert
     from app.models.company import Company
+    from app.models.printer_location import PrinterLocation
     from app.models.transfer import Transfer
 
 
@@ -33,6 +34,7 @@ class Printer(Base, SoftDeleteMixin):
     proxima_revisao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     tecnico: Mapped[str] = mapped_column(String(120), default="")
 
+    foto_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     pecas_faltantes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     observacao: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -42,5 +44,6 @@ class Printer(Base, SoftDeleteMixin):
     activities: Mapped[List[Activity]] = relationship(back_populates="printer")
     transfers: Mapped[List[Transfer]] = relationship(back_populates="printer")
     alerts: Mapped[List[Alert]] = relationship(back_populates="printer")
+    location_history: Mapped[List[PrinterLocation]] = relationship(back_populates="printer", order_by="PrinterLocation.data.desc().nullslast(), PrinterLocation.created_at.desc()")
 
 

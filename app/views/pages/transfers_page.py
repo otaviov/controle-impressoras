@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import os
 import shutil
 from datetime import datetime as dt
 from pathlib import Path
+from typing import Any
+from collections.abc import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -45,7 +49,6 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     STATUS_ATIVIDADE_OPCOES,
     configurar_combo,
-    estilos_dialogo_tabs,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniWidget
@@ -53,19 +56,37 @@ from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 
-COR_STATUS = {
+COR_STATUS: dict[str, str] = {
     "pendente": "#fbbf24",
     "em_andamento": "#60a5fa",
     "concluida": "#34d399",
 }
 
-ANEXOS_DIR = BASE_DIR / "anexos"
+ANEXOS_DIR: Path = BASE_DIR / "anexos"
 
 
 class TransfersPage(QWidget):
-    COLUNAS = ["Data", "Patrimônio", "Origem", "Destino", "Peças/Equipamento", "Nº Recibo", "Status"]
+    COLUNAS: list[str] = ["Data", "Patrimônio", "Origem", "Destino", "Peças/Equipamento", "Nº Recibo", "Status"]
 
-    def __init__(self, session, printer_service, activity_service, company_service, transfer_service=None, parent=None):
+    _session: Any
+    printer_service: Any
+    activity_service: Any
+    company_service: Any
+    transfer_service: Any | None
+    part_service: PartService
+    _mov_cache: list[Any]
+    _mapa_cache: dict[Any, str]
+    _filtro_transf: str | None
+    search: SearchBar
+    btn_nova: QPushButton
+    card_total: CardMiniWidget
+    card_saidas: CardMiniWidget
+    card_entradas: CardMiniWidget
+    card_pendentes: CardMiniWidget
+    tabela: TabelaPadrao
+    _paginacao: PaginacaoWidget
+
+    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, transfer_service: Any | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._session = session
         self.printer_service = printer_service
@@ -117,11 +138,11 @@ class TransfersPage(QWidget):
         self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
         layout.addWidget(self._paginacao)
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         self._filtro_transf = None
         self._carregar()
 
-    def _carregar(self):
+    def _carregar(self) -> None:
         if self._filtro_transf:
             movimentacoes = self.activity_service.buscar_movimentacoes_por_filtro(
                 self._filtro_transf, limite=self._paginacao.limit, offset=self._paginacao.offset,
@@ -139,7 +160,7 @@ class TransfersPage(QWidget):
                                    itens_por_pagina=self._paginacao.limit)
         self._preencher_tabela(movimentacoes)
 
-    def _preencher_tabela(self, movimentacoes):
+    def _preencher_tabela(self, movimentacoes: list[Any]) -> None:
         self.tabela.limpar()
         self.tabela.setRowCount(len(movimentacoes))
         for i, m in enumerate(movimentacoes):
@@ -156,7 +177,7 @@ class TransfersPage(QWidget):
         self.tabela.redimensionar()
         self._atualizar_cards(movimentacoes)
 
-    def _atualizar_cards(self, movimentacoes):
+    def _atualizar_cards(self, movimentacoes: list[Any]) -> None:
         total = len(movimentacoes)
         saidas = sum(1 for m in movimentacoes if m.from_location and not m.to_location)
         entradas = sum(1 for m in movimentacoes if m.to_location and not m.from_location)
@@ -166,12 +187,12 @@ class TransfersPage(QWidget):
         self.card_entradas.atualizar_valor(entradas)
         self.card_pendentes.atualizar_valor(pendentes)
 
-    def _filtrar(self, texto):
+    def _filtrar(self, texto: str) -> None:
         texto = texto.strip()
         self._filtro_transf = texto if texto else None
         self._carregar()
 
-    def _nova(self):
+    def _nova(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Nova Transferência")
         dialog.setMinimumSize(680, 580)
@@ -179,7 +200,7 @@ class TransfersPage(QWidget):
 
         layout = QVBoxLayout(dialog)
         tabs = QTabWidget()
-        tabs.setStyleSheet(estilos_dialogo_tabs())
+        
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -216,7 +237,7 @@ class TransfersPage(QWidget):
         lbl_dest.setVisible(False)
         form.addRow(lbl_dest, printer_destino_combo)
 
-        def _toggle_printer_destino(tipo):
+        def _toggle_printer_destino(tipo: str) -> None:
             visivel = tipo == "Apenas Peça(s)"
             lbl_dest.setVisible(visivel)
             printer_destino_combo.setVisible(visivel)
@@ -278,7 +299,7 @@ class TransfersPage(QWidget):
 
         saved_id = [None]
 
-        def salvar_nova_silent():
+        def salvar_nova_silent() -> int | None:
             if saved_id[0] is not None:
                 return saved_id[0]
             patrimonio_texto = printer_combo.currentText().split(" - ")[0].strip()
@@ -342,7 +363,7 @@ class TransfersPage(QWidget):
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar:\n{e}")
                 return None
 
-        def salvar_nova():
+        def salvar_nova() -> None:
             if salvar_nova_silent() is not None:
                 dialog.accept()
 
@@ -354,7 +375,7 @@ class TransfersPage(QWidget):
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
 
-    def _editar(self, row):
+    def _editar(self, row: int) -> None:
         if row < 0 or row >= len(self._mov_cache):
             return
         mov = self._mov_cache[row]
@@ -368,7 +389,7 @@ class TransfersPage(QWidget):
 
         layout = QVBoxLayout(dialog)
         tabs = QTabWidget()
-        tabs.setStyleSheet(estilos_dialogo_tabs())
+        
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -422,7 +443,7 @@ class TransfersPage(QWidget):
         lbl_dest_edit.setVisible(is_pecas)
         printer_destino_edit_combo.setVisible(is_pecas)
 
-        def _toggle_printer_destino_edit(tipo):
+        def _toggle_printer_destino_edit(tipo: str) -> None:
             visivel = tipo == "Apenas Peça(s)"
             lbl_dest_edit.setVisible(visivel)
             printer_destino_edit_combo.setVisible(visivel)
@@ -475,7 +496,7 @@ class TransfersPage(QWidget):
             lambda idx: self._preencher_pecas_do_estoque(estoque_edit_combo, pecas_text, idx)
         )
 
-        def _strip_prefix(txt):
+        def _strip_prefix(txt: str) -> str:
             import re
             return re.sub(r'^(Peças para \S+|Recebeu peça da \S+)\s*[—\-]?\s*', '', txt).strip()
 
@@ -495,7 +516,7 @@ class TransfersPage(QWidget):
 
         tabs.addTab(scroll, "\U0001f4cb Dados")
 
-        def salvar_edicao():
+        def salvar_edicao() -> None:
             from app.utils.helpers import parse_data
             data_texto = data_input.text().strip()
             desc_clean = desc_text.toPlainText().strip()
@@ -591,7 +612,7 @@ class TransfersPage(QWidget):
 
         alterado = [False]
 
-        def marcar_alterado():
+        def marcar_alterado() -> None:
             alterado[0] = True
 
         pecas_text.textChanged.connect(marcar_alterado)
@@ -603,7 +624,7 @@ class TransfersPage(QWidget):
 
         original_close = dialog.closeEvent
 
-        def close_event(event):
+        def close_event(event: Any) -> None:
             if alterado[0]:
                 resposta = QMessageBox.question(
                     dialog, "Alterações não salvas",
@@ -627,7 +648,7 @@ class TransfersPage(QWidget):
         dialog.exec()
         self.recarregar()
 
-    def _confirmar_exclusao(self, dialog, mov):
+    def _confirmar_exclusao(self, dialog: QDialog, mov: Any) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
             "Confirmar Exclusão",
             "Tem certeza que deseja excluir esta transferência?",
@@ -649,7 +670,7 @@ class TransfersPage(QWidget):
                 self._session.rollback()
                 QMessageBox.critical(dialog, "Erro", f"Erro ao excluir:\n{e}")
 
-    def _criar_tab_anexos_nova(self, dialog, tabs, fn_salvar_silent, saved_id):
+    def _criar_tab_anexos_nova(self, dialog: QDialog, tabs: QTabWidget, fn_salvar_silent: Callable[[], int | None], saved_id: list[int | None]) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
@@ -664,7 +685,7 @@ class TransfersPage(QWidget):
         btn_add = QPushButton("\U0001f4ce Adicionar Anexo")
         btn_add.setStyleSheet(ESTILO_BOTAO_AVISO)
 
-        def _salvar_e_anexar():
+        def _salvar_e_anexar() -> None:  
             eid = fn_salvar_silent()
             if eid is None:
                 return
@@ -674,7 +695,7 @@ class TransfersPage(QWidget):
         layout.addWidget(btn_add, alignment=Qt.AlignCenter)
         return tab
 
-    def _criar_tab_anexos(self, entity_type, entity_id, dialog, callback_salvar, tabs):
+    def _criar_tab_anexos(self, entity_type: str, entity_id: int, dialog: QDialog, callback_salvar: Callable[[], None] | None, tabs: QTabWidget) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
@@ -749,7 +770,7 @@ class TransfersPage(QWidget):
         layout.addLayout(botoes_anexos)
         return tab
 
-    def _remover_anexo(self, anexo_id, entity_type, entity_id, dialog, callback_salvar, tabs):
+    def _remover_anexo(self, anexo_id: int, entity_type: str, entity_id: int, dialog: QDialog, callback_salvar: Callable[[], None] | None, tabs: QTabWidget) -> None:
         if not ConfirmacaoDigitarDialog.confirmar(
             "Remover Anexo",
             "Deseja realmente remover este anexo?\n\nO arquivo será excluído permanentemente.",
@@ -772,7 +793,7 @@ class TransfersPage(QWidget):
             self._session.rollback()
             QMessageBox.critical(dialog, "Erro", f"Erro ao remover anexo:\n{e}")
 
-    def _anexar_arquivo(self, entity_type, entity_id, dialog, callback_salvar, tabs):
+    def _anexar_arquivo(self, entity_type: str, entity_id: int, dialog: QDialog, callback_salvar: Callable[[], None] | None, tabs: QTabWidget) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             dialog, "Selecionar Arquivo",
             "",
@@ -826,7 +847,7 @@ class TransfersPage(QWidget):
             self._session.rollback()
             QMessageBox.critical(dialog, "Erro", f"Erro ao anexar arquivo:\n{e}")
 
-    def _abrir_anexo(self, file_path):
+    def _abrir_anexo(self, file_path: str) -> None:
         if os.path.exists(file_path):
             try:
                 os.startfile(file_path)
@@ -835,7 +856,7 @@ class TransfersPage(QWidget):
         else:
             QMessageBox.warning(self, "Aviso", "Arquivo não encontrado:\n" + file_path)
 
-    def _criar_estoque_combo(self):
+    def _criar_estoque_combo(self) -> QComboBox:
         combo = QComboBox()
         configurar_combo(combo)
         combo.addItem("-- Nenhuma --", None)
@@ -844,7 +865,7 @@ class TransfersPage(QWidget):
                 combo.addItem(f"{p.nome} ({p.quantidade_estoque} un.)", p.id)
         return combo
 
-    def _preencher_pecas_do_estoque(self, combo, pecas_widget, idx):
+    def _preencher_pecas_do_estoque(self, combo: QComboBox, pecas_widget: QTextEdit, idx: int) -> None:
         if idx <= 0:
             return
         try:
@@ -859,7 +880,7 @@ class TransfersPage(QWidget):
         except RuntimeError:
             pass
 
-    def _dar_baixa_estoque(self, pecas_texto):
+    def _dar_baixa_estoque(self, pecas_texto: str) -> None:
         if not pecas_texto:
             return
         nome_peca = pecas_texto.split(",")[0].strip()

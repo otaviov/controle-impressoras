@@ -7,6 +7,7 @@ from app.models.company import Company
 from app.models.login_history import LoginHistory
 from app.models.part import Part
 from app.models.printer import Printer
+from app.models.printer_location import PrinterLocation
 from app.models.technician import Technician
 from app.models.transfer import Transfer
 from app.models.user import User

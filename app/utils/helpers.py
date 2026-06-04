@@ -1,8 +1,8 @@
 from datetime import datetime
+from typing import Optional
 
 
-def limpar_local(texto):
-    """Remove prefixos de local (🏢, 📍)"""
+def limpar_local(texto: Optional[str]) -> str:
     if not texto:
         return ""
     for prefixo in ["🏢 ", "📍 "]:
@@ -11,16 +11,15 @@ def limpar_local(texto):
     return texto.strip()
 
 
-def formatar_data(data, formato="%d/%m/%Y"):
+def formatar_data(data: Optional[datetime], formato: str = "%d/%m/%Y") -> str:
     return data.strftime(formato) if data else "-"
 
 
-def formatar_data_hora(data, formato="%d/%m/%Y %H:%M"):
+def formatar_data_hora(data: Optional[datetime], formato: str = "%d/%m/%Y %H:%M") -> str:
     return data.strftime(formato) if data else "-"
 
 
-def parse_data(texto):
-    """Tenta parsear data nos formatos dd/mm/aaaa HH:MM e dd/mm/aaaa"""
+def parse_data(texto: Optional[str]) -> Optional[datetime]:
     if not texto:
         return None
     for fmt in ["%d/%m/%Y %H:%M", "%d/%m/%Y"]:
@@ -31,7 +30,7 @@ def parse_data(texto):
     return None
 
 
-def encurtar(texto, max_len=40):
+def encurtar(texto: Optional[str], max_len: int = 40) -> str:
     if not texto:
         return "-"
     if len(texto) > max_len:

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton
 
@@ -5,14 +9,14 @@ import app.views.styles.theme as theme
 
 
 class DialogoBase(QDialog):
-    def __init__(self, titulo, parent=None, largura=500, altura=500):
+    def __init__(self, titulo: str, parent: Optional[QDialog] = None, largura: int = 500, altura: int = 500) -> None:
         super().__init__(parent)
         self.setWindowTitle(titulo)
         self.setMinimumSize(largura, altura)
         c = theme.COR
         self.setStyleSheet(f"QDialog {{ background-color: {c['fundo']}; }}")
 
-    def botao_salvar(self, texto="💾 Salvar"):
+    def botao_salvar(self, texto: str = "💾 Salvar") -> QPushButton:
         btn = QPushButton(texto)
         btn.setCursor(Qt.PointingHandCursor)
         c = theme.COR
@@ -27,7 +31,7 @@ class DialogoBase(QDialog):
         """)
         return btn
 
-    def botao_excluir(self, texto="🗑️ Excluir"):
+    def botao_excluir(self, texto: str = "🗑️ Excluir") -> QPushButton:
         btn = QPushButton(texto)
         btn.setCursor(Qt.PointingHandCursor)
         c = theme.COR
@@ -42,7 +46,7 @@ class DialogoBase(QDialog):
         """)
         return btn
 
-    def botao_cancelar(self, texto="Cancelar"):
+    def botao_cancelar(self, texto: str = "Cancelar") -> QPushButton:
         c = theme.COR
         btn = QPushButton(texto)
         btn.setCursor(Qt.PointingHandCursor)
@@ -57,7 +61,7 @@ class DialogoBase(QDialog):
         btn.clicked.connect(self.reject)
         return btn
 
-    def botoes_layout(self):
+    def botoes_layout(self) -> QHBoxLayout:
         layout = QHBoxLayout()
         layout.setSpacing(10)
         return layout

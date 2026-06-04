@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime as dt
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -25,13 +28,14 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     STATUS_ATIVIDADE_OPCOES,
     configurar_combo,
-    estilos_dialogo_tabs,
 )
 from app.utils.helpers import formatar_data_hora
 
 
 class _StatsCard(QFrame):
-    def __init__(self, titulo, valor, cor):
+    lbl_valor: QLabel
+
+    def __init__(self, titulo: str, valor: int, cor: str) -> None:
         super().__init__()
         self.setStyleSheet(
             f"QFrame {{ background-color: #14141f; border: 1px solid #2a2a3e;"
@@ -49,13 +53,37 @@ class _StatsCard(QFrame):
         layout.addWidget(lbl_titulo)
         layout.addWidget(self.lbl_valor)
 
-    def set_valor(self, valor):
+    def set_valor(self, valor: int) -> None:
         self.lbl_valor.setText(str(valor))
 
 
 class TechnicianHistoryPage(QWidget):
-    def __init__(self, session, technician_service, activity_service, user_service, login_history_service,
-                 printer_service, parent=None):
+    _session: Any
+    _technician_service: Any
+    _activity_service: Any
+    _user_service: Any
+    _login_history_service: Any
+    _printer_service: Any
+    _current_tech_id: Any | None
+    _tecnico_combo: QComboBox
+    _status_combo: QComboBox
+    _tipo_combo: QComboBox
+    _card_total: _StatsCard
+    _card_andamento: _StatsCard
+    _card_concluidas: _StatsCard
+    _card_mov: _StatsCard
+    _tabs: QTabWidget
+    _tab_atividades: QWidget
+    _tab_andamento: QWidget
+    _tab_mov: QWidget
+    _tab_login: QWidget
+    _tabela_atividades: QTableWidget
+    _tabela_andamento: QTableWidget
+    _tabela_mov: QTableWidget
+    _tabela_login: QTableWidget
+
+    def __init__(self, session: Any, technician_service: Any, activity_service: Any, user_service: Any, login_history_service: Any,
+                 printer_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._session = session
         self._technician_service = technician_service
@@ -66,7 +94,7 @@ class TechnicianHistoryPage(QWidget):
         self._current_tech_id = None
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
@@ -132,7 +160,6 @@ class TechnicianHistoryPage(QWidget):
         layout.addLayout(cards)
 
         self._tabs = QTabWidget()
-        self._tabs.setStyleSheet(estilos_dialogo_tabs())
         layout.addWidget(self._tabs, 1)
 
         self._tab_atividades = self._criar_tabela_atividades()
@@ -147,7 +174,7 @@ class TechnicianHistoryPage(QWidget):
         self._tab_login = self._criar_tabela_login()
         self._tabs.addTab(self._tab_login, "\U0001f511 Sessões")
 
-    def _criar_tabela_atividades(self):
+    def _criar_tabela_atividades(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         self._tabela_atividades = QTableWidget()
@@ -167,7 +194,7 @@ class TechnicianHistoryPage(QWidget):
         layout.addWidget(self._tabela_atividades)
         return tab
 
-    def _criar_tabela_andamento(self):
+    def _criar_tabela_andamento(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         lbl = QLabel("Máquinas sendo consertadas agora pelo técnico selecionado:")
@@ -190,7 +217,7 @@ class TechnicianHistoryPage(QWidget):
         layout.addWidget(self._tabela_andamento)
         return tab
 
-    def _criar_tabela_movimentacoes(self):
+    def _criar_tabela_movimentacoes(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         self._tabela_mov = QTableWidget()
@@ -210,7 +237,7 @@ class TechnicianHistoryPage(QWidget):
         layout.addWidget(self._tabela_mov)
         return tab
 
-    def _criar_tabela_login(self):
+    def _criar_tabela_login(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         lbl = QLabel(
@@ -237,7 +264,7 @@ class TechnicianHistoryPage(QWidget):
         layout.addWidget(self._tabela_login)
         return tab
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         tecnicos = self._technician_service.listar_todos()
         current_text = self._tecnico_combo.currentText()
 
@@ -257,7 +284,7 @@ class TechnicianHistoryPage(QWidget):
         if self._tecnico_combo.currentData() is not None:
             self._ao_trocar_tecnico()
 
-    def _ao_trocar_tecnico(self):
+    def _ao_trocar_tecnico(self) -> None:
         self._current_tech_id = self._tecnico_combo.currentData()
         if self._current_tech_id is None:
             self._limpar_tabelas()
@@ -265,7 +292,7 @@ class TechnicianHistoryPage(QWidget):
         self._atualizar_stats()
         self._aplicar_filtros()
 
-    def _aplicar_filtros(self):
+    def _aplicar_filtros(self) -> None:
         tech_id = self._current_tech_id
         if tech_id is None:
             return
@@ -286,7 +313,7 @@ class TechnicianHistoryPage(QWidget):
         self._preencher_movimentacoes(tech_id)
         self._preencher_login(tech_id)
 
-    def _atualizar_stats(self):
+    def _atualizar_stats(self) -> None:
         tech_id = self._current_tech_id
         if tech_id is None:
             for card in [self._card_total, self._card_andamento, self._card_concluidas, self._card_mov]:
@@ -303,7 +330,7 @@ class TechnicianHistoryPage(QWidget):
         self._card_concluidas.set_valor(concluidas)
         self._card_mov.set_valor(mov)
 
-    def _preencher_atividades(self, atividades):
+    def _preencher_atividades(self, atividades: list[Any]) -> None:
         self._tabela_atividades.setRowCount(0)
         self._tabela_atividades.setRowCount(len(atividades))
         for i, a in enumerate(atividades):
@@ -319,7 +346,7 @@ class TechnicianHistoryPage(QWidget):
             self._tabela_atividades.setItem(i, 6, QTableWidgetItem(a.status_atividade or ""))
             self._tabela_atividades.setItem(i, 7, QTableWidgetItem(a.numero_recibo or ""))
 
-    def _preencher_andamento(self, tech_id):
+    def _preencher_andamento(self, tech_id: int) -> None:
         atividades = self._activity_service.listar_por_tecnico_e_status(tech_id, "Em Andamento")
         self._tabela_andamento.setRowCount(0)
         self._tabela_andamento.setRowCount(len(atividades))
@@ -336,7 +363,7 @@ class TechnicianHistoryPage(QWidget):
             self._tabela_andamento.setItem(i, 5, QTableWidgetItem(local))
             self._tabela_andamento.setItem(i, 6, QTableWidgetItem(a.numero_recibo or ""))
 
-    def _preencher_movimentacoes(self, tech_id):
+    def _preencher_movimentacoes(self, tech_id: int) -> None:
         atividades = self._activity_service.listar_por_tecnico_e_tipo(tech_id, "MOVIMENTACAO")
         self._tabela_mov.setRowCount(0)
         self._tabela_mov.setRowCount(len(atividades))
@@ -351,7 +378,7 @@ class TechnicianHistoryPage(QWidget):
             self._tabela_mov.setItem(i, 5, QTableWidgetItem(a.status_atividade or ""))
             self._tabela_mov.setItem(i, 6, QTableWidgetItem(a.numero_recibo or ""))
 
-    def _preencher_login(self, tech_id):
+    def _preencher_login(self, tech_id: int) -> None:
         tecnico = self._technician_service.buscar_por_id(tech_id)
         if not tecnico:
             self._tabela_login.setRowCount(0)
@@ -398,7 +425,7 @@ class TechnicianHistoryPage(QWidget):
                 duracao = f"{horas}h {minutos}min (em andamento)"
             self._tabela_login.setItem(i, 4, QTableWidgetItem(duracao))
 
-    def _limpar_tabelas(self):
+    def _limpar_tabelas(self) -> None:
         self._tabela_atividades.setRowCount(0)
         self._tabela_andamento.setRowCount(0)
         self._tabela_mov.setRowCount(0)

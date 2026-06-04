@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .badge_widget import BadgeWidget
 from .card_widget import CardWidget
 from .chart_widget import BarChart, LineChart, PizzaChart

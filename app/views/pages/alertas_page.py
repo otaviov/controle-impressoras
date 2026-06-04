@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime as dt
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -42,7 +45,7 @@ from app.views.widgets.table_widget import TabelaPadrao
 from app.views.widgets.toast import ToastManager
 
 
-CORES_TIPO = {
+CORES_TIPO: dict[str, str] = {
     "revisao": "#60a5fa",
     "critico": "#f87171",
     "aviso": "#fbbf24",
@@ -50,12 +53,12 @@ CORES_TIPO = {
     "estoque": "#fb923c",
 }
 
-STATUS_ALERTA = {
+STATUS_ALERTA: dict[bool, tuple[str, str]] = {
     True: ("Resolvido", "#34d399"),
     False: ("Pendente", "#fbbf24"),
 }
 
-TIPO_LABELS = {
+TIPO_LABELS: dict[str, str] = {
     "revisao": "Revisão",
     "critico": "Crítico",
     "aviso": "Aviso",
@@ -63,11 +66,26 @@ TIPO_LABELS = {
     "estoque": "Estoque",
 }
 
-TIPO_OPCOES = ["revisao", "critico", "aviso", "info", "estoque"]
+TIPO_OPCOES: list[str] = ["revisao", "critico", "aviso", "info", "estoque"]
 
 
 class AlertasPage(QWidget):
-    def __init__(self, session, alert_service, printer_service, part_service=None):
+    session: Any
+    alert_service: Any
+    printer_service: Any
+    part_service: Any | None
+    _filtro_status: str | None
+    _filtro_busca: str
+    btn_todos: QPushButton
+    btn_pendentes: QPushButton
+    btn_resolvidos: QPushButton
+    lbl_contador: QLabel
+    search: SearchBar
+    tabela: TabelaPadrao
+    _alertas_visiveis: list[Any]
+    _paginacao: PaginacaoWidget
+
+    def __init__(self, session: Any, alert_service: Any, printer_service: Any, part_service: Any | None = None) -> None:
         super().__init__()
         self.session = session
         self.alert_service = alert_service
@@ -159,7 +177,7 @@ class AlertasPage(QWidget):
 
         self._carregar()
 
-    def _estilo_filtro(self, ativo):
+    def _estilo_filtro(self, ativo: bool) -> str:
         if ativo:
             return (
                 "QPushButton { background-color: #a78bfa; color: #ffffff; border: none;"
@@ -172,21 +190,21 @@ class AlertasPage(QWidget):
             " QPushButton:hover { border-color: #4a4a6a; color: #94a3b8; }"
         )
 
-    def _atualizar_botoes_filtro(self):
+    def _atualizar_botoes_filtro(self) -> None:
         self.btn_todos.setStyleSheet(self._estilo_filtro(self._filtro_status is None))
         self.btn_pendentes.setStyleSheet(self._estilo_filtro(self._filtro_status == "pendentes"))
         self.btn_resolvidos.setStyleSheet(self._estilo_filtro(self._filtro_status == "resolvidos"))
 
-    def _alternar_filtro(self, status):
+    def _alternar_filtro(self, status: str | None) -> None:
         self._filtro_status = status
         self._atualizar_botoes_filtro()
         self._carregar()
 
-    def _buscar(self, texto):
+    def _buscar(self, texto: str) -> None:
         self._filtro_busca = texto
         self._carregar()
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         self._filtro_busca = ""
         self._carregar()
 
@@ -236,8 +254,7 @@ class AlertasPage(QWidget):
 
         self.tabela.redimensionar()
 
-    def _gerar_alertas_estoque(self):
-        from db import safe_commit
+    def _gerar_alertas_estoque(self) -> None:
         try:
             criados = self.alert_service.verificar_estoque_baixo()
             ToastManager.atualizar_status(self.alert_service.contar_pendentes())
@@ -249,7 +266,7 @@ class AlertasPage(QWidget):
             ToastManager.erro(f"Erro ao verificar estoque: {str(e)}")
         self.recarregar()
 
-    def _novo(self):
+    def _novo(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Novo Alerta")
         dialog.setMinimumSize(520, 500)
@@ -318,7 +335,7 @@ class AlertasPage(QWidget):
         layout.addRow(botoes)
         dialog.exec()
 
-    def _salvar_novo(self, dialog, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, data_agendada):
+    def _salvar_novo(self, dialog: QDialog, printer_combo: QComboBox, part_combo: QComboBox, tipo_combo: QComboBox, titulo_input: QLineEdit, desc_input: QTextEdit, data_agendada: Any) -> None:
         titulo = titulo_input.text().strip()
         if not titulo:
             QMessageBox.warning(dialog, "Aviso", "Preencha o título!")
@@ -348,7 +365,7 @@ class AlertasPage(QWidget):
             self.recarregar()
             dialog.accept()
 
-    def _detalhes(self, row):
+    def _detalhes(self, row: int) -> None:
         if row < 0 or row >= len(self._alertas_visiveis):
             return
         alerta = self._alertas_visiveis[row]
@@ -472,7 +489,7 @@ class AlertasPage(QWidget):
         layout.addLayout(botoes)
         dialog.exec()
 
-    def _editar(self, alerta, parent_dialog):
+    def _editar(self, alerta: Any, parent_dialog: QDialog) -> None:
         dialog = QDialog(parent_dialog)
         dialog.setWindowTitle("Editar Alerta")
         dialog.setMinimumSize(520, 540)
@@ -564,7 +581,7 @@ class AlertasPage(QWidget):
         layout.addRow(botoes)
         dialog.exec()
 
-    def _salvar_edicao(self, dialog, alerta, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, chk_resolvido, data_agendada, parent_dialog):
+    def _salvar_edicao(self, dialog: QDialog, alerta: Any, printer_combo: QComboBox, part_combo: QComboBox, tipo_combo: QComboBox, titulo_input: QLineEdit, desc_input: QTextEdit, chk_resolvido: Any, data_agendada: Any, parent_dialog: QDialog) -> None:
         titulo = titulo_input.text().strip()
         if not titulo:
             QMessageBox.warning(dialog, "Aviso", "Preencha o título!")
@@ -598,7 +615,7 @@ class AlertasPage(QWidget):
         dialog.accept()
         parent_dialog.accept()
 
-    def _excluir(self, alerta, dialog):
+    def _excluir(self, alerta: Any, dialog: QDialog) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
             "Excluir Alerta",
             f"Deseja realmente excluir o alerta \"{alerta.titulo}\"?",
@@ -617,7 +634,7 @@ class AlertasPage(QWidget):
             except Exception as e:
                 QMessageBox.critical(dialog, "Erro", f"Erro ao excluir alerta:\n{e}")
 
-    def _resolver(self, alerta, dialog):
+    def _resolver(self, alerta: Any, dialog: QDialog) -> None:
         resp = QMessageBox.question(
             dialog, "Resolver Alerta",
             "Marcar este alerta como resolvido?",

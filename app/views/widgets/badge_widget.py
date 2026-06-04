@@ -1,9 +1,13 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 
 class BadgeWidget(QWidget):
-    def __init__(self, texto, cor=None, parent=None):
+    def __init__(self, texto: str, cor: Optional[str] = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         if cor is None:
             cor = "#6366f1"

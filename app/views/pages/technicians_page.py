@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -29,7 +33,15 @@ from app.views.widgets.table_widget import TabelaPadrao
 
 
 class _TechnicianDialog(QDialog):
-    def __init__(self, parent=None, dados=None):
+    input_nome: QLineEdit
+    input_exibicao: QLineEdit
+    input_telefone: QLineEdit
+    input_email: QLineEdit
+    btn_salvar: QPushButton
+    btn_excluir: QPushButton
+    _excluir_confirmado: bool
+
+    def __init__(self, parent: QWidget | None = None, dados: dict[str, Any] | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Editar Técnico" if dados else "Novo Técnico")
         self.setMinimumWidth(400)
@@ -109,7 +121,7 @@ class _TechnicianDialog(QDialog):
 
         self._excluir_confirmado = False
 
-    def dados(self):
+    def dados(self) -> dict[str, str]:
         return {
             "nome_completo": self.input_nome.text().strip(),
             "nome_exibicao": self.input_exibicao.text().strip(),
@@ -117,7 +129,7 @@ class _TechnicianDialog(QDialog):
             "email": self.input_email.text().strip(),
         }
 
-    def _confirmar_exclusao(self):
+    def _confirmar_exclusao(self) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
             "Confirmar Exclusão",
             "Tem certeza que deseja excluir este técnico?",
@@ -126,14 +138,21 @@ class _TechnicianDialog(QDialog):
             self._excluir_confirmado = True
             self.accept()
 
-    def excluir_confirmado(self):
+    def excluir_confirmado(self) -> bool:
         return self._excluir_confirmado
 
 
 class TechniciansPage(QWidget):
-    COLUNAS = ["Nome Completo", "Exibição", "Telefone", "Email", "Ativo"]
+    COLUNAS: list[str] = ["Nome Completo", "Exibição", "Telefone", "Email", "Ativo"]
 
-    def __init__(self, session, technician_service, parent=None):
+    _session: Any
+    _technician_service: Any
+    _tecnicos_visiveis: list[Any]
+    btn_novo: QPushButton
+    tabela: TabelaPadrao
+    _paginacao: PaginacaoWidget
+
+    def __init__(self, session: Any, technician_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._session = session
         self._technician_service = technician_service
@@ -166,10 +185,10 @@ class TechniciansPage(QWidget):
 
         self._carregar()
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         self._carregar()
 
-    def _carregar(self):
+    def _carregar(self) -> None:
         tecnicos = self._technician_service.listar_todos(
             limite=self._paginacao.limit, offset=self._paginacao.offset
         )
@@ -190,7 +209,7 @@ class TechniciansPage(QWidget):
             self.tabela.setItem(i, 4, item_ativo)
         self.tabela.redimensionar()
 
-    def _novo(self):
+    def _novo(self) -> None:
         dialogo = _TechnicianDialog(self)
         if dialogo.exec() == QDialog.Accepted:
             dados = dialogo.dados()
@@ -203,7 +222,7 @@ class TechniciansPage(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao criar técnico:\n{e}")
 
-    def _editar(self, row):
+    def _editar(self, row: int) -> None:
         if row < 0 or row >= len(self._tecnicos_visiveis):
             return
         tecnico = self._tecnicos_visiveis[row]

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -25,13 +29,19 @@ _ESTILO_BOTAO_CONFIRMAR = ESTILO_BOTAO_ERRO + """\
 
 
 class ConfirmacaoDigitarDialog(QDialog):
+    palavra_chave: str
+    confirmado: bool
+    input: QLineEdit
+    btn_cancelar: QPushButton
+    btn_confirmar: QPushButton
+
     def __init__(
         self,
         titulo: str,
         mensagem: str,
-        parent=None,
+        parent: Optional[QDialog] = None,
         palavra_chave: str = "EXCLUIR",
-    ):
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(titulo)
         self.setModal(True)
@@ -40,7 +50,7 @@ class ConfirmacaoDigitarDialog(QDialog):
         self.confirmado = False
         self._setup_ui(mensagem)
 
-    def _setup_ui(self, mensagem: str):
+    def _setup_ui(self, mensagem: str) -> None:
         self.setStyleSheet(
             f"QDialog {{ background-color: {COR['fundo_card']}; }}"
         )
@@ -113,10 +123,10 @@ class ConfirmacaoDigitarDialog(QDialog):
         self.input.textChanged.connect(self._verificar)
         self.input.returnPressed.connect(self._confirmar)
 
-    def _verificar(self, texto: str):
+    def _verificar(self, texto: str) -> None:
         self.btn_confirmar.setEnabled(texto.strip().upper() == self.palavra_chave)
 
-    def _confirmar(self):
+    def _confirmar(self) -> None:
         if not self.btn_confirmar.isEnabled():
             return
         self.confirmado = True
@@ -127,7 +137,7 @@ class ConfirmacaoDigitarDialog(QDialog):
         cls,
         titulo: str,
         mensagem: str,
-        parent=None,
+        parent: Optional[QDialog] = None,
         palavra_chave: str = "EXCLUIR",
     ) -> bool:
         dlg = cls(titulo, mensagem, parent, palavra_chave)

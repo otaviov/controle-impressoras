@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import smtplib
@@ -7,6 +9,7 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from pathlib import Path
 from threading import Thread
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -72,9 +75,9 @@ class NotificacaoConfig:
 
 
 class NotificadorService:
-    def __init__(self, tray_icon=None):
-        self._config = NotificacaoConfig.carregar()
-        self._tray_icon = tray_icon
+    def __init__(self, tray_icon: Any = None) -> None:
+        self._config: NotificacaoConfig = NotificacaoConfig.carregar()
+        self._tray_icon: Any = tray_icon
 
     @property
     def config(self) -> NotificacaoConfig:
@@ -86,7 +89,7 @@ class NotificadorService:
     def salvar_config(self) -> None:
         self._config.salvar()
 
-    def notificar_alerta(self, alerta) -> None:
+    def notificar_alerta(self, alerta: Any) -> None:
         if not alerta:
             return
 
@@ -96,7 +99,7 @@ class NotificadorService:
         if self._config.email_ativado:
             Thread(target=self._notificar_email, args=(alerta,), daemon=True).start()
 
-    def _notificar_desktop(self, alerta) -> None:
+    def _notificar_desktop(self, alerta: Any) -> None:
         if not self._tray_icon or not self._tray_icon.isVisible():
             return
         try:
@@ -109,7 +112,7 @@ class NotificadorService:
         except Exception as e:
             log.warning("Erro ao notificar desktop: %s", e)
 
-    def _notificar_email(self, alerta) -> None:
+    def _notificar_email(self, alerta: Any) -> None:
         cfg = self._config
         if not all([cfg.smtp_host, cfg.smtp_usuario, cfg.smtp_senha, cfg.email_remetente, cfg.email_destinatario]):
             return

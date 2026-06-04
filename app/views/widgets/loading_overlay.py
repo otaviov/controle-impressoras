@@ -1,15 +1,21 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QResizeEvent
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
 class SpinnerWidget(QWidget):
-    def __init__(self, parent=None):
+    _angulo: int
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setFixedSize(40, 40)
         self._angulo = 0
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: QResizeEvent) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(3, 3, -3, -3)
@@ -22,7 +28,11 @@ class SpinnerWidget(QWidget):
 
 
 class LoadingOverlay(QWidget):
-    def __init__(self, parent=None, text="Carregando..."):
+    spinner: SpinnerWidget
+    label: QLabel
+    _timer: QTimer
+
+    def __init__(self, parent: Optional[QWidget] = None, text: str = "Carregando...") -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
         self.setStyleSheet("background-color: rgba(10, 10, 18, 180);")
@@ -45,11 +55,11 @@ class LoadingOverlay(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._rotacionar)
 
-    def _rotacionar(self):
+    def _rotacionar(self) -> None:
         self.spinner._angulo = (self.spinner._angulo + 30) % 360
         self.spinner.update()
 
-    def mostrar(self, text=None):
+    def mostrar(self, text: Optional[str] = None) -> None:
         if text:
             self.label.setText(text)
         self.setFixedSize(self.parent().size())
@@ -57,11 +67,11 @@ class LoadingOverlay(QWidget):
         self._timer.start(50)
         self.show()
 
-    def ocultar(self):
+    def ocultar(self) -> None:
         self._timer.stop()
         self.hide()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         if self.parent():
             self.setFixedSize(self.parent().size())
         super().resizeEvent(event)

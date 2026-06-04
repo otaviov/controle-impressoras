@@ -1,5 +1,9 @@
+from __future__ import annotations
+
+import json
 import shutil
 from datetime import datetime
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -21,8 +25,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-import json
 
 from app.utils.helpers import formatar_data_hora
 from app.utils.ui_helpers import tratar_erro
@@ -50,7 +52,40 @@ from config import DB_PATH
 
 
 class ConfigPage(QWidget):
-    def __init__(self, session, user_service, user, notificador=None, audit_service=None, printer_service=None, part_service=None, company_service=None, activity_service=None, transfer_service=None, technician_service=None, alert_service=None, parent=None):
+    session: Any
+    user_service: Any
+    notificador: Any | None
+    audit_service: Any | None
+    printer_service: Any | None
+    part_service: Any | None
+    company_service: Any | None
+    activity_service: Any | None
+    transfer_service: Any | None
+    technician_service: Any | None
+    alert_service: Any | None
+    user: dict[str, Any]
+    abas: QTabWidget
+    tabela: TabelaPadrao
+    btn_novo: QPushButton
+    btn_editar: QPushButton
+    btn_backup: QPushButton
+    label_backup: QLabel
+    btn_lixeira: QPushButton
+    _notif_config: Any
+    _chk_desktop: QCheckBox
+    _chk_email: QCheckBox
+    _input_smtp_host: QLineEdit
+    _input_smtp_port: QSpinBox
+    _input_smtp_user: QLineEdit
+    _input_smtp_senha: QLineEdit
+    _input_email_de: QLineEdit
+    _input_email_para: QLineEdit
+    _lbl_status_notif: QLabel
+    _combo_filtro_tabela: QComboBox
+    _tabela_auditoria: TabelaPadrao
+    _logs_auditoria: list[Any]
+
+    def __init__(self, session: Any, user_service: Any, user: dict[str, Any], notificador: Any | None = None, audit_service: Any | None = None, printer_service: Any | None = None, part_service: Any | None = None, company_service: Any | None = None, activity_service: Any | None = None, transfer_service: Any | None = None, technician_service: Any | None = None, alert_service: Any | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.user_service = user_service
@@ -67,7 +102,7 @@ class ConfigPage(QWidget):
         self._setup_ui()
         self.recarregar()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
@@ -86,10 +121,9 @@ class ConfigPage(QWidget):
 
         self.abas = QTabWidget()
         self.abas.setStyleSheet("""
-            QTabWidget::pane { border: none; background: transparent; margin-top: -1px; }
-            QTabBar::tab { padding: 10px 20px; color: #94949f; font-weight: 600;
-                background: transparent; border: none; border-bottom: 2px solid transparent; }
-            QTabBar::tab:selected { color: #a78bfa; border-bottom: 2px solid #a78bfa; }
+            QTabWidget::pane { margin-top: -1px; }
+            QTabBar::tab { color: #94949f; font-weight: 600; }
+            QTabBar::tab:selected { color: #a78bfa; border-bottom-color: #a78bfa; }
             QTabBar::tab:hover { color: #e8e8f0; }
         """)
         self.abas.addTab(self._criar_aba_usuarios(), "👥  Usuários")
@@ -99,7 +133,7 @@ class ConfigPage(QWidget):
         self.abas.addTab(self._criar_aba_notificacoes(), "🔔  Notificações")
         layout.addWidget(self.abas)
 
-    def _criar_aba_usuarios(self):
+    def _criar_aba_usuarios(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 16, 0, 0)
@@ -122,7 +156,7 @@ class ConfigPage(QWidget):
         layout.addLayout(botoes)
         return tab
 
-    def _criar_aba_backup(self):
+    def _criar_aba_backup(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 16, 0, 0)
@@ -159,7 +193,7 @@ class ConfigPage(QWidget):
         layout.addStretch()
         return tab
 
-    def _criar_aba_lixeira(self):
+    def _criar_aba_lixeira(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 16, 0, 0)
@@ -192,7 +226,7 @@ class ConfigPage(QWidget):
         layout.addStretch()
         return tab
 
-    def _criar_aba_notificacoes(self):
+    def _criar_aba_notificacoes(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 16, 0, 0)
@@ -208,7 +242,7 @@ class ConfigPage(QWidget):
         layout.addStretch()
         return tab
 
-    def _criar_notificacao_ui(self, parent_layout):
+    def _criar_notificacao_ui(self, parent_layout: QVBoxLayout) -> None:
         from app.services.notification_service import NotificacaoConfig
 
         self._notif_config = NotificacaoConfig.carregar()
@@ -316,7 +350,7 @@ class ConfigPage(QWidget):
         self._lbl_status_notif.setStyleSheet("color: #475569; font-size: 12px; background: transparent; padding: 4px 0;")
         parent_layout.addWidget(self._lbl_status_notif)
 
-    def _salvar_notificacao(self):
+    def _salvar_notificacao(self) -> None:
         cfg = self._notif_config
         cfg.desktop_ativado = self._chk_desktop.isChecked()
         cfg.email_ativado = self._chk_email.isChecked()
@@ -332,7 +366,7 @@ class ConfigPage(QWidget):
         self._lbl_status_notif.setStyleSheet("color: #34d399; font-size: 12px; background: transparent;")
         self._lbl_status_notif.setText("Configuração salva com sucesso!")
 
-    def _testar_email(self):
+    def _testar_email(self) -> None:
         from app.services.notification_service import NotificacaoConfig
         cfg = NotificacaoConfig()
         cfg.desktop_ativado = self._chk_desktop.isChecked()
@@ -353,7 +387,7 @@ class ConfigPage(QWidget):
             self._lbl_status_notif.setStyleSheet("color: #f87171; font-size: 12px; background: transparent;")
         self._lbl_status_notif.setText(msg)
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         usuarios = self.user_service.listar_todos()
         self.tabela.limpar()
         self.tabela.setRowCount(len(usuarios))
@@ -370,12 +404,12 @@ class ConfigPage(QWidget):
 
         self.tabela.redimensionar()
 
-    def _novo_usuario(self):
+    def _novo_usuario(self) -> None:
         dialog = _UserDialog(self, self.user_service, modo="novo")
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
 
-    def _editar_usuario(self):
+    def _editar_usuario(self) -> None:
         linha = self.tabela.currentRow()
         if linha < 0:
             QMessageBox.warning(self, "Aviso", "Selecione um usuário para editar.")
@@ -388,7 +422,7 @@ class ConfigPage(QWidget):
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
 
-    def _abrir_lixeira(self):
+    def _abrir_lixeira(self) -> None:
         servicos = [
             ("Impressoras", self.printer_service, ["Patrimônio", "Modelo", "Marca", "Serial", "Status", "Local", "Excluído em"],
              lambda r: [r.patrimonio or "-", r.modelo or "-", r.marca or "-", r.serial or "-", r.status or "-", r.local_atual or "-", formatar_data_hora(r.deleted_at)]),
@@ -414,10 +448,8 @@ class ConfigPage(QWidget):
 
         abas = QTabWidget()
         abas.setStyleSheet("""
-            QTabWidget::pane { border: none; background: transparent; }
-            QTabBar::tab { padding: 8px 18px; color: #94949f; font-weight: 600;
-                background: transparent; border: none; border-bottom: 2px solid transparent; }
-            QTabBar::tab:selected { color: #ef4444; border-bottom: 2px solid #ef4444; }
+            QTabBar::tab { color: #94949f; font-weight: 600; padding: 8px 18px; }
+            QTabBar::tab:selected { color: #ef4444; border-bottom-color: #ef4444; }
             QTabBar::tab:hover { color: #e8e8f0; }
         """)
 
@@ -435,7 +467,7 @@ class ConfigPage(QWidget):
         layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
         dialog.exec()
 
-    def _criar_tab_lixeira(self, registros, colunas, extrair, svc, parent_dialog):
+    def _criar_tab_lixeira(self, registros: list[Any], colunas: list[str], extrair: Any, svc: Any, parent_dialog: QDialog) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setSpacing(8)
@@ -458,7 +490,7 @@ class ConfigPage(QWidget):
         layout.addWidget(btn_restaurar, alignment=Qt.AlignCenter)
         return tab
 
-    def _restaurar_selecionado(self, tabela, registros, svc, dialog):
+    def _restaurar_selecionado(self, tabela: TabelaPadrao, registros: list[Any], svc: Any, dialog: QDialog) -> None:
         row = tabela.currentRow()
         if row < 0 or row >= len(registros):
             QMessageBox.warning(self, "Aviso", "Selecione um registro para restaurar.")
@@ -476,7 +508,7 @@ class ConfigPage(QWidget):
                 dialog.accept()
                 self._abrir_lixeira()
 
-    def _criar_aba_auditoria(self):
+    def _criar_aba_auditoria(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(0, 16, 0, 0)
@@ -531,7 +563,7 @@ class ConfigPage(QWidget):
         self._recarregar_auditoria()
         return tab
 
-    def _recarregar_auditoria(self):
+    def _recarregar_auditoria(self) -> None:
         if not self.audit_service:
             return
         filtro_tabela = self._combo_filtro_tabela.currentText()
@@ -551,7 +583,7 @@ class ConfigPage(QWidget):
             self._tabela_auditoria.setItem(i, 4, QTableWidgetItem(log.registro_id))
         self._tabela_auditoria.redimensionar()
 
-    def _detalhes_auditoria(self):
+    def _detalhes_auditoria(self) -> None:
         row = self._tabela_auditoria.currentRow()
         if row < 0 or row >= len(self._logs_auditoria):
             QMessageBox.warning(self, "Aviso", "Selecione um registro para ver detalhes.")
@@ -581,9 +613,8 @@ class ConfigPage(QWidget):
         abas = QTabWidget()
         abas.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #2a2a3e; background: #16162a; border-radius: 6px; }
-            QTabBar::tab { padding: 8px 16px; color: #94949f; font-weight: 600;
-                background: transparent; border: none; }
-            QTabBar::tab:selected { color: #a78bfa; border-bottom: 2px solid #a78bfa; }
+            QTabBar::tab { color: #94949f; font-weight: 600; padding: 8px 16px; }
+            QTabBar::tab:selected { color: #a78bfa; border-bottom-color: #a78bfa; }
         """)
 
         for titulo_aba, dado, cor in [("📦 Antes", log.dados_antes, "#f87171"),
@@ -616,7 +647,7 @@ class ConfigPage(QWidget):
 
         dialog.exec()
 
-    def _fazer_backup(self):
+    def _fazer_backup(self) -> None:
         try:
             backup_dir = DB_PATH.parent / "backups"
             backup_dir.mkdir(parents=True, exist_ok=True)
@@ -632,14 +663,24 @@ class ConfigPage(QWidget):
 
 
 class _UserDialog(QDialog):
-    def __init__(self, parent, user_service, modo="novo", usuario=None):
+    user_service: Any
+    modo: str
+    usuario: Any | None
+    input_nome: QLineEdit
+    input_username: QLineEdit
+    input_email: QLineEdit
+    input_senha: QLineEdit
+    combo_perfil: QComboBox
+    combo_ativo: QComboBox | None
+
+    def __init__(self, parent: QWidget | None, user_service: Any, modo: str = "novo", usuario: Any | None = None) -> None:
         super().__init__(parent)
         self.user_service = user_service
         self.modo = modo
         self.usuario = usuario
         self._setup_ui()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         titulo = "Novo Usuário" if self.modo == "novo" else "Editar Usuário"
         self.setWindowTitle(titulo)
         self.setMinimumWidth(420)
@@ -729,7 +770,7 @@ class _UserDialog(QDialog):
         botoes.rejected.connect(self.reject)
         layout.addWidget(botoes)
 
-    def _validar(self):
+    def _validar(self) -> None:
         nome = self.input_nome.text().strip()
         username = self.input_username.text().strip()
         email = self.input_email.text().strip()

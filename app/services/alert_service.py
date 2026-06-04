@@ -1,23 +1,33 @@
-﻿import logging
+﻿from __future__ import annotations
+
+import logging
 
 from db import safe_commit
 
 log = logging.getLogger(__name__)
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, Optional
+
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Alert, Printer
 from app.utils.sanitize import sanitizar
-from sqlalchemy.orm import selectinload
+
+if TYPE_CHECKING:
+    from app.models.part import Part
+    from app.models.user import User
+    from app.services.audit_service import AuditService
+    from app.services.notification_service import NotificadorService
 
 
 class AlertService:
-    def __init__(self, session, audit_service=None, user_id=None, notificador=None):
-        self.session = session
-        self.audit_service = audit_service
-        self.user_id = user_id
-        self.notificador = notificador
+    def __init__(self, session: Session, audit_service: Optional[AuditService] = None, user_id: Optional[int] = None, notificador: Optional[NotificadorService] = None) -> None:
+        self.session: Session = session
+        self.audit_service: Optional[AuditService] = audit_service
+        self.user_id: Optional[int] = user_id
+        self.notificador: Optional[NotificadorService] = notificador
 
-    def listar_todos(self, apenas_pendentes=False, apenas_resolvidos=False, filtro_busca=None, limite=None, offset=None):
+    def listar_todos(self, apenas_pendentes: bool = False, apenas_resolvidos: bool = False, filtro_busca: Optional[str] = None, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Alert]:
         query = self.session.query(Alert).filter(Alert.deleted_at == None).options(
             selectinload(Alert.printer), selectinload(Alert.part)
         ).order_by(Alert.created_at.desc())
@@ -36,7 +46,7 @@ class AlertService:
             query = query.offset(offset)
         return query.all()
 
-    def listar_por_impressora(self, printer_id, limite=None, offset=None):
+    def listar_por_impressora(self, printer_id: Optional[str], limite: Optional[int] = None, offset: Optional[int] = None) -> list[Alert]:
         query = self.session.query(Alert).filter(Alert.deleted_at == None).filter(
             Alert.printer_id == printer_id
         ).order_by(Alert.created_at.desc())
@@ -46,10 +56,10 @@ class AlertService:
             query = query.offset(offset)
         return query.all()
 
-    def buscar_por_id(self, alert_id):
+    def buscar_por_id(self, alert_id: int) -> Optional[Alert]:
         return self.session.query(Alert).filter(Alert.deleted_at == None, Alert.id == alert_id).first()
 
-    def criar(self, tipo, titulo, descricao="", printer_id=None, part_id=None, data_alerta=None, data_agendada=None):
+    def criar(self, tipo: str, titulo: str, descricao: str = "", printer_id: Optional[str] = None, part_id: Optional[int] = None, data_alerta: Optional[datetime] = None, data_agendada: Optional[datetime] = None) -> Alert:
         alerta = Alert(
             printer_id=printer_id,
             part_id=part_id,
@@ -75,7 +85,7 @@ class AlertService:
 
         return alerta
 
-    def resolver(self, alerta, user_id=None):
+    def resolver(self, alerta: Alert, user_id: Optional[int] = None) -> None:
         if self.audit_service:
             self.audit_service.log(user_id or self.user_id, "resolver", tabela_alvo="alerts", registro_id=alerta.id, dados_antes=alerta)
         alerta.resolvido = True
@@ -83,13 +93,13 @@ class AlertService:
         alerta.resolvido_por = user_id
         safe_commit(self.session)
 
-    def excluir(self, alerta):
+    def excluir(self, alerta: Alert) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="alerts", registro_id=alerta.id, dados_antes=alerta)
         alerta.deleted_at = datetime.utcnow()
         safe_commit(self.session)
 
-    def contar_todos(self, apenas_pendentes=False, apenas_resolvidos=False, filtro_busca=None):
+    def contar_todos(self, apenas_pendentes: bool = False, apenas_resolvidos: bool = False, filtro_busca: Optional[str] = None) -> int:
         query = self.session.query(Alert).filter(Alert.deleted_at == None)
         if apenas_pendentes:
             query = query.filter(Alert.resolvido == False)
@@ -102,12 +112,12 @@ class AlertService:
             )
         return query.count()
 
-    def contar_pendentes(self):
+    def contar_pendentes(self) -> int:
         return self.session.query(Alert).filter(
             Alert.deleted_at == None, Alert.resolvido == False
         ).count()
 
-    def gerar_alertas_revisao(self, dias_limite=30):
+    def gerar_alertas_revisao(self, dias_limite: int = 30) -> int:
         hoje = datetime.now()
         limite = hoje + timedelta(days=dias_limite)
         printers = self.session.query(Printer).filter(
@@ -135,18 +145,18 @@ class AlertService:
             criados += 1
         return criados
 
-    def listar_excluidos(self, limite=50):
+    def listar_excluidos(self, limite: int = 50) -> list[Alert]:
         return self.session.query(Alert).filter(
             Alert.deleted_at != None
         ).order_by(Alert.deleted_at.desc()).limit(limite).all()
 
-    def restaurar(self, obj):
+    def restaurar(self, obj: Alert) -> None:
         obj.deleted_at = None
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="alerts", registro_id=obj.id)
 
-    def verificar_estoque_baixo(self):
+    def verificar_estoque_baixo(self) -> int:
         from app.models import Part
         from sqlalchemy import or_
         partes = self.session.query(Part).filter(
@@ -173,7 +183,7 @@ class AlertService:
             criados += 1
         return criados
 
-    def verificar_agendados(self):
+    def verificar_agendados(self) -> list[Alert]:
         hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         amanha = hoje + timedelta(days=1)
         alerts = self.session.query(Alert).filter(

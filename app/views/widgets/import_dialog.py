@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
@@ -41,17 +45,41 @@ from app.views.styles.theme import (
 
 
 class ImportDialog(QDialog):
-    def __init__(self, parent, entity: str, entity_nome: str, service, session):
+    _entity: str
+    _entity_nome: str
+    _service: Any
+    _session: Any
+    _caminho: str
+    _cabecalho: list[str]
+    _dados: list[list[str]]
+    _mapa_colunas: list[Optional[str]]
+    _combo_mapas: list[QComboBox]
+    _lbl_arquivo: QLineEdit
+    _lbl_encoding: QLabel
+    _combo_encoding: QComboBox
+    _lbl_delim: QLabel
+    _combo_delim: QComboBox
+    _lbl_sheet: QLabel
+    _combo_sheet: QComboBox
+    _lbl_total_linhas: QLabel
+    _preview_table: QTableWidget
+    _map_widget: QWidget
+    _map_layout: QVBoxLayout
+    _progress: QProgressBar
+    _lbl_status: QLabel
+    _btn_importar: QPushButton
+
+    def __init__(self, parent: Optional[QWidget], entity: str, entity_nome: str, service: Any, session: Any) -> None:
         super().__init__(parent)
         self._entity = entity
         self._entity_nome = entity_nome
         self._service = service
         self._session = session
         self._caminho = ""
-        self._cabecalho: list[str] = []
-        self._dados: list[list[str]] = []
-        self._mapa_colunas: list[str] = []
-        self._combo_mapas: list[QComboBox] = []
+        self._cabecalho = []
+        self._dados = []
+        self._mapa_colunas = []
+        self._combo_mapas = []
 
         self.setWindowTitle(f"Importar {entity_nome}")
         self.setMinimumSize(800, 720)
@@ -59,7 +87,7 @@ class ImportDialog(QDialog):
 
         self._setup_ui()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -190,14 +218,14 @@ class ImportDialog(QDialog):
         self._combo_sheet.setVisible(False)
         self._lbl_sheet.setVisible(False)
 
-    def _estilo_combo_opt(self):
+    def _estilo_combo_opt(self) -> str:
         return (
             "QComboBox { background-color: #1e1e2e; color: #e8e8f0;"
             " border: 1px solid #2a2a3e; border-radius: 6px;"
             " padding: 4px 8px; font-size: 11px; min-height: 20px; }"
         )
 
-    def _selecionar_arquivo(self):
+    def _selecionar_arquivo(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Selecionar Arquivo", "",
             "Arquivos Suportados (*.csv *.xlsx);;CSV (*.csv);;Excel (*.xlsx);;Todos (*.*)",
@@ -227,7 +255,7 @@ class ImportDialog(QDialog):
             except Exception as e:
                 QMessageBox.warning(self, "Aviso", f"Não foi possível ler o arquivo:\n{e}")
 
-    def _analisar(self):
+    def _analisar(self) -> None:
         if not self._caminho:
             QMessageBox.warning(self, "Aviso", "Selecione um arquivo primeiro.")
             return
@@ -282,7 +310,7 @@ class ImportDialog(QDialog):
             self._lbl_status.setText(f"❌ Erro: {e}")
             self._lbl_status.setStyleSheet("color: #f87171; font-size: 12px; background: transparent;")
 
-    def _construir_mapeamento(self, cabecalho: list[str]):
+    def _construir_mapeamento(self, cabecalho: list[str]) -> None:
         # Clear old mapping widgets
         while self._map_layout.count():
             item = self._map_layout.takeAt(0)
@@ -318,7 +346,7 @@ class ImportDialog(QDialog):
 
             self._map_layout.addLayout(row)
 
-    def _atualizar_mapa(self):
+    def _atualizar_mapa(self) -> None:
         for i, combo in enumerate(self._combo_mapas):
             texto = combo.currentText()
             if texto == "─ Ignorar ─":
@@ -326,7 +354,7 @@ class ImportDialog(QDialog):
             else:
                 self._mapa_colunas[i] = texto
 
-    def _importar(self):
+    def _importar(self) -> None:
         if not self._dados:
             return
 

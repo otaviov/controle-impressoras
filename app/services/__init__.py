@@ -5,6 +5,7 @@ from .company_service import CompanyService
 from .dashboard_service import DashboardService
 from .login_history_service import LoginHistoryService
 from .part_service import PartService
+from .printer_location_service import PrinterLocationService
 from .printer_service import PrinterService
 from .technician_service import TechnicianService
 from .transfer_service import TransferService

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime as dt
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -44,7 +47,30 @@ from app.views.widgets.table_widget import TabelaPadrao
 
 
 class OSPage(QWidget):
-    def __init__(self, session, printer_service, activity_service, company_service, technician_service, parent=None):
+    session: Any
+    printer_service: Any
+    activity_service: Any
+    company_service: Any
+    technician_service: Any
+    part_service: PartService
+    _atividades: list[Any]
+    _filtro_tipo_atual: str | None
+    _filtro_status_atual: str | None
+    _filtro_busca_atual: str | None
+    search: SearchBar
+    btn_nova: QPushButton
+    btn_manut: QPushButton
+    btn_mov: QPushButton
+    btn_todas: QPushButton
+    btn_atualizar: QPushButton
+    card_total: CardMiniClicavel
+    card_andamento: CardMiniClicavel
+    card_pendentes: CardMiniClicavel
+    card_concluidas: CardMiniClicavel
+    tabela: TabelaPadrao
+    _paginacao: PaginacaoWidget
+
+    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, technician_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.printer_service = printer_service
@@ -59,7 +85,7 @@ class OSPage(QWidget):
         self._setup_ui()
         self.recarregar()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
@@ -140,14 +166,14 @@ class OSPage(QWidget):
         self._filtro_status_atual = None
         self._filtro_busca_atual = None
 
-    def recarregar(self, filtro_tipo=None):
+    def recarregar(self, filtro_tipo: str | None = None) -> None:
         if filtro_tipo:
             self._filtro_tipo_atual = filtro_tipo
         self._filtro_status_atual = None
         self._filtro_busca_atual = None
         self._carregar()
 
-    def _carregar(self):
+    def _carregar(self) -> None:
         if self._filtro_status_atual:
             atividades = self.activity_service.listar_por_status(
                 self._filtro_status_atual,
@@ -172,7 +198,7 @@ class OSPage(QWidget):
         self._preencher_tabela(atividades)
         self._atualizar_cards()
 
-    def _preencher_tabela(self, atividades):
+    def _preencher_tabela(self, atividades: list[Any]) -> None:
         self.tabela.limpar()
         if not atividades:
             return
@@ -222,20 +248,20 @@ class OSPage(QWidget):
 
         self.tabela.redimensionar()
 
-    def _filtrar_tipo(self, tipo):
+    def _filtrar_tipo(self, tipo: str) -> None:
         self.recarregar(filtro_tipo=tipo)
 
-    def _filtrar_status(self, status):
+    def _filtrar_status(self, status: str) -> None:
         self._filtro_status_atual = status
         self._filtro_busca_atual = None
         self._carregar()
 
-    def _filtrar_busca(self, texto):
+    def _filtrar_busca(self, texto: str) -> None:
         self._filtro_status_atual = None
         self._filtro_busca_atual = texto.strip() if texto.strip() else None
         self._carregar()
 
-    def _atualizar_cards(self):
+    def _atualizar_cards(self) -> None:
         total = self.activity_service.contar_total()
         andamento = self.activity_service.contar_por_status("Em Andamento")
         pendentes = self.activity_service.contar_por_status("Pendente")
@@ -245,7 +271,7 @@ class OSPage(QWidget):
         self.card_pendentes.atualizar_valor(pendentes)
         self.card_concluidas.atualizar_valor(concluidas)
 
-    def _nova(self):
+    def _nova(self) -> None:
         dialog, campos = self._criar_form_dialog("Nova OS")
         if dialog.exec() != QDialog.Accepted:
             return
@@ -296,7 +322,7 @@ class OSPage(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao criar OS: {e}")
 
-    def editar_atividade_por_id(self, activity_id):
+    def editar_atividade_por_id(self, activity_id: int) -> None:
         atividade = self.activity_service.buscar_por_id(activity_id)
         if not atividade:
             return
@@ -304,7 +330,7 @@ class OSPage(QWidget):
         self._preencher_tabela(self._atividades)
         self._editar(0)
 
-    def _editar(self, row):
+    def _editar(self, row: int) -> None:
         if row < 0 or row >= len(self._atividades):
             return
         atividade = self._atividades[row]
@@ -400,7 +426,7 @@ class OSPage(QWidget):
 
         dialog.exec()
 
-    def _criar_form_dialog(self, titulo, atividade=None):
+    def _criar_form_dialog(self, titulo: str, atividade: Any = None) -> tuple[QDialog, dict[str, Any]]:
         dialog = QDialog(self)
         dialog.setWindowTitle(titulo)
         dialog.setMinimumWidth(520)
@@ -527,16 +553,17 @@ class OSPage(QWidget):
             self._preencher_campos(atividade, campos)
 
         if not atividade:
-            btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-            btn_box.button(QDialogButtonBox.Ok).setText("OK")
-            btn_box.button(QDialogButtonBox.Cancel).setText("Cancelar")
+            btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            btn_box.button(QDialogButtonBox.Save).setText("Salvar")
+            btn_box.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
+            btn_box.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
             btn_box.accepted.connect(dialog.accept)
             btn_box.rejected.connect(dialog.reject)
             layout.addWidget(btn_box)
 
         return dialog, campos
 
-    def _preencher_campos(self, atividade, campos):
+    def _preencher_campos(self, atividade: Any, campos: dict[str, Any]) -> None:
         printer = self.printer_service.buscar_por_id(atividade.printer_id)
         if printer:
             idx = campos["printer"].findText(printer.patrimonio)
@@ -581,13 +608,13 @@ class OSPage(QWidget):
         if idx_st >= 0:
             campos["status"].setCurrentIndex(idx_st)
 
-    def _resolver_empresa(self, nome):
+    def _resolver_empresa(self, nome: str) -> Any | None:
         if not nome or not self.company_service:
             return None
         empresa = self.company_service.buscar_por_nome(nome)
         return empresa.id if empresa else None
 
-    def _resolver_tecnico(self, nome):
+    def _resolver_tecnico(self, nome: str) -> int | None:
         if not nome or not self.technician_service:
             return None
         tecnicos = self.technician_service.listar_ativos()
@@ -596,7 +623,7 @@ class OSPage(QWidget):
                 return t.id
         return None
 
-    def _dar_baixa_estoque(self, pecas_texto):
+    def _dar_baixa_estoque(self, pecas_texto: str) -> None:
         if not pecas_texto:
             return
         for nome_peca in pecas_texto.split(","):

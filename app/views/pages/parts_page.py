@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIntValidator
 from PySide6.QtWidgets import (
@@ -43,9 +47,23 @@ from app.views.widgets.table_widget import TabelaPadrao
 
 
 class PartsPage(QWidget):
-    abrir_atividade = Signal(int)
+    abrir_atividade: Signal = Signal(int)
 
-    def __init__(self, session, part_service, printer_service, activity_service=None, parent=None):
+    session: Any
+    part_service: Any
+    printer_service: Any
+    activity_service: Any | None
+    _filtro_atual: str | None
+    _partes_visiveis: list[Any]
+    search: SearchBar
+    btn_nova: QPushButton
+    card_total: CardMiniWidget
+    card_em_estoque: CardMiniWidget
+    card_sem_estoque: CardMiniWidget
+    tabela: TabelaPadrao
+    _paginacao: PaginacaoWidget
+
+    def __init__(self, session: Any, part_service: Any, printer_service: Any, activity_service: Any | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.part_service = part_service
@@ -109,11 +127,11 @@ class PartsPage(QWidget):
 
         self._carregar()
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         self._filtro_atual = None
         self._carregar()
 
-    def _carregar(self):
+    def _carregar(self) -> None:
         filtro = self._filtro_atual
         pecas = self.part_service.listar_todas(filtro=filtro, limite=self._paginacao.limit, offset=self._paginacao.offset)
         total = self.part_service.contar(filtro=filtro)
@@ -164,11 +182,11 @@ class PartsPage(QWidget):
         self.card_em_estoque.atualizar_valor(soma_estoque)
         self.card_sem_estoque.atualizar_valor(sem_estoque)
 
-    def _filtrar(self, texto):
+    def _filtrar(self, texto: str) -> None:
         self._filtro_atual = texto if texto else None
         self._carregar()
 
-    def _nova(self):
+    def _nova(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Nova Peça")
         dialog.setStyleSheet(ESTILO_DIALOG)
@@ -225,7 +243,7 @@ class PartsPage(QWidget):
 
         dialog.exec()
 
-    def _salvar_nova(self, dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd, edit_minimo):
+    def _salvar_nova(self, dialog: QDialog, codigo: str, edit_nome: QLineEdit, edit_descricao: QLineEdit, combo_modelo: QComboBox, edit_qtd: QLineEdit, edit_minimo: QLineEdit) -> None:
         nome = edit_nome.text().strip()
         if not nome:
             QMessageBox.warning(dialog, "Aviso", "O campo Nome é obrigatório.")
@@ -245,7 +263,7 @@ class PartsPage(QWidget):
             dialog.accept()
             self.recarregar()
 
-    def _editar(self, row):
+    def _editar(self, row: int) -> None:
         if row < 0 or row >= len(self._partes_visiveis):
             return
 
@@ -356,7 +374,7 @@ class PartsPage(QWidget):
 
         dialog.exec()
 
-    def _mostrar_uso(self, peca):
+    def _mostrar_uso(self, peca: Any) -> None:
         from app.utils.helpers import formatar_data_hora
         diretas, relacionadas = self.activity_service.listar_por_peca_com_relacionadas(peca.nome, limite=200)
         if not diretas:
@@ -410,10 +428,10 @@ class PartsPage(QWidget):
 
         dialog.exec()
 
-    def _importar(self):
-        dialog = ImportDialog(self, "parts", "Peças", self.part_service, self.session)
+    def _importar(self) -> None:
+        dialog: ImportDialog = ImportDialog(self, "parts", "Peças", self.part_service, self.session)
         if dialog.exec() == ImportDialog.Accepted:
             self.recarregar()
 
-    def _abrir_atividade_historico(self, activity_id, dialog):
+    def _abrir_atividade_historico(self, activity_id: int, dialog: QDialog) -> None:
         self.abrir_atividade.emit(activity_id)

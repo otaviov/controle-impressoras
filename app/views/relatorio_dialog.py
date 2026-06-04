@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import os
 from datetime import datetime as dt
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -22,21 +25,36 @@ from PySide6.QtWidgets import (
 from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import configurar_combo, COR
 
-BG = COR["fundo"]
-CARD = COR["fundo_card"]
-BORDA = COR["borda"]
-TEXTO = COR["texto"]
-TEXTO_SEC = COR["texto_sec"]
-AZUL = COR["azul"]
-VERDE = COR["sucesso"]
-AMARELO = COR["aviso"]
-ROXO = COR["roxo"]
-VERMELHO = COR["erro"]
-ROXO_BTN = '#a78bfa'
+BG: str = COR["fundo"]
+CARD: str = COR["fundo_card"]
+BORDA: str = COR["borda"]
+TEXTO: str = COR["texto"]
+TEXTO_SEC: str = COR["texto_sec"]
+AZUL: str = COR["azul"]
+VERDE: str = COR["sucesso"]
+AMARELO: str = COR["aviso"]
+ROXO: str = COR["roxo"]
+VERMELHO: str = COR["erro"]
+ROXO_BTN: str = '#a78bfa'
 
 
 class RelatorioDialog(QDialog):
-    def __init__(self, session, printer_service, company_service, activity_service, parent=None):
+    session: Any
+    printer_service: Any
+    company_service: Any
+    activity_service: Any
+    rb_impressoras: QRadioButton
+    rb_atividades: QRadioButton
+    status_combo: QComboBox
+    pat_input: QLineEdit
+    modelo_combo: QComboBox
+    local_combo: QComboBox
+    rb_pdf: QRadioButton
+    rb_excel: QRadioButton
+    cb_detalhado: QCheckBox
+    cb_abrir: QCheckBox
+
+    def __init__(self, session: Any, printer_service: Any, company_service: Any, activity_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.printer_service = printer_service
@@ -100,7 +118,7 @@ class RelatorioDialog(QDialog):
         """)
         self.init_ui()
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet(f"QScrollArea {{ background-color: {BG}; border: none; }}")
@@ -218,18 +236,18 @@ class RelatorioDialog(QDialog):
         main_layout.addWidget(scroll)
         self._atualizar_patrimonios()
 
-    def _atualizar_patrimonios(self):
-        status = self.status_combo.currentText()
-        patrimonios = self.printer_service.listar_patrimonios(status)
-        completer = QCompleter(patrimonios)
+    def _atualizar_patrimonios(self) -> None:
+        status: str = self.status_combo.currentText()
+        patrimonios: list[str] = self.printer_service.listar_patrimonios(status)
+        completer: QCompleter = QCompleter(patrimonios)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.pat_input.setCompleter(completer)
 
-    def _ao_selecionar_patrimonio(self, texto):
-        status = self.status_combo.currentText()
-        patrimonios = self.printer_service.listar_patrimonios_por_busca(texto, status)
-        completer = QCompleter(patrimonios)
+    def _ao_selecionar_patrimonio(self, texto: str) -> None:
+        status: str = self.status_combo.currentText()
+        patrimonios: list[str] = self.printer_service.listar_patrimonios_por_busca(texto, status)
+        completer: QCompleter = QCompleter(patrimonios)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.pat_input.setCompleter(completer)
@@ -247,7 +265,7 @@ class RelatorioDialog(QDialog):
                     idx = self.status_combo.findText(printer.status)
                     if idx >= 0: self.status_combo.setCurrentIndex(idx)
 
-    def gerar_relatorio(self):
+    def gerar_relatorio(self) -> None:
         from PySide6.QtWidgets import QFileDialog, QMessageBox
 
         from app.services.relatorio_service import RelatorioService
@@ -293,7 +311,7 @@ class RelatorioDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao gerar relatório:\n\n{str(e)}")
 
-    def _gerar_pdf_detalhado(self, printers, filepath):
+    def _gerar_pdf_detalhado(self, printers: list[Any], filepath: str) -> None:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet

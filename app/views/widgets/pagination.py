@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget,
@@ -7,7 +11,16 @@ from PySide6.QtWidgets import (
 class PaginacaoWidget(QWidget):
     pagina_alterada = Signal(int)
 
-    def __init__(self, parent=None):
+    _pagina_atual: int
+    _total_paginas: int
+    _total_registros: int
+    _itens_por_pagina: int
+    _btn_anterior: QPushButton
+    _label_info: QLabel
+    _btn_proximo: QPushButton
+    _combo_itens: QComboBox
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._pagina_atual = 1
         self._total_paginas = 1
@@ -50,7 +63,7 @@ class PaginacaoWidget(QWidget):
 
         self._atualizar_botoes()
 
-    def configurar(self, total_registros, pagina_atual=1, itens_por_pagina=50):
+    def configurar(self, total_registros: int, pagina_atual: int = 1, itens_por_pagina: int = 50) -> None:
         self._total_registros = total_registros
         self._pagina_atual = pagina_atual
         self._itens_por_pagina = itens_por_pagina
@@ -61,21 +74,21 @@ class PaginacaoWidget(QWidget):
         self._atualizar_label()
         self._atualizar_botoes()
 
-    def _anterior(self):
+    def _anterior(self) -> None:
         if self._pagina_atual > 1:
             self._pagina_atual -= 1
             self._atualizar_label()
             self._atualizar_botoes()
             self.pagina_alterada.emit(self._pagina_atual)
 
-    def _proximo(self):
+    def _proximo(self) -> None:
         if self._pagina_atual < self._total_paginas:
             self._pagina_atual += 1
             self._atualizar_label()
             self._atualizar_botoes()
             self.pagina_alterada.emit(self._pagina_atual)
 
-    def _itens_por_pagina_changed(self, valor):
+    def _itens_por_pagina_changed(self, valor: str) -> None:
         self._itens_por_pagina = int(valor)
         self._total_paginas = max(1, (self._total_registros + self._itens_por_pagina - 1) // self._itens_por_pagina)
         self._pagina_atual = 1
@@ -83,17 +96,17 @@ class PaginacaoWidget(QWidget):
         self._atualizar_botoes()
         self.pagina_alterada.emit(self._pagina_atual)
 
-    def _atualizar_label(self):
+    def _atualizar_label(self) -> None:
         texto = f"Página {self._pagina_atual} de {self._total_paginas}"
         if self._total_registros > 0:
             texto += f" ({self._total_registros} registro{'s' if self._total_registros != 1 else ''})"
         self._label_info.setText(texto)
 
-    def _atualizar_botoes(self):
+    def _atualizar_botoes(self) -> None:
         self._btn_anterior.setEnabled(self._pagina_atual > 1)
         self._btn_proximo.setEnabled(self._pagina_atual < self._total_paginas)
 
-    def _estilo_botao(self):
+    def _estilo_botao(self) -> str:
         return (
             "QPushButton { background-color: #1e1e2e; color: #c8c8d8;"
             " border: 1px solid #2a2a3e; border-radius: 6px;"
@@ -103,13 +116,13 @@ class PaginacaoWidget(QWidget):
         )
 
     @property
-    def offset(self):
+    def offset(self) -> int:
         return (self._pagina_atual - 1) * self._itens_por_pagina
 
     @property
-    def limit(self):
+    def limit(self) -> int:
         return self._itens_por_pagina
 
     @property
-    def pagina(self):
+    def pagina(self) -> int:
         return self._pagina_atual

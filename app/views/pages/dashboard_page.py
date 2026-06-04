@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -29,9 +32,23 @@ from app.views.widgets.chart_widget import BarChart, LineChart, PizzaChart
 
 
 class DashboardPage(QWidget):
-    signal_trocar_pagina = Signal(int)
+    signal_trocar_pagina: Signal = Signal(int)
 
-    def __init__(self, session, printer_service, activity_service, dashboard_service, parent=None):
+    session: Any
+    printer_service: Any
+    activity_service: Any
+    dashboard_service: Any
+    lbl_atualizacao: QLabel
+    card_total: CardWidget
+    card_manut: CardWidget
+    card_op: CardWidget
+    card_os: CardWidget
+    chart_pizza: PizzaChart
+    chart_barras: BarChart
+    chart_linha: LineChart
+    atv_container: QVBoxLayout
+
+    def __init__(self, session: Any, printer_service: Any, activity_service: Any, dashboard_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.printer_service = printer_service
@@ -163,8 +180,8 @@ class DashboardPage(QWidget):
         scroll.setWidget(container)
         outer.addWidget(scroll)
 
-    def recarregar(self):
-        dados = self.dashboard_service.resumo()
+    def recarregar(self) -> None:
+        dados: dict[str, Any] = self.dashboard_service.resumo()
         self.card_total.atualizar_valor(dados.get("total_impressoras", 0))
         self.card_manut.atualizar_valor(dados.get("em_manutencao", 0))
         self.card_op.atualizar_valor(dados.get("operacionais", 0))
@@ -185,7 +202,7 @@ class DashboardPage(QWidget):
 
         self._preencher_atividades()
 
-    def _preencher_atividades(self):
+    def _preencher_atividades(self) -> None:
         while self.atv_container.count():
             item = self.atv_container.takeAt(0)
             if item.widget():
@@ -259,10 +276,10 @@ class DashboardPage(QWidget):
 
             self.atv_container.addWidget(row)
 
-    def ao_clicar_status(self, tipo):
+    def ao_clicar_status(self, tipo: str) -> None:
         if tipo == "manutencao":
-            titulo = "⚠️ Impressoras em Manutenção"
-            status_list = STATUS_MANUTENCAO
+            titulo: str = "⚠️ Impressoras em Manutenção"
+            status_list: list[str] = STATUS_MANUTENCAO
         elif tipo == "operacional":
             titulo = "✅ Impressoras Operacionais"
             status_list = STATUS_OPERACIONAL

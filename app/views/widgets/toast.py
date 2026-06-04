@@ -1,43 +1,49 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, ClassVar, Optional
+
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QWidget
 
 
 class ToastManager:
-    _container = None
+    _container: ClassVar[Optional[_ToastContainer]] = None
 
     @classmethod
-    def instalar(cls, parent: QWidget):
+    def instalar(cls, parent: QWidget) -> None:
         if cls._container is None:
             cls._container = _ToastContainer(parent)
 
     @classmethod
-    def mostrar(cls, mensagem: str, tipo: str = "info", duracao: int = 4000, persistente: bool = False, acao: tuple = None):
+    def mostrar(cls, mensagem: str, tipo: str = "info", duracao: int = 4000, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         if cls._container:
             cls._container.adicionar(mensagem, tipo, duracao, persistente, acao)
 
     @classmethod
-    def info(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+    def info(cls, mensagem: str, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         cls.mostrar(mensagem, "info", persistente=persistente, acao=acao)
 
     @classmethod
-    def sucesso(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+    def sucesso(cls, mensagem: str, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         cls.mostrar(mensagem, "sucesso", persistente=persistente, acao=acao)
 
     @classmethod
-    def aviso(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+    def aviso(cls, mensagem: str, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         cls.mostrar(mensagem, "aviso", persistente=persistente, acao=acao)
 
     @classmethod
-    def erro(cls, mensagem: str, persistente: bool = False, acao: tuple = None):
+    def erro(cls, mensagem: str, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         cls.mostrar(mensagem, "erro", persistente=persistente, acao=acao)
 
     @classmethod
-    def limpar_persistentes(cls):
+    def limpar_persistentes(cls) -> None:
         if cls._container:
             cls._container._limpar_persistentes()
 
     @classmethod
-    def atualizar_status(cls, pendentes: int):
+    def atualizar_status(cls, pendentes: int) -> None:
         cls.limpar_persistentes()
         if pendentes:
             cls.aviso(f"{pendentes} alerta(s) pendente(s)", persistente=True)
@@ -54,7 +60,11 @@ CORES_TOAST = {
 
 
 class _ToastContainer(QWidget):
-    def __init__(self, parent):
+    _toasts: list[_Toast]
+    _margem: int
+    _espaco: int
+
+    def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setStyleSheet("background: transparent;")
         self._toasts = []
@@ -64,31 +74,31 @@ class _ToastContainer(QWidget):
         self._reposicionar_container()
         self.show()
 
-    def _reposicionar_container(self):
+    def _reposicionar_container(self) -> None:
         p = self.parent()
         if p:
             self.move(p.width() - self.width() - self._margem, 10)
             self.raise_()
 
-    def adicionar(self, mensagem, tipo, duracao, persistente=False, acao=None):
+    def adicionar(self, mensagem: str, tipo: str, duracao: int, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         toast = _Toast(self, mensagem, tipo, duracao, persistente, acao)
         self._toasts.append(toast)
         toast.mostrar()
         self._reposicionar_toasts()
 
-    def remover(self, toast):
+    def remover(self, toast: _Toast) -> None:
         if toast in self._toasts:
             self._toasts.remove(toast)
             toast.deleteLater()
         self._reposicionar_toasts()
 
-    def _limpar_persistentes(self):
+    def _limpar_persistentes(self) -> None:
         for t in list(self._toasts):
             if t._persistente:
                 self._toasts.remove(t)
                 t.deleteLater()
 
-    def _reposicionar_toasts(self):
+    def _reposicionar_toasts(self) -> None:
         y = 0
         for t in self._toasts:
             if t.isVisible():
@@ -96,13 +106,21 @@ class _ToastContainer(QWidget):
                 y += t.height() + self._espaco
         self.setFixedHeight(y if y > 0 else 0)
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._reposicionar_container()
 
 
 class _Toast(QFrame):
-    def __init__(self, container, mensagem, tipo, duracao, persistente=False, acao=None):
+    _container: _ToastContainer
+    _duracao: int
+    _persistente: bool
+    _acao: Optional[tuple[str, Callable[[], Any]]]
+    _anim_entrada: Optional[QPropertyAnimation]
+    _anim_saida: Optional[QPropertyAnimation]
+    _timer: QTimer
+
+    def __init__(self, container: _ToastContainer, mensagem: str, tipo: str, duracao: int, persistente: bool = False, acao: Optional[tuple[str, Callable[[], Any]]] = None) -> None:
         super().__init__(container)
         self._container = container
         self._duracao = duracao
@@ -167,7 +185,7 @@ class _Toast(QFrame):
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self.fechar)
 
-    def mostrar(self):
+    def mostrar(self) -> None:
         self.adjustSize()
         self._container._reposicionar_container()
 
@@ -188,7 +206,7 @@ class _Toast(QFrame):
         if not self._persistente:
             self._timer.start(self._duracao)
 
-    def fechar(self):
+    def fechar(self) -> None:
         self._timer.stop()
         self._anim_saida = QPropertyAnimation(self, b"pos")
         self._anim_saida.setDuration(250)
@@ -198,5 +216,5 @@ class _Toast(QFrame):
         self._anim_saida.finished.connect(self._finalizar)
         self._anim_saida.start()
 
-    def _finalizar(self):
+    def _finalizar(self) -> None:
         self._container.remover(self)

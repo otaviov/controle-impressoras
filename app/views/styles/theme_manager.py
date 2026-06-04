@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 
 from PySide6.QtWidgets import QApplication, QWidget
@@ -9,37 +11,37 @@ _THEME_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "themes")
 
 class TemaManager:
     @classmethod
-    def atual(cls):
+    def atual(cls) -> str:
         return theme.atual()
 
     @classmethod
-    def alternar(cls):
+    def alternar(cls) -> str:
         theme.alternar()
         cls._aplicar_qss()
         return theme.atual()
 
     @classmethod
-    def _aplicar_qss(cls):
-        app = QApplication.instance()
+    def _aplicar_qss(cls) -> None:
+        app: QApplication | None = QApplication.instance()
         if not app:
             return
-        qss_file = "dark_premium.qss" if theme.atual() == "dark" else "light.qss"
-        path = os.path.join(_THEME_DIR, qss_file)
+        qss_file: str = "dark_premium.qss" if theme.atual() == "dark" else "light.qss"
+        path: str = os.path.join(_THEME_DIR, qss_file)
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 app.setStyleSheet(f.read())
 
     @classmethod
-    def limpar_estilos(cls, root: QWidget):
-        fila = [root]
+    def limpar_estilos(cls, root: QWidget) -> None:
+        fila: list[QWidget] = [root]
         while fila:
-            w = fila.pop(0)
+            w: QWidget = fila.pop(0)
             w.setStyleSheet("")
             for child in w.findChildren(QWidget):
                 fila.append(child)
 
     @classmethod
-    def reestilizar_paginas(cls, widgets):
+    def reestilizar_paginas(cls, widgets: list[QWidget]) -> None:
         cls._aplicar_qss()
         for w in widgets:
             cls.limpar_estilos(w)

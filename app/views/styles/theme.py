@@ -1,4 +1,14 @@
-STATUS_CORES = {
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox
+
+from app.utils.constants import STATUS_MANUTENCAO, STATUS_OPERACIONAL, STATUS_ATIVIDADE_OPCOES
+
+STATUS_CORES: dict[str, str] = {
     "Operacional": "#34d399",
     "Em uso": "#34d399",
     "Em manutenção": "#f97316",
@@ -8,10 +18,7 @@ STATUS_CORES = {
     "Sucata": "#717182",
 }
 
-STATUS_MANUTENCAO = ["Em manutenção", "Manutenção", "Aguardando peça", "Parada"]
-STATUS_OPERACIONAL = ["Operacional", "Em uso"]
-STATUS_ATIVIDADE_OPCOES = ["Concluida", "Pendente", "Em Andamento"]
-CORES_GRAFICO = ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#3b82f6", "#06b6d4", "#f97316"]
+CORES_GRAFICO: list[str] = ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#3b82f6", "#06b6d4", "#f97316"]
 
 # ── Paletas de cores (Figma shadcn/ui Dark) ─────────────
 ESCURO = {
@@ -70,19 +77,19 @@ CLARO = {
     "nav_active_text": "#4f46e5",
 }
 
-_TEMA = "dark"
-COR = dict(ESCURO)
+_TEMA: str = "dark"
+COR: dict[str, str] = dict(ESCURO)
 
 
-def alternar():
+def alternar() -> None:
     global _TEMA
     _TEMA = "light" if _TEMA == "dark" else "dark"
-    paleta = CLARO if _TEMA == "light" else ESCURO
+    paleta: dict[str, str] = CLARO if _TEMA == "light" else ESCURO
     COR.clear()
     COR.update(paleta)
 
 
-def atual():
+def atual() -> str:
     return _TEMA
 
 
@@ -297,12 +304,15 @@ ESTILO_LABEL_VALOR = "font-weight: 600; background: transparent;"
 ESTILO_LABEL_CAMPO = "color: #3b82f6; font-weight: 600; font-size: 12px;"
 
 
-def _cor_rgba(hex_color, alpha=1.0):
-    h = hex_color.lstrip("#")
+def _cor_rgba(hex_color: str, alpha: float = 1.0) -> str:
+    h: str = hex_color.lstrip("#")
+    r: int
+    g: int
+    b: int
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{alpha})"
 
-def estilo_botao_outline(cor, cor_hover=None, bg_hover=None):
+def estilo_botao_outline(cor: str, cor_hover: str | None = None, bg_hover: str | None = None) -> str:
     if cor_hover is None:
         cor_hover = cor
     if bg_hover is None:
@@ -320,24 +330,12 @@ def estilo_botao_outline(cor, cor_hover=None, bg_hover=None):
     """
 
 
-def estilos_dialogo_tabs():
-    return f"""
-    QTabWidget::pane {{ border: none; background: transparent; }}
-    QTabBar::tab {{ background: transparent; color: #717182; padding: 10px 16px; border: none; border-bottom: 2px solid transparent; font-size: 13px; }}
-    QTabBar::tab:selected {{ color: #e8e8f0; border-bottom-color: #6366f1; }}
-    QTabBar::tab:hover {{ color: #94949f; }}
-"""
-
-
-def configurar_combo(combo):
+def configurar_combo(combo: QComboBox) -> None:
     """Garante fundo escuro e habilita digitação em qualquer QComboBox.
     editable + read-only (contorna bug do Fusion que ignora
     background-color via stylesheet em combos não-editáveis)."""
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QComboBox as _QComboBox
-
     combo.setEditable(True)
-    combo.setInsertPolicy(_QComboBox.NoInsert)
+    combo.setInsertPolicy(QComboBox.NoInsert)
     combo.setMinimumHeight(38)
 
     le = combo.lineEdit()
@@ -369,8 +367,8 @@ def configurar_combo(combo):
         " color: #3a3a50; }"
     )
 
-    orig = combo.showPopup
-    def _popup():
+    orig: Callable[[], Any] = combo.showPopup
+    def _popup() -> None:
         orig()
         v = combo.view()
         if v:

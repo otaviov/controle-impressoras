@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .alertas_page import AlertasPage
 from .clients_page import ClientsPage
 from .config_page import ConfigPage

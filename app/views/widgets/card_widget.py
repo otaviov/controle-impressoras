@@ -1,4 +1,10 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, Optional
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from app.utils.effects import sombra_card
@@ -38,7 +44,9 @@ ESTILOS_CARD = {
 
 
 class CardWidget(QFrame):
-    def __init__(self, icon, titulo, valor_inicial="0", estilo="azul", callback=None, parent=None):
+    valor_label: QLabel
+
+    def __init__(self, icon: str, titulo: str, valor_inicial: str = "0", estilo: str = "azul", callback: Optional[Callable[[], Any]] = None, parent: Optional[QFrame] = None) -> None:
         super().__init__(parent)
         e = ESTILOS_CARD.get(estilo, ESTILOS_CARD["azul"])
         sombra_card(self)
@@ -89,7 +97,7 @@ class CardWidget(QFrame):
             self.setCursor(Qt.PointingHandCursor)
             self.mousePressEvent = lambda event: callback()
 
-    def atualizar_valor(self, valor):
+    def atualizar_valor(self, valor: Any) -> None:
         self.valor_label.setText(str(valor))
 
 
@@ -100,7 +108,9 @@ def _rgba(hex_color, alpha=1.0):
 
 
 class CardMiniWidget(QFrame):
-    def __init__(self, icon, titulo, valor_inicial="0", cor="#6366f1", parent=None):
+    valor_label: QLabel
+
+    def __init__(self, icon: str, titulo: str, valor_inicial: str = "0", cor: str = "#6366f1", parent: Optional[QFrame] = None) -> None:
         super().__init__(parent)
         self.setStyleSheet(
             f"QFrame#miniCard {{ background-color: rgba(20,20,31,0.5); "
@@ -138,12 +148,12 @@ class CardMiniWidget(QFrame):
         self.valor_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(self.valor_label)
 
-    def atualizar_valor(self, valor):
+    def atualizar_valor(self, valor: Any) -> None:
         self.valor_label.setText(str(valor))
 
 
 class CardMiniClicavel(CardMiniWidget):
-    def __init__(self, icon, titulo, valor_inicial, cor, ao_clicar=None, parent=None):
+    def __init__(self, icon: str, titulo: str, valor_inicial: str, cor: str, ao_clicar: Optional[Callable[[], Any]] = None, parent: Optional[QFrame] = None) -> None:
         super().__init__(icon, titulo, valor_inicial, cor, parent)
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(

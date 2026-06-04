@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.models.company import Company
 from app.models.printer import Printer
 from app.models.user import User
@@ -73,3 +75,119 @@ def test_create_company(db_session):
     saved = db_session.query(Company).filter_by(nome="Empresa Teste").first()
     assert saved is not None
     assert saved.tipo == "filial"
+
+
+# ═══════════════════════════════════════════════════════════════
+# Edge cases – Model defaults & nullables
+# ═══════════════════════════════════════════════════════════════
+
+def test_printer_all_nullable_fields(db_session):
+    p = Printer(patrimonio="NULLS01", modelo="HP")
+    db_session.add(p)
+    db_session.commit()
+    assert p.serial == ""
+    assert p.marca == ""
+    assert p.tipo == ""
+    assert p.ip_rede == ""
+    assert p.observacao == ""
+    assert p.mac_address == ""
+    assert p.tecnico == ""
+
+
+def test_printer_soft_delete_default(db_session):
+    p = Printer(patrimonio="SDEL", modelo="HP")
+    db_session.add(p)
+    db_session.commit()
+    assert p.deleted_at is None
+
+
+def test_user_defaults(db_session):
+    from app.utils.security import hash_password
+    u = User(nome="Default", username="default", email="d@t.com", senha_hash=hash_password("123"))
+    db_session.add(u)
+    db_session.commit()
+    assert u.ativo is True
+    assert u.perfil == "visualizador"
+
+
+def test_technician_soft_delete_default(db_session):
+    from app.models.technician import Technician
+    t = Technician(nome_completo="Tec", telefone="81")
+    db_session.add(t)
+    db_session.commit()
+    assert t.deleted_at is None
+    assert t.ativo is True
+
+
+def test_part_default_estoque(db_session):
+    from app.models.part import Part
+    p = Part(codigo="PADRAO", nome="Peça Padrão")
+    db_session.add(p)
+    db_session.commit()
+    assert p.quantidade_estoque == 0
+    assert p.estoque_minimo == 1
+    assert p.deleted_at is None
+
+
+def test_alert_defaults(db_session):
+    from app.models.alert import Alert
+    a = Alert(tipo="info", titulo="Teste")
+    db_session.add(a)
+    db_session.commit()
+    assert a.resolvido is False
+    assert a.notificado is False
+    assert a.deleted_at is None
+    assert a.printer_id is None
+    assert a.part_id is None
+
+
+def test_transfer_defaults(db_session):
+    from app.models.printer import Printer
+    from app.models.transfer import Transfer
+    p = Printer(patrimonio="TRFDEF", modelo="HP")
+    db_session.add(p)
+    db_session.commit()
+    t = Transfer(printer_id=p.id, tipo="saida")
+    db_session.add(t)
+    db_session.commit()
+    assert t.data_retorno_real is None
+    assert t.deleted_at is None
+
+
+def test_attachment_defaults(db_session):
+    from app.models.attachment import Attachment
+    a = Attachment(entity_type="printer", entity_id=1, filename="test.pdf", original_name="test.pdf", mime_type="application/pdf")
+    db_session.add(a)
+    db_session.commit()
+    assert a.created_at is not None
+
+
+def test_login_history_defaults(db_session):
+    from app.models.login_history import LoginHistory
+    lh = LoginHistory(user_id=1, login_at=datetime.now())
+    db_session.add(lh)
+    db_session.commit()
+    assert lh.logout_at is None
+
+
+def test_audit_log_defaults(db_session):
+    from app.models.audit_log import AuditLog
+    log = AuditLog(user_id=1, acao="CRIAR", tabela_alvo="printers", registro_id="abc")
+    db_session.add(log)
+    db_session.commit()
+    assert log.dados_antes is None
+    assert log.dados_depois is None
+
+
+def test_printer_activity_relationship_empty(db_session):
+    p = Printer(patrimonio="NOREL", modelo="HP")
+    db_session.add(p)
+    db_session.commit()
+    assert p.activities == []
+
+
+def test_company_printers_relationship_empty(db_session):
+    c = Company(nome="Sem Impressoras")
+    db_session.add(c)
+    db_session.commit()
+    assert c.printers == []

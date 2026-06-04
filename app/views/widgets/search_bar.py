@@ -1,9 +1,16 @@
+from __future__ import annotations
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit
 
 
 class SearchBar(QFrame):
-    def __init__(self, placeholder="Buscar...", glass=False, parent=None):
+    _glass: bool
+    _padrao: str
+    _borda: str
+    input: QLineEdit
+
+    def __init__(self, placeholder: str = "Buscar...", glass: bool = False, parent: Optional[QFrame] = None) -> None:
         super().__init__(parent)
         self._glass = glass
         self._padrao = "rgba(20,20,31,0.5)" if glass else "#1e1e2e"
@@ -35,11 +42,11 @@ class SearchBar(QFrame):
         )
         layout.addWidget(self.input)
 
-    def textChanged(self):
+    def textChanged(self) -> Any:
         return self.input.textChanged
 
-    def texto(self):
+    def texto(self) -> str:
         return self.input.text()
 
-    def limpar(self):
+    def limpar(self) -> None:
         self.input.clear()

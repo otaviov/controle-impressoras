@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import Any
 
 import matplotlib
 from PySide6.QtCore import Qt
@@ -10,19 +13,30 @@ from matplotlib.figure import Figure
 from app.views.relatorio_dialog import RelatorioDialog
 from app.views.styles.theme import COR, ESTILO_TITULO_PAGINA
 
-BG = COR["fundo"]
-CARD = COR["fundo_card"]
-BORDA = COR["borda"]
-TEXTO = COR["texto"]
-AZUL = COR["azul"]
-VERDE = COR["sucesso"]
-AMARELO = COR["aviso"]
-ROXO = COR["roxo"]
-CINZA = COR["texto_label"]
+BG: str = COR["fundo"]
+CARD: str = COR["fundo_card"]
+BORDA: str = COR["borda"]
+TEXTO: str = COR["texto"]
+AZUL: str = COR["azul"]
+VERDE: str = COR["sucesso"]
+AMARELO: str = COR["aviso"]
+ROXO: str = COR["roxo"]
+CINZA: str = COR["texto_label"]
 
 
 class ReportsPage(QWidget):
-    def __init__(self, session, printer_service, activity_service, company_service, parent=None):
+    _session: Any
+    _printer_service: Any
+    _activity_service: Any
+    _company_service: Any
+    canvas_status: FigureCanvas | None
+    canvas_modelos: FigureCanvas | None
+    canvas_atividades: FigureCanvas | None
+    canvas_pecas: FigureCanvas | None
+    btn_relatorio: QPushButton
+    grid: QGridLayout
+
+    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._session = session
         self._printer_service = printer_service
@@ -69,7 +83,7 @@ class ReportsPage(QWidget):
         self.grid.setSpacing(16)
         layout.addLayout(self.grid)
 
-    def recarregar(self):
+    def recarregar(self) -> None:
         for i in reversed(range(self.grid.count())):
             item = self.grid.itemAt(i)
             if item and item.widget():
@@ -96,7 +110,7 @@ class ReportsPage(QWidget):
         self.grid.addWidget(self.canvas_atividades, 1, 0)
         self.grid.addWidget(self.canvas_pecas, 1, 1)
 
-    def _estilo_ax(self, ax, titulo, cor_titulo=AMARELO):
+    def _estilo_ax(self, ax: Any, titulo: str, cor_titulo: str = AMARELO) -> None:
         ax.set_title(titulo, color=cor_titulo, fontsize=12, fontweight='bold')
         ax.tick_params(colors=CINZA)
         ax.spines['bottom'].set_color(BORDA)
@@ -106,7 +120,7 @@ class ReportsPage(QWidget):
         ax.xaxis.label.set_color(CINZA)
         ax.yaxis.label.set_color(CINZA)
 
-    def _criar_grafico_pizza(self):
+    def _criar_grafico_pizza(self) -> FigureCanvas:
         fig = Figure(facecolor=BG)
         ax = fig.add_subplot(111)
         ax.set_facecolor(BG)
@@ -125,7 +139,7 @@ class ReportsPage(QWidget):
         canvas = FigureCanvas(fig)
         return canvas
 
-    def _criar_grafico_barras(self):
+    def _criar_grafico_barras(self) -> FigureCanvas:
         fig = Figure(facecolor=BG)
         ax = fig.add_subplot(111)
         ax.set_facecolor(BG)
@@ -143,7 +157,7 @@ class ReportsPage(QWidget):
         canvas = FigureCanvas(fig)
         return canvas
 
-    def _criar_grafico_linhas(self):
+    def _criar_grafico_linhas(self) -> FigureCanvas:
         fig = Figure(facecolor=BG)
         ax = fig.add_subplot(111)
         ax.set_facecolor(BG)
@@ -164,7 +178,7 @@ class ReportsPage(QWidget):
         canvas = FigureCanvas(fig)
         return canvas
 
-    def _criar_grafico_barras_horiz(self):
+    def _criar_grafico_barras_horiz(self) -> FigureCanvas:
         fig = Figure(facecolor=BG)
         ax = fig.add_subplot(111)
         ax.set_facecolor(BG)
@@ -182,6 +196,6 @@ class ReportsPage(QWidget):
         canvas = FigureCanvas(fig)
         return canvas
 
-    def _abrir_relatorio(self):
+    def _abrir_relatorio(self) -> None:
         dialogo = RelatorioDialog(self._session, self._printer_service, self._company_service, self._activity_service, self)
         dialogo.exec()

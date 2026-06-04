@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
@@ -7,7 +11,11 @@ FUNDO_GRAFICO = (20/255, 20/255, 31/255, 0.5)
 
 
 class ChartWidget(FigureCanvasQTAgg):
-    def __init__(self, titulo, width=5, height=3.2, dpi=100):
+    fig: Figure
+    titulo: str
+    ax: Any
+
+    def __init__(self, titulo: str, width: int = 5, height: float = 3.2, dpi: int = 100) -> None:
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.fig.patch.set_facecolor(FUNDO_GRAFICO)
         super().__init__(self.fig)
@@ -17,30 +25,30 @@ class ChartWidget(FigureCanvasQTAgg):
         self._estilo_eixos()
         self._draw_empty()
 
-    def _estilo_eixos(self):
+    def _estilo_eixos(self) -> None:
         self.ax.tick_params(colors=COR["texto_sec"], labelsize=9)
         for spine in self.ax.spines.values():
             spine.set_color(COR["borda"])
             spine.set_linewidth(0.5)
         self.ax.set_title(self.titulo, color=COR["texto"], fontsize=11, fontweight="bold", pad=12)
 
-    def _draw_empty(self):
+    def _draw_empty(self) -> None:
         self.ax.text(0.5, 0.5, "Sem dados", color=COR["texto_muted"], ha="center", va="center", fontsize=12)
         self.ax.set_xlim(0, 1)
         self.ax.set_ylim(0, 1)
         self.draw()
 
-    def limpar(self):
+    def limpar(self) -> None:
         self.ax.clear()
         self.ax.set_facecolor(FUNDO_GRAFICO)
         self._estilo_eixos()
 
 
 class PizzaChart(ChartWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def atualizar(self, labels, valores):
+    def atualizar(self, labels: list[str], valores: list[float]) -> None:
         self.limpar()
         total = sum(valores)
         if total == 0:
@@ -63,10 +71,10 @@ class PizzaChart(ChartWidget):
 
 
 class BarChart(ChartWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def atualizar(self, labels, valores):
+    def atualizar(self, labels: list[str], valores: list[float]) -> None:
         self.limpar()
         if not valores:
             self._draw_empty()
@@ -81,10 +89,10 @@ class BarChart(ChartWidget):
 
 
 class LineChart(ChartWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-    def atualizar(self, labels, valores):
+    def atualizar(self, labels: list[str], valores: list[float]) -> None:
         self.limpar()
         if not valores:
             self._draw_empty()

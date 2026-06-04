@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
@@ -27,6 +30,7 @@ from app.services import (
     DashboardService,
     LoginHistoryService,
     PartService,
+    PrinterLocationService,
     PrinterService,
     TechnicianService,
     TransferService,
@@ -51,7 +55,42 @@ log = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, session, user):
+    session: Any
+    user: dict[str, Any]
+    audit_service: AuditService
+    printer_service: PrinterService
+    activity_service: ActivityService
+    company_service: CompanyService
+    part_service: PartService
+    technician_service: TechnicianService
+    user_service: UserService
+    dashboard_service: DashboardService
+    alert_service: AlertService
+    transfer_service: TransferService
+    login_history_service: LoginHistoryService
+    printer_location_service: PrinterLocationService
+    tray_icon: QSystemTrayIcon
+    notificador: NotificadorService
+    menu_buttons: list[QPushButton]
+    _menu_indices: list[int]
+    _menu_containers: list[QFrame]
+    _menu_indicators: list[QFrame]
+    btn_tema: QPushButton
+    btn_toggle_sidebar: QPushButton
+    content_area: QStackedWidget
+    pagina_dashboard: DashboardPage
+    pagina_impressoras: PrintersPage
+    pagina_os: OSPage
+    pagina_clientes: ClientsPage
+    pagina_pecas: PartsPage
+    pagina_transferencias: TransfersPage
+    pagina_tecnicos: TechniciansPage
+    pagina_historico: TechnicianHistoryPage
+    pagina_relatorios: ReportsPage
+    pagina_alertas: AlertasPage
+    pagina_config: ConfigPage | None
+
+    def __init__(self, session: Any, user: dict[str, Any]) -> None:
         super().__init__()
         self.session = session
         self.user = user
@@ -59,6 +98,7 @@ class MainWindow(QMainWindow):
         # ── Serviços ──────────────────────────────────────────
         self.audit_service = AuditService(session)
         self.printer_service = PrinterService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
+        self.printer_location_service = PrinterLocationService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.activity_service = ActivityService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.company_service = CompanyService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.part_service = PartService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
@@ -86,7 +126,7 @@ class MainWindow(QMainWindow):
         self._menu_indicators = []
         self.init_ui()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: Any) -> None:
         login_id = self.user.get("login_history_id")
         if login_id:
             try:
@@ -96,7 +136,7 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     # ── UI ──────────────────────────────────────────────────────
-    def init_ui(self):
+    def init_ui(self) -> None:
         self.setWindowTitle("Controle de Impressoras Pro")
         self.setMinimumSize(1200, 700)
 
@@ -204,7 +244,8 @@ class MainWindow(QMainWindow):
         self.pagina_impressoras = PrintersPage(
             self.session, self.printer_service,
             self.company_service, self.technician_service,
-            self.activity_service, self.part_service
+            self.activity_service, self.part_service,
+            self.printer_location_service
         )
         self.pagina_os = OSPage(
             self.session, self.printer_service,
@@ -278,7 +319,7 @@ class MainWindow(QMainWindow):
 
         self._trocar_pagina(0)
 
-    def _adicionar_botao_tema(self, layout):
+    def _adicionar_botao_tema(self, layout: QVBoxLayout) -> None:
         from app.views.styles.theme_manager import TemaManager
         tema_frame = QFrame()
         tema_frame.setStyleSheet("QFrame { background: transparent; border: none; }")
@@ -294,7 +335,7 @@ class MainWindow(QMainWindow):
         tema_frame_layout.addWidget(self.btn_tema)
         layout.addWidget(tema_frame)
 
-    def _atualizar_texto_tema(self):
+    def _atualizar_texto_tema(self) -> None:
         from app.views.styles.theme_manager import TemaManager
         is_dark = TemaManager.atual() == "dark"
         icone = "🌙" if is_dark else "☀️"
@@ -308,7 +349,7 @@ class MainWindow(QMainWindow):
         )
         self.btn_tema.setStyleSheet(base)
 
-    def _alternar_tema(self):
+    def _alternar_tema(self) -> None:
         from app.views.styles.theme_manager import TemaManager
         TemaManager.limpar_estilos(self)
         TemaManager.alternar()
@@ -317,7 +358,7 @@ class MainWindow(QMainWindow):
         paginas = [self.content_area.widget(i) for i in range(self.content_area.count())]
         TemaManager.reestilizar_paginas([w for w in paginas if w])
 
-    def _restyle_sidebar(self):
+    def _restyle_sidebar(self) -> None:
         from app.views.styles.theme_manager import TemaManager
         is_dark = TemaManager.atual() == "dark"
         if is_dark:
@@ -357,7 +398,7 @@ class MainWindow(QMainWindow):
 
 
     # ── Sidebar helpers ─────────────────────────────────────────
-    def _adicionar_topbar(self, layout):
+    def _adicionar_topbar(self, layout: QVBoxLayout) -> None:
         topbar = QFrame()
         topbar.setObjectName("topbar")
         topbar.setFixedHeight(56)
@@ -397,14 +438,14 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(topbar)
 
-    def _toggle_sidebar(self):
+    def _toggle_sidebar(self) -> None:
         sidebar = self.findChild(QFrame, "sidebar")
         if sidebar:
             visible = sidebar.isVisible()
             sidebar.setVisible(not visible)
             self.btn_toggle_sidebar.setText("☰" if visible else "☰")
 
-    def _adicionar_label_secao(self, layout, texto):
+    def _adicionar_label_secao(self, layout: QVBoxLayout, texto: str) -> None:
         lbl = QLabel(texto.upper())
         lbl.setStyleSheet(
             "color: #717182; font-size: 9px; font-weight: 700;"
@@ -413,7 +454,7 @@ class MainWindow(QMainWindow):
         )
         layout.addWidget(lbl)
 
-    def _adicionar_logo(self, layout):
+    def _adicionar_logo(self, layout: QVBoxLayout) -> None:
         logo_frame = QFrame()
         logo_frame.setStyleSheet("background: transparent; border: none;")
         logo_frame_layout = QHBoxLayout(logo_frame)
@@ -452,7 +493,7 @@ class MainWindow(QMainWindow):
         sep.setStyleSheet("background-color: #1e1e2e; max-height: 1px; margin: 0 12px;")
         layout.addWidget(sep)
 
-    def _adicionar_card_usuario(self, layout):
+    def _adicionar_card_usuario(self, layout: QVBoxLayout) -> None:
         user_frame = QFrame()
         user_frame.setStyleSheet(
             "QFrame { background: transparent; border: none; }"
@@ -498,7 +539,7 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(user_frame)
 
-    def _criar_botao_menu(self, icone, texto, indice):
+    def _criar_botao_menu(self, icone: str, texto: str, indice: int) -> QFrame:
         container = QFrame()
         container.setObjectName("menuContainer")
         container.setStyleSheet("QFrame#menuContainer { background: transparent; border: none; }")
@@ -534,7 +575,7 @@ class MainWindow(QMainWindow):
         return container
 
     # ── Navegação ────────────────────────────────────────────────
-    def _trocar_pagina(self, index):
+    def _trocar_pagina(self, index: int) -> None:
         for i, btn in enumerate(self.menu_buttons):
             is_active = self._menu_indices[i] == index
             btn.setChecked(is_active)
@@ -552,10 +593,10 @@ class MainWindow(QMainWindow):
             pagina_atual.recarregar()
 
     # ── Ações ────────────────────────────────────────────────────
-    def _abrir_atividade_por_id(self, activity_id):
+    def _abrir_atividade_por_id(self, activity_id: int) -> None:
         self.pagina_os.editar_atividade_por_id(activity_id)
 
-    def _abrir_impressora_por_patrimonio(self, patrimonio):
+    def _abrir_impressora_por_patrimonio(self, patrimonio: str) -> None:
         self._trocar_pagina(1)
         self.pagina_impressoras.filtrar(patrimonio)
         for row in range(self.pagina_impressoras.tabela.rowCount()):
@@ -563,7 +604,7 @@ class MainWindow(QMainWindow):
                 self.pagina_impressoras._detalhes(row)
                 break
 
-    def carregar_dados(self):
+    def carregar_dados(self) -> None:
         """Recarrega todas as páginas"""
         for pagina in [
             self.pagina_dashboard, self.pagina_impressoras,
@@ -575,7 +616,7 @@ class MainWindow(QMainWindow):
             if hasattr(pagina, 'recarregar'):
                 pagina.recarregar()
 
-    def _verificar_alertas_iniciais(self):
+    def _verificar_alertas_iniciais(self) -> None:
         try:
             novos_estoque = self.alert_service.verificar_estoque_baixo()
             if novos_estoque:
@@ -631,7 +672,7 @@ class MainWindow(QMainWindow):
         else:
             export_fn = RelatorioService.exportar_atividades_pdf if formato == "pdf" else RelatorioService.exportar_atividades_excel
 
-        def _ao_finalizar(fp):
+        def _ao_finalizar(fp: str) -> None:
             try:
                 os.startfile(fp)
             except Exception:

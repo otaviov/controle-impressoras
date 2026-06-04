@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from datetime import datetime as dt, timedelta
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QMouseEvent, QShortcut
@@ -8,17 +11,16 @@ from PySide6.QtWidgets import QDialog, QFrame, QLabel, QLineEdit, QPushButton, Q
 from app.models import LoginHistory, User
 from app.utils.effects import sombra_glow
 from app.utils.security import verify_password
-from app.utils.validacao import ValidadorCampo, obrigatorio
 from db import close_session, get_session
 
-MAX_TENTATIVAS = 5
-BLOQUEIO_MINUTOS = 5
+MAX_TENTATIVAS: int = 5
+BLOQUEIO_MINUTOS: int = 5
 _attempts: dict[str, list[dt]] = {}
 
 
-def _limpar_attempts_velhos():
-    agora = dt.utcnow()
-    limite = agora - timedelta(minutes=BLOQUEIO_MINUTOS)
+def _limpar_attempts_velhos() -> None:
+    agora: dt = dt.utcnow()
+    limite: dt = agora - timedelta(minutes=BLOQUEIO_MINUTOS)
     for usuario in list(_attempts.keys()):
         _attempts[usuario] = [t for t in _attempts[usuario] if t > limite]
         if not _attempts[usuario]:
@@ -30,16 +32,23 @@ def _esta_bloqueado(username: str) -> bool:
     return len(_attempts.get(username, [])) >= MAX_TENTATIVAS
 
 
-def _registrar_tentativa(username: str):
+def _registrar_tentativa(username: str) -> None:
     _attempts.setdefault(username, []).append(dt.utcnow())
 
 
-def _resetar_tentativas(username: str):
+def _resetar_tentativas(username: str) -> None:
     _attempts.pop(username, None)
 
 
 class LoginDialog(QDialog):
-    def __init__(self):
+    authenticated_user: dict[str, Any] | None
+    drag_pos: QPoint | None
+    animation: QPropertyAnimation
+    user_input: QLineEdit
+    senha_input: QLineEdit
+    error_label: QLabel
+
+    def __init__(self) -> None:
         super().__init__()
         self.authenticated_user = None
         self.drag_pos = None
@@ -56,7 +65,7 @@ class LoginDialog(QDialog):
     def mouseReleaseEvent(self, event: QMouseEvent):
         self.drag_pos = None
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         self.setWindowTitle("Controle de Impressoras Pro")
         self.setFixedSize(400, 500)
         self.setWindowFlags(Qt.FramelessWindowHint)
@@ -138,12 +147,6 @@ class LoginDialog(QDialog):
         self.user_input.setStyleSheet(self._input_style())
         card_layout.addWidget(self.user_input)
 
-        erro_user = QLabel("")
-        erro_user.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent; min-height: 14px;")
-        erro_user.hide()
-        card_layout.addWidget(erro_user)
-        ValidadorCampo(self.user_input, obrigatorio, erro_user)
-
         card_layout.addSpacing(6)
 
         # SENHA
@@ -158,12 +161,6 @@ class LoginDialog(QDialog):
         self.senha_input.setStyleSheet(self._input_style())
         self.senha_input.setFocus()
         card_layout.addWidget(self.senha_input)
-
-        erro_senha = QLabel("")
-        erro_senha.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent; min-height: 14px;")
-        erro_senha.hide()
-        card_layout.addWidget(erro_senha)
-        ValidadorCampo(self.senha_input, obrigatorio, erro_senha)
 
         # ERRO
         self.error_label = QLabel("")
@@ -223,7 +220,7 @@ class LoginDialog(QDialog):
         sombra_glow(card, cor="#6366f1", blur=60)
         self.animar_entrada()
 
-    def _input_style(self):
+    def _input_style(self) -> str:
         return """
             QLineEdit {
                 background-color: #1e1e2e;
@@ -237,22 +234,22 @@ class LoginDialog(QDialog):
             QLineEdit:focus { border-color: #6366f1; background-color: #1e1e2e; }
         """
 
-    def animar_entrada(self):
+    def animar_entrada(self) -> None:
         self.animation = QPropertyAnimation(self, b"pos")
         self.animation.setDuration(400)
         self.animation.setEasingCurve(QEasingCurve.OutBack)
 
         screen = self.screen().geometry()
-        final_x = (screen.width() - self.width()) // 2
-        final_y = (screen.height() - self.height()) // 2
+        final_x: int = (screen.width() - self.width()) // 2
+        final_y: int = (screen.height() - self.height()) // 2
 
         self.animation.setStartValue(QPoint(final_x, final_y - 60))
         self.animation.setEndValue(QPoint(final_x, final_y))
         self.animation.start()
 
-    def fazer_login(self):
-        username = self.user_input.text().strip()
-        senha = self.senha_input.text()
+    def fazer_login(self) -> None:
+        username: str = self.user_input.text().strip()
+        senha: str = self.senha_input.text()
 
         if not username or not senha:
             self.mostrar_erro("Preencha todos os campos!")
@@ -264,7 +261,7 @@ class LoginDialog(QDialog):
 
         session = get_session()
         try:
-            user = session.query(User).filter(User.username == username).first()
+            user: User | None = session.query(User).filter(User.username == username).first()
 
             if not user:
                 _registrar_tentativa(username)
@@ -278,7 +275,7 @@ class LoginDialog(QDialog):
 
             if not verify_password(senha, user.senha_hash):
                 _registrar_tentativa(username)
-                restam = MAX_TENTATIVAS - len(_attempts.get(username, []))
+                restam: int = MAX_TENTATIVAS - len(_attempts.get(username, []))
                 self.mostrar_erro(f"Senha incorreta! ({restam} tentativa(s) restante(s))")
                 return
 
@@ -304,6 +301,6 @@ class LoginDialog(QDialog):
         finally:
             close_session(session)
 
-    def mostrar_erro(self, mensagem):
+    def mostrar_erro(self, mensagem: str) -> None:
         self.error_label.setText(mensagem)
         QTimer.singleShot(3000, lambda: self.error_label.setText(""))

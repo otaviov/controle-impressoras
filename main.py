@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
 import sys
 import traceback
+import types
 
 from PySide6.QtWidgets import QApplication, QStyleFactory, QMessageBox
 
@@ -11,14 +14,14 @@ from config import BASE_DIR, DB_PATH
 from db import ENGINE, close_session, get_session
 
 setup_logging()
-log = logging.getLogger(__name__)
+log: logging.Logger = logging.getLogger(__name__)
 log.info("DB: %s", DB_PATH)
 
 _alembic_cfg = AlembicConfig(BASE_DIR / "alembic.ini")
 _alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{DB_PATH}")
 alembic_upgrade(_alembic_cfg, "head")
 
-def _excepthook(tipo, valor, tb):
+def _excepthook(tipo: type, valor: BaseException, tb: types.TracebackType | None) -> None:
     msg = "".join(traceback.format_exception(tipo, valor, tb))
     log.critical("Exceção não tratada:\n%s", msg)
     try:
@@ -30,7 +33,7 @@ def _excepthook(tipo, valor, tb):
 
 sys.excepthook = _excepthook
 
-def main():
+def main() -> None:
     app = QApplication(sys.argv)
     app.setStyle(QStyleFactory.create("Fusion"))
     app.setApplicationName("Controle de Impressoras Pro")
