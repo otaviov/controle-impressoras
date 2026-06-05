@@ -1,21 +1,26 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime as dt
 from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QTableWidget,
     QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
@@ -353,6 +358,17 @@ class OSPage(QWidget):
         to_company_id = self._resolver_empresa(to_location)
         tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
 
+        tbl = campos.get("checklist")
+        procedimentos = ""
+        if tbl:
+            dados = []
+            for r in range(tbl.rowCount()):
+                chk = tbl.item(r, 0)
+                nome = tbl.item(r, 1)
+                if nome and nome.text().strip():
+                    dados.append({"nome": nome.text().strip(), "feito": bool(chk and chk.checkState() == Qt.Checked)})
+            procedimentos = json.dumps(dados, ensure_ascii=False)
+
         try:
             with transacao(self.session):
                 atividade = self.activity_service.criar(
@@ -365,6 +381,7 @@ class OSPage(QWidget):
                     status_atividade=status_atividade,
                     event_at=event_at,
                     tecnico_id=tecnico_id,
+                    procedimentos=procedimentos,
                 )
                 self._dar_baixa_estoque(parts_used)
                 self.activity_service.atualizar(
@@ -441,6 +458,21 @@ class OSPage(QWidget):
         detalhes_form.addRow(campo_rotulo("Status"), campo_readonly(atividade.status_atividade or "—"))
         detalhes_layout.addLayout(detalhes_form)
         layout.addWidget(detalhes_box)
+
+        if atividade.procedimentos:
+            try:
+                procedimentos = json.loads(atividade.procedimentos)
+                checklist_box, checklist_layout = group_box("Procedimentos Realizados")
+                for item in procedimentos:
+                    nome = item.get("nome", "")
+                    feito = item.get("feito", False)
+                    icon = "✅" if feito else "⬜"
+                    lbl = QLabel(f"{icon}  {nome}")
+                    lbl.setStyleSheet("color: #c8c8d8; font-size: 12px; padding: 2px 0; background: transparent;")
+                    checklist_layout.addWidget(lbl)
+                layout.addWidget(checklist_box)
+            except json.JSONDecodeError:
+                pass
 
         if atividade.kind == "MOVIMENTACAO":
             mov_box, mov_layout = group_box("Movimentação")
@@ -550,6 +582,17 @@ class OSPage(QWidget):
             to_company_id = self._resolver_empresa(to_location)
             tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
 
+            tbl = campos.get("checklist")
+            procedimentos = ""
+            if tbl:
+                dados = []
+                for r in range(tbl.rowCount()):
+                    chk = tbl.item(r, 0)
+                    nome = tbl.item(r, 1)
+                    if nome and nome.text().strip():
+                        dados.append({"nome": nome.text().strip(), "feito": bool(chk and chk.checkState() == Qt.Checked)})
+                procedimentos = json.dumps(dados, ensure_ascii=False)
+
             try:
                 with transacao(self.session):
                     self.activity_service.atualizar(
@@ -565,6 +608,7 @@ class OSPage(QWidget):
                         from_company_id=from_company_id,
                         to_company_id=to_company_id,
                         tecnico_id=tecnico_id,
+                        procedimentos=procedimentos,
                     )
                     self._dar_baixa_estoque(parts_used)
                 resultado["acao"] = "salvar"
@@ -604,11 +648,23 @@ class OSPage(QWidget):
     def _criar_form_dialog(self, titulo: str, atividade: Any = None) -> tuple[QDialog, dict[str, Any]]:
         dialog = QDialog(self)
         dialog.setWindowTitle(titulo)
-        dialog.setMinimumWidth(520)
+        dialog.setMinimumSize(580, 620)
         dialog.setStyleSheet(ESTILO_DIALOG)
 
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(14)
+        outer = QVBoxLayout(dialog)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(16, 8, 16, 8)
+        content.setSpacing(14)
 
         printers = self.printer_service.listar_todos()
         nomes_impressoras = [p.patrimonio for p in printers]
@@ -643,19 +699,32 @@ class OSPage(QWidget):
         cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
 
         equip_box, equip_layout = group_box("Equipamento")
-        equip_form = QFormLayout()
-        equip_form.setSpacing(8)
-        equip_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        equip_form.addRow("Impressora:", cmb_printer)
-        equip_form.addRow("Tipo:", cmb_tipo)
-        equip_form.addRow("Técnico:", cmb_tecnico)
-        equip_layout.addLayout(equip_form)
-        layout.addWidget(equip_box)
+        equip_grid = QGridLayout()
+        equip_grid.setSpacing(8)
+        equip_grid.setHorizontalSpacing(16)
+        equip_grid.addWidget(input_label("Impressora"), 0, 0)
+        equip_grid.addWidget(cmb_printer, 1, 0)
+        equip_grid.addWidget(input_label("Tipo"), 0, 1)
+        equip_grid.addWidget(cmb_tipo, 1, 1)
+        equip_grid.addWidget(input_label("Técnico"), 2, 0, 1, 2)
+        equip_grid.addWidget(cmb_tecnico, 3, 0, 1, 2)
+        equip_grid.setColumnStretch(0, 1)
+        equip_grid.setColumnStretch(1, 1)
+        equip_layout.addLayout(equip_grid)
+        content.addWidget(equip_box)
 
         data_atual = dt.now().strftime("%d/%m/%Y %H:%M")
         edt_data = QLineEdit(data_atual)
         edt_data.setStyleSheet(ESTILO_INPUT)
         edt_data.textChanged.connect(_criar_mascara_data(edt_data))
+
+        cmb_status = QComboBox()
+        configurar_combo(cmb_status)
+        cmp = cmb_status.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
 
         txt_descricao = QTextEdit()
         txt_descricao.setStyleSheet(ESTILO_INPUT)
@@ -692,15 +761,92 @@ class OSPage(QWidget):
         estoque_combo_os.currentIndexChanged.connect(_preencher_pecas_os)
 
         detalhes_box, detalhes_layout = group_box("Detalhes")
-        detalhes_form = QFormLayout()
-        detalhes_form.setSpacing(8)
-        detalhes_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        detalhes_form.addRow("Data/Hora:", edt_data)
-        detalhes_form.addRow("Descrição:", txt_descricao)
-        detalhes_form.addRow("Peças Trocadas:", txt_pecas)
-        detalhes_form.addRow("Peça do Estoque:", estoque_combo_os)
-        detalhes_layout.addLayout(detalhes_form)
-        layout.addWidget(detalhes_box)
+        detalhes_grid = QGridLayout()
+        detalhes_grid.setSpacing(8)
+        detalhes_grid.setHorizontalSpacing(16)
+        detalhes_grid.addWidget(input_label("Data/Hora"), 0, 0)
+        detalhes_grid.addWidget(edt_data, 1, 0)
+        detalhes_grid.addWidget(input_label("Status"), 0, 1)
+        detalhes_grid.addWidget(cmb_status, 1, 1)
+        detalhes_grid.addWidget(input_label("Descrição"), 2, 0, 1, 2)
+        detalhes_grid.addWidget(txt_descricao, 3, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Peças Trocadas"), 4, 0, 1, 2)
+        detalhes_grid.addWidget(txt_pecas, 5, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Peça do Estoque"), 6, 0, 1, 2)
+        detalhes_grid.addWidget(estoque_combo_os, 7, 0, 1, 2)
+        detalhes_grid.setColumnStretch(0, 1)
+        detalhes_grid.setColumnStretch(1, 1)
+        detalhes_layout.addLayout(detalhes_grid)
+        content.addWidget(detalhes_box)
+
+        # ── Checklist ──
+        checklist_box, checklist_layout = group_box("Checklist")
+        tbl = QTableWidget()
+        tbl.setColumnCount(2)
+        tbl.setHorizontalHeaderLabels(["Feito", "Procedimento"])
+        tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+        tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+        tbl.setStyleSheet("""
+            QTableWidget { background: transparent; border: none; }
+            QTableWidget::item { padding: 4px; }
+            QHeaderView::section { background: transparent; color: #a0a0b0; border: none; font-weight: 600; padding: 4px; }
+        """)
+        itens_padrao = [
+            "Limpeza de laser",
+            "Lubrificação do fusor",
+            "Troca de película",
+            "Troca de rolo de pressão",
+            "Teste de impressão",
+        ]
+        for nome in itens_padrao:
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            chk = QTableWidgetItem()
+            chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
+            chk.setCheckState(Qt.Unchecked)
+            tbl.setItem(r, 0, chk)
+            tbl.setItem(r, 1, QTableWidgetItem(nome))
+        tbl.setMinimumHeight(140)
+        checklist_layout.addWidget(tbl)
+
+        btn_add = QPushButton("+ Adicionar")
+        btn_add.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_add.setToolTip("Adicionar procedimento personalizado")
+        btn_add.setCursor(Qt.PointingHandCursor)
+
+        btn_rem = QPushButton("— Remover")
+        btn_rem.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_rem.setToolTip("Remover procedimento selecionado")
+        btn_rem.setCursor(Qt.PointingHandCursor)
+
+        def _add_procedimento():
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            chk = QTableWidgetItem()
+            chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
+            chk.setCheckState(Qt.Unchecked)
+            tbl.setItem(r, 0, chk)
+            tbl.setItem(r, 1, QTableWidgetItem(""))
+            tbl.editItem(tbl.item(r, 1))
+
+        def _rem_procedimento():
+            r = tbl.currentRow()
+            if r >= 0:
+                tbl.removeRow(r)
+
+        btn_add.clicked.connect(_add_procedimento)
+        btn_rem.clicked.connect(_rem_procedimento)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_add)
+        btn_row.addWidget(btn_rem)
+        checklist_layout.addLayout(btn_row)
+        content.addWidget(checklist_box)
 
         empresas = self.company_service.listar_nomes() if self.company_service else []
 
@@ -727,13 +873,17 @@ class OSPage(QWidget):
         cmb_destino.setCurrentText("")
 
         mov_box, mov_layout = group_box("Movimentação")
-        mov_form = QFormLayout()
-        mov_form.setSpacing(8)
-        mov_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        mov_form.addRow("Origem:", cmb_origem)
-        mov_form.addRow("Destino:", cmb_destino)
-        mov_layout.addLayout(mov_form)
-        layout.addWidget(mov_box)
+        mov_grid = QGridLayout()
+        mov_grid.setSpacing(8)
+        mov_grid.setHorizontalSpacing(16)
+        mov_grid.addWidget(input_label("Origem"), 0, 0)
+        mov_grid.addWidget(cmb_origem, 1, 0)
+        mov_grid.addWidget(input_label("Destino"), 0, 1)
+        mov_grid.addWidget(cmb_destino, 1, 1)
+        mov_grid.setColumnStretch(0, 1)
+        mov_grid.setColumnStretch(1, 1)
+        mov_layout.addLayout(mov_grid)
+        content.addWidget(mov_box)
 
         def _toggle_origem_destino(tipo):
             visivel = tipo == "MOVIMENTACAO"
@@ -744,21 +894,9 @@ class OSPage(QWidget):
         cmb_tipo.currentTextChanged.connect(_toggle_origem_destino)
         _toggle_origem_destino(cmb_tipo.currentText())
 
-        cmb_status = QComboBox()
-        configurar_combo(cmb_status)
-        cmp = cmb_status.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
-
-        status_box, status_layout = group_box("Status")
-        status_form = QFormLayout()
-        status_form.setSpacing(8)
-        status_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        status_form.addRow("Status:", cmb_status)
-        status_layout.addLayout(status_form)
-        layout.addWidget(status_box)
+        content.addStretch()
+        scroll.setWidget(container)
+        outer.addWidget(scroll, stretch=1)
 
         campos = {
             "printer": cmb_printer,
@@ -770,6 +908,7 @@ class OSPage(QWidget):
             "destino": cmb_destino,
             "tecnico": cmb_tecnico,
             "status": cmb_status,
+            "checklist": tbl,
         }
 
         if atividade:
@@ -788,7 +927,7 @@ class OSPage(QWidget):
             btn_box.rejected.connect(dialog.reject)
             btn_layout.addStretch()
             btn_layout.addWidget(btn_box)
-            layout.addLayout(btn_layout)
+            outer.addLayout(btn_layout)
 
         return dialog, campos
 
@@ -836,6 +975,22 @@ class OSPage(QWidget):
                                            Qt.MatchFixedString)
         if idx_st >= 0:
             campos["status"].setCurrentIndex(idx_st)
+
+        tbl = campos.get("checklist")
+        if tbl and atividade.procedimentos:
+            try:
+                dados = json.loads(atividade.procedimentos)
+                tbl.setRowCount(0)
+                for item in dados:
+                    r = tbl.rowCount()
+                    tbl.insertRow(r)
+                    chk = QTableWidgetItem()
+                    chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
+                    chk.setCheckState(Qt.Checked if item.get("feito") else Qt.Unchecked)
+                    tbl.setItem(r, 0, chk)
+                    tbl.setItem(r, 1, QTableWidgetItem(item.get("nome", "")))
+            except json.JSONDecodeError:
+                pass
 
     def _resolver_empresa(self, nome: str) -> Any | None:
         if not nome or not self.company_service:

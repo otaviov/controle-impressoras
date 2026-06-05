@@ -28,6 +28,7 @@ class Activity(Base, SoftDeleteMixin):
     from_company_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"), nullable=True)
     to_company_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"), nullable=True)
     numero_recibo: Mapped[str] = mapped_column(String(50), default="")
+    responsavel: Mapped[str] = mapped_column(String(120), default="")
     tecnico_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("technicians.id"), nullable=True)
     custo_servico: Mapped[float] = mapped_column(Float, default=0.0)
     status_atividade: Mapped[str] = mapped_column(String(30), default="Concluida")
@@ -38,6 +39,7 @@ class Activity(Base, SoftDeleteMixin):
     parts_used: Mapped[str] = mapped_column(Text, default="")
     from_location: Mapped[str] = mapped_column(String(120), default="")
     to_location: Mapped[str] = mapped_column(String(120), default="")
+    procedimentos: Mapped[str] = mapped_column(Text, default="")
 
     printer: Mapped[Printer] = relationship(back_populates="activities")
     from_company: Mapped[Optional[Company]] = relationship(back_populates="activities_from", foreign_keys=[from_company_id])

@@ -342,6 +342,11 @@ class TransfersPage(QWidget):
         recibo_input.setPlaceholderText("Número do recibo")
         det_form.addRow("Nº Recibo:", recibo_input)
 
+        resp_input = QLineEdit()
+        resp_input.setStyleSheet(ESTILO_INPUT)
+        resp_input.setPlaceholderText("Responsável pela assinatura")
+        det_form.addRow("Responsável:", resp_input)
+
         estoque_combo = self._criar_estoque_combo()
         det_form.addRow("Peça do Estoque:", estoque_combo)
         estoque_combo.currentIndexChanged.connect(
@@ -404,6 +409,7 @@ class TransfersPage(QWidget):
             from_loc = origem_combo.currentText().strip()
             to_loc = destino_combo.currentText().strip()
             recibo = recibo_input.text().strip()
+            resp = resp_input.text().strip()
             status = status_combo.currentText()
 
             try:
@@ -420,6 +426,7 @@ class TransfersPage(QWidget):
                         to_location=to_loc,
                         notes=desc_clean,
                         numero_recibo=recibo,
+                        responsavel=resp,
                         status_atividade=status,
                     )
                     self._session.add(activity)
@@ -512,6 +519,7 @@ class TransfersPage(QWidget):
         det_form.addRow(campo_rotulo("Origem"), campo_readonly(mov.from_location or "—"))
         det_form.addRow(campo_rotulo("Destino"), campo_readonly(mov.to_location or "—"))
         det_form.addRow(campo_rotulo("Nº Recibo"), campo_readonly(mov.numero_recibo or "—"))
+        det_form.addRow(campo_rotulo("Responsável"), campo_readonly(mov.responsavel or "—"))
         det_form.addRow(campo_rotulo("Status"), campo_readonly(mov.status_atividade or "—"))
         det_layout.addLayout(det_form)
         content.addWidget(det_box)
@@ -587,6 +595,7 @@ class TransfersPage(QWidget):
             "to_location": mov.to_location,
             "notes": mov.notes,
             "numero_recibo": mov.numero_recibo,
+            "responsavel": mov.responsavel,
             "status_atividade": mov.status_atividade,
         }
 
@@ -715,6 +724,11 @@ class TransfersPage(QWidget):
         recibo_input.setText(mov.numero_recibo or "")
         det_form.addRow("Nº Recibo:", recibo_input)
 
+        resp_input = QLineEdit()
+        resp_input.setStyleSheet(ESTILO_INPUT)
+        resp_input.setText(mov.responsavel or "")
+        det_form.addRow("Responsável:", resp_input)
+
         estoque_edit_combo = self._criar_estoque_combo()
         det_form.addRow("Peça do Estoque:", estoque_edit_combo)
         estoque_edit_combo.currentIndexChanged.connect(
@@ -765,6 +779,7 @@ class TransfersPage(QWidget):
             from_loc = origem_combo.currentText().strip()
             to_loc = destino_combo.currentText().strip()
             recibo = recibo_input.text().strip()
+            resp = resp_input.text().strip()
             status = status_combo.currentText()
             novos = {
                 "parts_used": parts,
@@ -772,6 +787,7 @@ class TransfersPage(QWidget):
                 "to_location": to_loc,
                 "notes": desc_clean,
                 "numero_recibo": recibo,
+                "responsavel": resp,
                 "status_atividade": status,
             }
             if data_texto:
@@ -864,6 +880,7 @@ class TransfersPage(QWidget):
         origem_combo.currentTextChanged.connect(marcar_alterado)
         destino_combo.currentTextChanged.connect(marcar_alterado)
         recibo_input.textChanged.connect(marcar_alterado)
+        resp_input.textChanged.connect(marcar_alterado)
         desc_text.textChanged.connect(marcar_alterado)
         status_combo.currentTextChanged.connect(marcar_alterado)
 

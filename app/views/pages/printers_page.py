@@ -682,6 +682,7 @@ class _PrinterDetailDialog(QDialog):
         activity_service: Any,
         printer_location_service: Any,
         part_service: Any,
+        main_window: Any = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -689,6 +690,7 @@ class _PrinterDetailDialog(QDialog):
         self._activity_service = activity_service
         self._printer_location_service = printer_location_service
         self._part_service = part_service
+        self._main_window = main_window
 
         self.setWindowTitle(f"Impressora \u2014 {printer.patrimonio}")
         self.setMinimumSize(820, 600)
@@ -913,9 +915,9 @@ class _PrinterDetailDialog(QDialog):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
 
-        atividades = self._activity_service.listar_por_impressora(self._printer.id)
+        self._atividades = self._activity_service.listar_por_impressora(self._printer.id)
 
-        if not atividades:
+        if not self._atividades:
             empty = QLabel("Nenhuma atividade registrada para esta impressora.")
             empty.setStyleSheet("color: #717182; font-size: 13px; padding: 40px; background: transparent;")
             empty.setAlignment(Qt.AlignCenter)
@@ -923,8 +925,8 @@ class _PrinterDetailDialog(QDialog):
             return tab
 
         t = TabelaPadrao(["Data/Hora", "Tipo", "Descrição", "Peças", "Status", "Técnico"])
-        t.setRowCount(len(atividades))
-        for i, a in enumerate(atividades):
+        t.setRowCount(len(self._atividades))
+        for i, a in enumerate(self._atividades):
             t.setItem(i, 0, QTableWidgetItem(formatar_data_hora(a.event_at) if a.event_at else "—"))
 
             cor_tipo = "#f59e0b" if a.kind == "MANUTENCAO" else "#6366f1"
@@ -938,8 +940,21 @@ class _PrinterDetailDialog(QDialog):
             nome_tec = a.technician.nome_exibicao if a.technician else "—"
             t.setItem(i, 5, QTableWidgetItem(nome_tec))
         t.redimensionar()
+        t.doubleClicked.connect(self._abrir_atividade)
         layout.addWidget(t)
         return tab
+
+    def _abrir_atividade(self, index: QModelIndex) -> None:
+        row = index.row()
+        if row < 0 or row >= len(self._atividades):
+            return
+        a = self._atividades[row]
+        if a.kind == "MANUTENCAO":
+            if hasattr(self._main_window, 'pagina_os'):
+                self._main_window.pagina_os._abrir_edicao(a)
+        elif a.kind == "MOVIMENTACAO":
+            if hasattr(self._main_window, 'pagina_transferencias'):
+                self._main_window.pagina_transferencias._abrir_edicao(a)
 
     def _build_tab_locais(self) -> QWidget:
         tab = QWidget()
@@ -1126,6 +1141,7 @@ class PrintersPage(QWidget):
             activity_service=self.activity_service,
             printer_location_service=self.printer_location_service,
             part_service=self.part_service,
+            main_window=self.window(),
             parent=self,
         )
 

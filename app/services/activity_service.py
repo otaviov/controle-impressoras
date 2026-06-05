@@ -87,7 +87,8 @@ class ActivityService:
     def criar(self, printer_id: str, kind: str, notes: str = "",
               parts_used: str = "", from_location: str = "", to_location: str = "",
               numero_recibo: str = "", status_atividade: str = "Concluida",
-              event_at: Optional[datetime] = None, tecnico_id: Optional[int] = None) -> Activity:
+              event_at: Optional[datetime] = None, tecnico_id: Optional[int] = None,
+              procedimentos: str = "") -> Activity:
         atividade = Activity(
             printer_id=printer_id,
             kind=sanitizar(kind, "Activity", "kind"),
@@ -99,6 +100,7 @@ class ActivityService:
             numero_recibo=sanitizar(numero_recibo, "Activity", "numero_recibo"),
             status_atividade=sanitizar(status_atividade, "Activity", "status_atividade"),
             tecnico_id=tecnico_id,
+            procedimentos=procedimentos,
         )
         self.session.add(atividade)
         safe_commit(self.session)

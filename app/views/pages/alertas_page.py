@@ -518,7 +518,7 @@ class AlertasPage(QWidget):
 
         botoes.addStretch()
 
-        btn_fechar = QPushButton("🔙  Fechar")
+        btn_fechar = QPushButton("❌​  Fechar")
         btn_fechar.setCursor(Qt.PointingHandCursor)
         btn_fechar.setMinimumHeight(38)
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
