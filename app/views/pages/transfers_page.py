@@ -49,12 +49,41 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     STATUS_ATIVIDADE_OPCOES,
     configurar_combo,
+    group_box,
+    input_label,
+    campo_rotulo,
+    campo_readonly,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniWidget
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
+
+
+def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
+    """Retorna callback que formata dd/mm/aaaa automaticamente no QLineEdit dado."""
+    def _mascarar(texto: str) -> None:
+        old_pos = le.cursorPosition()
+        digits = ''.join(c for c in texto if c.isdigit())[:8]
+        if not digits and texto:
+            le.blockSignals(True)
+            le.clear()
+            le.blockSignals(False)
+            return
+        partes = [digits[:2]]
+        if len(digits) > 2:
+            partes.append(digits[2:4])
+        if len(digits) > 4:
+            partes.append(digits[4:8])
+        nova = '/'.join(partes)
+        if nova != texto:
+            le.blockSignals(True)
+            le.setText(nova)
+            le.blockSignals(False)
+            le.setCursorPosition(old_pos + (len(nova) - len(texto)))
+    return _mascarar
+
 
 COR_STATUS: dict[str, str] = {
     "pendente": "#fbbf24",
@@ -106,6 +135,7 @@ class TransfersPage(QWidget):
         header.addStretch()
 
         self.btn_nova = QPushButton("➕ Nova Transferência")
+        self.btn_nova.setToolTip("Registrar nova transferência de impressora ou peça")
         self.btn_nova.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
@@ -128,7 +158,7 @@ class TransfersPage(QWidget):
         layout.addWidget(self.search)
 
         self.tabela = TabelaPadrao(self.COLUNAS)
-        self.tabela.cellDoubleClicked.connect(self._editar)
+        self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
         self._mov_cache = []
@@ -206,36 +236,59 @@ class TransfersPage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        tab_dados = QWidget()
-        scroll.setWidget(tab_dados)
-        form = QFormLayout(tab_dados)
-        form.setLabelAlignment(Qt.AlignRight)
-        form.setSpacing(10)
-        form.setContentsMargins(20, 16, 20, 16)
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(20, 16, 20, 16)
+        content.setSpacing(14)
+
+        tipo_box, tipo_layout = group_box("Tipo")
+        tipo_form = QFormLayout()
+        tipo_form.setLabelAlignment(Qt.AlignRight)
+        tipo_form.setSpacing(8)
 
         tipo_combo = QComboBox()
         tipo_combo.addItems(["Impressora Completa", "Apenas Peça(s)"])
         configurar_combo(tipo_combo)
-        form.addRow("Tipo:", tipo_combo)
+        cmp = tipo_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        tipo_form.addRow("Tipo:", tipo_combo)
+        tipo_layout.addLayout(tipo_form)
+        content.addWidget(tipo_box)
+
+        equip_box, equip_layout = group_box("Equipamentos")
+        equip_form = QFormLayout()
+        equip_form.setLabelAlignment(Qt.AlignRight)
+        equip_form.setSpacing(8)
 
         printer_combo = QComboBox()
         printer_combo.setEditable(True)
         configurar_combo(printer_combo)
+        cmp = printer_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         printer_combo.setPlaceholderText("Digite o patrimônio")
         for p in self.printer_service.listar_todos():
             printer_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
-        form.addRow("Impressora Origem:", printer_combo)
+        equip_form.addRow("Impressora Origem:", printer_combo)
 
         printer_destino_combo = QComboBox()
         printer_destino_combo.setEditable(True)
         configurar_combo(printer_destino_combo)
+        cmp = printer_destino_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         printer_destino_combo.setPlaceholderText("Digite o patrimônio")
         for p in self.printer_service.listar_todos():
             printer_destino_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
         printer_destino_combo.setVisible(False)
         lbl_dest = QLabel("Impressora Destino:")
         lbl_dest.setVisible(False)
-        form.addRow(lbl_dest, printer_destino_combo)
+        equip_form.addRow(lbl_dest, printer_destino_combo)
 
         def _toggle_printer_destino(tipo: str) -> None:
             visivel = tipo == "Apenas Peça(s)"
@@ -243,37 +296,54 @@ class TransfersPage(QWidget):
             printer_destino_combo.setVisible(visivel)
         tipo_combo.currentTextChanged.connect(_toggle_printer_destino)
 
+        equip_layout.addLayout(equip_form)
+        content.addWidget(equip_box)
+
+        det_box, det_layout = group_box("Detalhes")
+        det_form = QFormLayout()
+        det_form.setLabelAlignment(Qt.AlignRight)
+        det_form.setSpacing(8)
+
         data_input = QLineEdit(dt.now().strftime("%d/%m/%Y %H:%M"))
         data_input.setStyleSheet(ESTILO_INPUT)
-        form.addRow("Data/Hora:", data_input)
+        data_input.textChanged.connect(_criar_mascara_data(data_input))
+        det_form.addRow("Data/Hora:", data_input)
 
         pecas_text = QTextEdit()
         pecas_text.setStyleSheet(ESTILO_INPUT)
         pecas_text.setPlaceholderText("Peças separadas por vírgula")
         pecas_text.setMaximumHeight(70)
-        form.addRow("Peças:", pecas_text)
+        det_form.addRow("Peças:", pecas_text)
 
         empresas = self.company_service.listar_nomes()
 
         origem_combo = QComboBox()
         origem_combo.setEditable(True)
         configurar_combo(origem_combo)
+        cmp = origem_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         origem_combo.addItems(empresas)
-        form.addRow("Origem:", origem_combo)
+        det_form.addRow("Origem:", origem_combo)
 
         destino_combo = QComboBox()
         destino_combo.setEditable(True)
         configurar_combo(destino_combo)
+        cmp = destino_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         destino_combo.addItems(empresas)
-        form.addRow("Destino:", destino_combo)
+        det_form.addRow("Destino:", destino_combo)
 
         recibo_input = QLineEdit()
         recibo_input.setStyleSheet(ESTILO_INPUT)
         recibo_input.setPlaceholderText("Número do recibo")
-        form.addRow("Nº Recibo:", recibo_input)
+        det_form.addRow("Nº Recibo:", recibo_input)
 
         estoque_combo = self._criar_estoque_combo()
-        form.addRow("Peça do Estoque:", estoque_combo)
+        det_form.addRow("Peça do Estoque:", estoque_combo)
         estoque_combo.currentIndexChanged.connect(
             lambda idx: self._preencher_pecas_do_estoque(estoque_combo, pecas_text, idx)
         )
@@ -282,20 +352,39 @@ class TransfersPage(QWidget):
         desc_text.setStyleSheet(ESTILO_INPUT)
         desc_text.setPlaceholderText("Descrição da transferência")
         desc_text.setMaximumHeight(70)
-        form.addRow("Descrição:", desc_text)
+        det_form.addRow("Descrição:", desc_text)
+
+        det_layout.addLayout(det_form)
+        content.addWidget(det_box)
+
+        status_box, status_layout = group_box("Status")
+        status_form = QFormLayout()
+        status_form.setLabelAlignment(Qt.AlignRight)
+        status_form.setSpacing(8)
 
         status_combo = QComboBox()
         configurar_combo(status_combo)
+        cmp = status_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         status_combo.addItems(STATUS_ATIVIDADE_OPCOES)
-        form.addRow("Status:", status_combo)
+        status_form.addRow("Status:", status_combo)
+        status_layout.addLayout(status_form)
+        content.addWidget(status_box)
 
+        content.addStretch()
+        scroll.setWidget(container)
         tabs.addTab(scroll, "\U0001f4cb Dados")
 
         layout.addWidget(tabs)
 
         btn_salvar = QPushButton("\U0001f4be Salvar")
+        btn_salvar.setToolTip("Salvar nova transferência")
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
-        layout.addWidget(btn_salvar)
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(btn_salvar)
+        layout.addLayout(btn_layout)
 
         saved_id = [None]
 
@@ -375,10 +464,112 @@ class TransfersPage(QWidget):
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
 
-    def _editar(self, row: int) -> None:
+    def _detalhes(self, row: int) -> None:
         if row < 0 or row >= len(self._mov_cache):
             return
         mov = self._mov_cache[row]
+        printer = self.printer_service.buscar_por_id(mov.printer_id)
+        patrimonio = f"{printer.patrimonio} - {printer.modelo}" if printer else mov.printer_id
+
+        tipo = "Apenas Peça(s)" if (mov.notes and "Peças para" in mov.notes) else "Impressora Completa"
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Transferência")
+        dialog.setMinimumSize(650, 500)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+
+        layout = QVBoxLayout(dialog)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(20, 16, 20, 16)
+        content.setSpacing(14)
+
+        equip_box, equip_layout = group_box("Equipamentos")
+        equip_form = QFormLayout()
+        equip_form.setLabelAlignment(Qt.AlignRight)
+        equip_form.setSpacing(8)
+        equip_form.addRow(campo_rotulo("Impressora Origem"), campo_readonly(patrimonio))
+        if tipo == "Apenas Peça(s)":
+            partes = mov.notes.split(" - ", 1) if mov.notes else []
+            destino_pat = partes[0].replace("Peças para ", "").strip() if partes and partes[0].startswith("Peças para") else "—"
+            equip_form.addRow(campo_rotulo("Impressora Destino"), campo_readonly(destino_pat))
+        equip_layout.addLayout(equip_form)
+        content.addWidget(equip_box)
+
+        det_box, det_layout = group_box("Detalhes")
+        det_form = QFormLayout()
+        det_form.setLabelAlignment(Qt.AlignRight)
+        det_form.setSpacing(8)
+        det_form.addRow(campo_rotulo("Tipo"), campo_readonly(tipo))
+        det_form.addRow(campo_rotulo("Data/Hora"), campo_readonly(formatar_data_hora(mov.event_at)))
+        det_form.addRow(campo_rotulo("Peças"), campo_readonly(mov.parts_used or "—"))
+        det_form.addRow(campo_rotulo("Origem"), campo_readonly(mov.from_location or "—"))
+        det_form.addRow(campo_rotulo("Destino"), campo_readonly(mov.to_location or "—"))
+        det_form.addRow(campo_rotulo("Nº Recibo"), campo_readonly(mov.numero_recibo or "—"))
+        det_form.addRow(campo_rotulo("Status"), campo_readonly(mov.status_atividade or "—"))
+        det_layout.addLayout(det_form)
+        content.addWidget(det_box)
+
+        if mov.notes:
+            obs_box, obs_layout = group_box("Observações")
+            obs_layout.addWidget(campo_readonly(mov.notes))
+            content.addWidget(obs_box)
+
+        anexos = self._session.query(Attachment).filter_by(
+            entity_type="activity", entity_id=mov.id
+        ).order_by(Attachment.created_at.desc()).all()
+        if anexos:
+            anexos_box, anexos_layout = group_box("Anexos")
+            for a in anexos:
+                btn_anexo = QPushButton(f"\U0001f4ce {a.original_name}")
+                btn_anexo.setStyleSheet(
+                    "QPushButton { color: #6366f1; font-size: 12px; background: transparent;"
+                    " border: none; text-align: left; padding: 2px 0; }"
+                    " QPushButton:hover { color: #818cf8; }"
+                )
+                btn_anexo.setCursor(Qt.PointingHandCursor)
+                file_path = a.file_path
+                btn_anexo.clicked.connect(lambda checked, fp=file_path: self._abrir_anexo(fp))
+                anexos_layout.addWidget(btn_anexo)
+            content.addWidget(anexos_box)
+
+        content.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+
+        botoes = QHBoxLayout()
+        botoes.setSpacing(10)
+
+        btn_editar = QPushButton("\u270f\ufe0f  Editar")
+        btn_editar.setToolTip("Editar esta transferência")
+        btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_editar.clicked.connect(lambda: self._abrir_edicao(mov, dialog))
+
+        btn_excluir = QPushButton("\U0001f5d1\ufe0f Excluir")
+        btn_excluir.setToolTip("Excluir esta transferência (pode ser desfeito pela Lixeira)")
+        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.clicked.connect(lambda: self._confirmar_exclusao(dialog, mov))
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setToolTip("Fechar detalhes")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.clicked.connect(lambda: dialog.accept())
+
+        botoes.addWidget(btn_editar)
+        botoes.addWidget(btn_excluir)
+        botoes.addStretch()
+        botoes.addWidget(btn_fechar)
+        layout.addLayout(botoes)
+
+        dialog.exec()
+
+    def _abrir_edicao(self, mov: Any, parent_dialog: QDialog | None = None) -> None:
         printer = self.printer_service.buscar_por_id(mov.printer_id)
         patrimonio = f"{printer.patrimonio} - {printer.modelo}" if printer else mov.printer_id
 
@@ -389,19 +580,6 @@ class TransfersPage(QWidget):
 
         layout = QVBoxLayout(dialog)
         tabs = QTabWidget()
-        
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        tab_dados = QWidget()
-        scroll.setWidget(tab_dados)
-        form = QFormLayout(tab_dados)
-        form.setLabelAlignment(Qt.AlignRight)
-        form.setSpacing(10)
-        form.setContentsMargins(20, 16, 20, 16)
-
         orig = {
             "printer_id": mov.printer_id,
             "parts_used": mov.parts_used,
@@ -412,20 +590,32 @@ class TransfersPage(QWidget):
             "status_atividade": mov.status_atividade,
         }
 
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(20, 16, 20, 16)
+        content.setSpacing(14)
+
+        equip_box, equip_layout = group_box("Equipamentos")
+        equip_form = QFormLayout()
+        equip_form.setLabelAlignment(Qt.AlignRight)
+        equip_form.setSpacing(8)
+
         lbl_printer = QLabel(patrimonio)
         lbl_printer.setStyleSheet("color: #c0c0d0; font-size: 13px; background: transparent;")
-        form.addRow("Impressora Origem:", lbl_printer)
-
-        tipo_edit_combo = QComboBox()
-        configurar_combo(tipo_edit_combo)
-        tipo_edit_combo.addItems(["Impressora Completa", "Apenas Peça(s)"])
-        if mov.notes and mov.notes.startswith("Peças para"):
-            tipo_edit_combo.setCurrentText("Apenas Peça(s)")
-        form.addRow("Tipo:", tipo_edit_combo)
+        equip_form.addRow("Impressora Origem:", lbl_printer)
 
         printer_destino_edit_combo = QComboBox()
         printer_destino_edit_combo.setEditable(True)
         configurar_combo(printer_destino_edit_combo)
+        cmp = printer_destino_edit_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         printer_destino_edit_combo.setPlaceholderText("Digite o patrimônio")
         for p in self.printer_service.listar_todos():
             printer_destino_edit_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
@@ -438,7 +628,28 @@ class TransfersPage(QWidget):
             else:
                 printer_destino_edit_combo.setCurrentText(destino_pat)
         lbl_dest_edit = QLabel("Impressora Destino:")
-        form.addRow(lbl_dest_edit, printer_destino_edit_combo)
+        equip_form.addRow(lbl_dest_edit, printer_destino_edit_combo)
+        equip_layout.addLayout(equip_form)
+        content.addWidget(equip_box)
+
+        tipo_box, tipo_layout = group_box("Tipo")
+        tipo_form = QFormLayout()
+        tipo_form.setLabelAlignment(Qt.AlignRight)
+        tipo_form.setSpacing(8)
+
+        tipo_edit_combo = QComboBox()
+        configurar_combo(tipo_edit_combo)
+        cmp = tipo_edit_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        tipo_edit_combo.addItems(["Impressora Completa", "Apenas Peça(s)"])
+        if mov.notes and mov.notes.startswith("Peças para"):
+            tipo_edit_combo.setCurrentText("Apenas Peça(s)")
+        tipo_form.addRow("Tipo:", tipo_edit_combo)
+        tipo_layout.addLayout(tipo_form)
+        content.addWidget(tipo_box)
+
         is_pecas = tipo_edit_combo.currentText() == "Apenas Peça(s)"
         lbl_dest_edit.setVisible(is_pecas)
         printer_destino_edit_combo.setVisible(is_pecas)
@@ -449,21 +660,31 @@ class TransfersPage(QWidget):
             printer_destino_edit_combo.setVisible(visivel)
         tipo_edit_combo.currentTextChanged.connect(_toggle_printer_destino_edit)
 
+        det_box, det_layout = group_box("Detalhes")
+        det_form = QFormLayout()
+        det_form.setLabelAlignment(Qt.AlignRight)
+        det_form.setSpacing(8)
+
         data_input = QLineEdit(formatar_data_hora(mov.event_at))
         data_input.setStyleSheet(ESTILO_INPUT)
-        form.addRow("Data/Hora:", data_input)
+        data_input.textChanged.connect(_criar_mascara_data(data_input))
+        det_form.addRow("Data/Hora:", data_input)
 
         pecas_text = QTextEdit()
         pecas_text.setStyleSheet(ESTILO_INPUT)
         pecas_text.setText(mov.parts_used or "")
         pecas_text.setMaximumHeight(70)
-        form.addRow("Peças:", pecas_text)
+        det_form.addRow("Peças:", pecas_text)
 
         empresas = self.company_service.listar_nomes()
 
         origem_combo = QComboBox()
         origem_combo.setEditable(True)
         configurar_combo(origem_combo)
+        cmp = origem_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         origem_combo.addItems(empresas)
         if mov.from_location:
             idx = origem_combo.findText(mov.from_location)
@@ -471,11 +692,15 @@ class TransfersPage(QWidget):
                 origem_combo.setCurrentIndex(idx)
             else:
                 origem_combo.setEditText(mov.from_location)
-        form.addRow("Origem:", origem_combo)
+        det_form.addRow("Origem:", origem_combo)
 
         destino_combo = QComboBox()
         destino_combo.setEditable(True)
         configurar_combo(destino_combo)
+        cmp = destino_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         destino_combo.addItems(empresas)
         if mov.to_location:
             idx = destino_combo.findText(mov.to_location)
@@ -483,15 +708,15 @@ class TransfersPage(QWidget):
                 destino_combo.setCurrentIndex(idx)
             else:
                 destino_combo.setEditText(mov.to_location)
-        form.addRow("Destino:", destino_combo)
+        det_form.addRow("Destino:", destino_combo)
 
         recibo_input = QLineEdit()
         recibo_input.setStyleSheet(ESTILO_INPUT)
         recibo_input.setText(mov.numero_recibo or "")
-        form.addRow("Recibo:", recibo_input)
+        det_form.addRow("Nº Recibo:", recibo_input)
 
         estoque_edit_combo = self._criar_estoque_combo()
-        form.addRow("Peça do Estoque:", estoque_edit_combo)
+        det_form.addRow("Peça do Estoque:", estoque_edit_combo)
         estoque_edit_combo.currentIndexChanged.connect(
             lambda idx: self._preencher_pecas_do_estoque(estoque_edit_combo, pecas_text, idx)
         )
@@ -504,16 +729,32 @@ class TransfersPage(QWidget):
         desc_text.setStyleSheet(ESTILO_INPUT)
         desc_text.setText(_strip_prefix(mov.notes or ""))
         desc_text.setMaximumHeight(70)
-        form.addRow("Descrição:", desc_text)
+        det_form.addRow("Descrição:", desc_text)
+
+        det_layout.addLayout(det_form)
+        content.addWidget(det_box)
+
+        status_box, status_layout = group_box("Status")
+        status_form = QFormLayout()
+        status_form.setLabelAlignment(Qt.AlignRight)
+        status_form.setSpacing(8)
 
         status_combo = QComboBox()
         configurar_combo(status_combo)
+        cmp = status_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         status_combo.addItems(STATUS_ATIVIDADE_OPCOES)
         sidx = status_combo.findText(mov.status_atividade or "Concluida", Qt.MatchFixedString)
         if sidx >= 0:
             status_combo.setCurrentIndex(sidx)
-        form.addRow("Status:", status_combo)
+        status_form.addRow("Status:", status_combo)
+        status_layout.addLayout(status_form)
+        content.addWidget(status_box)
 
+        content.addStretch()
+        scroll.setWidget(container)
         tabs.addTab(scroll, "\U0001f4cb Dados")
 
         def salvar_edicao() -> None:
@@ -582,6 +823,7 @@ class TransfersPage(QWidget):
 
                 orig.update(novos)
                 QMessageBox.information(dialog, "Sucesso", "Alterações salvas!")
+                dialog.accept()
             except Exception as e:
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar:\n{e}")
 
@@ -594,18 +836,21 @@ class TransfersPage(QWidget):
         botoes.setSpacing(10)
 
         btn_salvar = QPushButton("\U0001f4be Salvar")
+        btn_salvar.setToolTip("Salvar alterações da transferência")
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         btn_salvar.clicked.connect(salvar_edicao)
         botoes.addWidget(btn_salvar)
 
         btn_excluir = QPushButton("\U0001f5d1\ufe0f Excluir")
+        btn_excluir.setToolTip("Excluir esta transferência (pode ser desfeito pela Lixeira)")
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_excluir.clicked.connect(lambda: self._confirmar_exclusao(dialog, mov))
         botoes.addWidget(btn_excluir)
 
         btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Descartar alterações e fechar")
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
-        btn_cancelar.clicked.connect(dialog.reject)
+        btn_cancelar.clicked.connect(lambda: dialog.reject())
         botoes.addWidget(btn_cancelar)
 
         layout.addLayout(botoes)
@@ -645,8 +890,10 @@ class TransfersPage(QWidget):
 
         dialog.closeEvent = close_event
 
-        dialog.exec()
-        self.recarregar()
+        if dialog.exec() == QDialog.Accepted:
+            self.recarregar()
+            if parent_dialog is not None:
+                parent_dialog.accept()
 
     def _confirmar_exclusao(self, dialog: QDialog, mov: Any) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
@@ -683,6 +930,7 @@ class TransfersPage(QWidget):
         layout.addWidget(lbl_aviso)
 
         btn_add = QPushButton("\U0001f4ce Adicionar Anexo")
+        btn_add.setToolTip("Adicionar arquivo anexo à transferência")
         btn_add.setStyleSheet(ESTILO_BOTAO_AVISO)
 
         def _salvar_e_anexar() -> None:  
@@ -718,6 +966,7 @@ class TransfersPage(QWidget):
             tabela_anexos.setItem(i, 1, QTableWidgetItem(a.categoria or "-"))
             tabela_anexos.setItem(i, 2, QTableWidgetItem(formatar_data_hora(a.created_at)))
             btn_abrir = QPushButton("\U0001f4c2 Abrir")
+            btn_abrir.setToolTip("Abrir arquivo anexo")
             btn_abrir.setStyleSheet("""
                 QPushButton {
                     background-color: #1f2937; color: #94a3b8;
@@ -731,6 +980,7 @@ class TransfersPage(QWidget):
             tabela_anexos.setCellWidget(i, 3, btn_abrir)
 
             btn_remover = QPushButton("\u274c")
+            btn_remover.setToolTip("Remover este anexo")
             btn_remover.setStyleSheet("""
                 QPushButton {
                     background-color: transparent; color: #f87171;
@@ -754,6 +1004,7 @@ class TransfersPage(QWidget):
 
         botoes_anexos = QHBoxLayout()
         btn_adicionar = QPushButton("\U0001f4ce Adicionar Anexo")
+        btn_adicionar.setToolTip("Adicionar arquivo anexo à transferência")
         btn_adicionar.setStyleSheet(ESTILO_BOTAO_AVISO)
 
         btn_adicionar.clicked.connect(
@@ -763,6 +1014,7 @@ class TransfersPage(QWidget):
 
         if callback_salvar:
             btn_salvar_tab = QPushButton("\U0001f4be Salvar")
+            btn_salvar_tab.setToolTip("Salvar anexos")
             btn_salvar_tab.setStyleSheet(ESTILO_BOTAO_SUCESSO)
             btn_salvar_tab.clicked.connect(callback_salvar)
             botoes_anexos.addWidget(btn_salvar_tab)
@@ -859,6 +1111,10 @@ class TransfersPage(QWidget):
     def _criar_estoque_combo(self) -> QComboBox:
         combo = QComboBox()
         configurar_combo(combo)
+        cmp = combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         combo.addItem("-- Nenhuma --", None)
         for p in self.part_service.listar_todas():
             if p.quantidade_estoque > 0:

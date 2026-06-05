@@ -44,6 +44,10 @@ from app.views.styles.theme import (
     ESTILO_INPUT_READONLY,
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
+    group_box,
+    input_label,
+    campo_rotulo,
+    campo_readonly,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
@@ -145,10 +149,12 @@ class ConfigPage(QWidget):
         botoes = QHBoxLayout()
         botoes.setSpacing(10)
         self.btn_novo = QPushButton("➕ Novo Usuário")
+        self.btn_novo.setToolTip("Cadastrar novo usuário")
         self.btn_novo.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         self.btn_novo.clicked.connect(self._novo_usuario)
         botoes.addWidget(self.btn_novo)
         self.btn_editar = QPushButton("✏️  Editar")
+        self.btn_editar.setToolTip("Editar usuário selecionado")
         self.btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
         self.btn_editar.clicked.connect(self._editar_usuario)
         botoes.addWidget(self.btn_editar)
@@ -170,6 +176,7 @@ class ConfigPage(QWidget):
         self.btn_backup = QPushButton("📦  Fazer Backup Agora")
         self.btn_backup.setMinimumHeight(48)
         self.btn_backup.setCursor(Qt.PointingHandCursor)
+        self.btn_backup.setToolTip("Criar backup completo do banco de dados")
         self.btn_backup.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -207,6 +214,7 @@ class ConfigPage(QWidget):
         self.btn_lixeira = QPushButton("📂  Ver Registros Excluídos")
         self.btn_lixeira.setMinimumHeight(44)
         self.btn_lixeira.setCursor(Qt.PointingHandCursor)
+        self.btn_lixeira.setToolTip("Abrir lixeira para restaurar registros excluídos")
         self.btn_lixeira.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -333,12 +341,14 @@ class ConfigPage(QWidget):
 
         btn_salvar_notif = QPushButton("💾 Salvar Configuração")
         btn_salvar_notif.setCursor(Qt.PointingHandCursor)
+        btn_salvar_notif.setToolTip("Salvar configurações de notificação")
         btn_salvar_notif.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         btn_salvar_notif.clicked.connect(self._salvar_notificacao)
         botoes_notif.addWidget(btn_salvar_notif)
 
         btn_testar = QPushButton("📧 Testar E-mail")
         btn_testar.setCursor(Qt.PointingHandCursor)
+        btn_testar.setToolTip("Enviar e-mail de teste")
         btn_testar.setStyleSheet(ESTILO_BOTAO_AVISO)
         btn_testar.clicked.connect(self._testar_email)
         botoes_notif.addWidget(btn_testar)
@@ -462,6 +472,7 @@ class ConfigPage(QWidget):
 
         layout.addWidget(abas)
         btn_fechar = QPushButton("Fechar")
+        btn_fechar.setToolTip("Fechar janela")
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_fechar.clicked.connect(dialog.accept)
         layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
@@ -485,6 +496,7 @@ class ConfigPage(QWidget):
         layout.addWidget(tabela)
 
         btn_restaurar = QPushButton("♻️ Restaurar Selecionado")
+        btn_restaurar.setToolTip("Restaurar registro selecionado da lixeira")
         btn_restaurar.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         btn_restaurar.clicked.connect(lambda: self._restaurar_selecionado(tabela, registros, svc, parent_dialog))
         layout.addWidget(btn_restaurar, alignment=Qt.AlignCenter)
@@ -535,6 +547,7 @@ class ConfigPage(QWidget):
         filtros.addStretch()
 
         btn_recarregar = QPushButton("🔄 Recarregar")
+        btn_recarregar.setToolTip("Recarregar registros de auditoria")
         btn_recarregar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         btn_recarregar.clicked.connect(self._recarregar_auditoria)
         filtros.addWidget(btn_recarregar)
@@ -552,6 +565,7 @@ class ConfigPage(QWidget):
         botoes.setSpacing(10)
 
         btn_detalhes = QPushButton("🔍 Ver Detalhes")
+        btn_detalhes.setToolTip("Ver detalhes do registro de auditoria selecionado")
         btn_detalhes.setStyleSheet(ESTILO_BOTAO_AVISO)
         btn_detalhes.clicked.connect(self._detalhes_auditoria)
         botoes.addWidget(btn_detalhes)
@@ -641,6 +655,7 @@ class ConfigPage(QWidget):
         layout.addWidget(abas)
 
         btn_fechar = QPushButton("Fechar")
+        btn_fechar.setToolTip("Fechar janela")
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_fechar.clicked.connect(dialog.accept)
         layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
@@ -690,9 +705,11 @@ class _UserDialog(QDialog):
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
 
-        form = QFormLayout()
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignRight)
+        # ── SEÇÃO: Identificação ──
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setSpacing(10)
+        id_form.setLabelAlignment(Qt.AlignRight)
 
         self.input_nome = QLineEdit()
         self.input_nome.setStyleSheet(ESTILO_INPUT)
@@ -700,12 +717,12 @@ class _UserDialog(QDialog):
         self.input_nome.setPlaceholderText("Nome completo")
         if self.usuario:
             self.input_nome.setText(self.usuario.nome)
-        form.addRow("Nome:", self.input_nome)
+        id_form.addRow("Nome:", self.input_nome)
 
         erro_nome = QLabel()
         erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_nome.hide()
-        form.addRow("", erro_nome)
+        id_form.addRow("", erro_nome)
         ValidadorCampo(self.input_nome, obrigatorio, erro_nome)
 
         self.input_username = QLineEdit()
@@ -717,12 +734,12 @@ class _UserDialog(QDialog):
         if self.modo == "editar":
             self.input_username.setReadOnly(True)
             self.input_username.setStyleSheet(ESTILO_INPUT_READONLY)
-        form.addRow("Usuário:", self.input_username)
+        id_form.addRow("Usuário:", self.input_username)
 
         erro_user = QLabel()
         erro_user.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_user.hide()
-        form.addRow("", erro_user)
+        id_form.addRow("", erro_user)
         if self.modo == "novo":
             ValidadorCampo(self.input_username, minimo(3), erro_user)
 
@@ -732,42 +749,66 @@ class _UserDialog(QDialog):
         self.input_email.setPlaceholderText("email@exemplo.com")
         if self.usuario:
             self.input_email.setText(self.usuario.email)
-        form.addRow("Email:", self.input_email)
+        id_form.addRow("Email:", self.input_email)
 
         erro_email = QLabel()
         erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_email.hide()
-        form.addRow("", erro_email)
+        id_form.addRow("", erro_email)
         ValidadorCampo(self.input_email, email, erro_email)
+
+        id_layout.addLayout(id_form)
+        layout.addWidget(id_box)
+
+        # ── SEÇÃO: Segurança ──
+        seg_box, seg_layout = group_box("Segurança")
+        seg_form = QFormLayout()
+        seg_form.setSpacing(10)
+        seg_form.setLabelAlignment(Qt.AlignRight)
 
         self.input_senha = QLineEdit()
         self.input_senha.setStyleSheet(ESTILO_INPUT)
         self.input_senha.setPlaceholderText("Digite a senha" if self.modo == "novo" else "Deixe em branco para manter")
         self.input_senha.setEchoMode(QLineEdit.Password)
-        form.addRow("Senha:", self.input_senha)
+        seg_form.addRow("Senha:", self.input_senha)
 
         self.combo_perfil = QComboBox()
         configurar_combo(self.combo_perfil)
+        cmp = self.combo_perfil.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.combo_perfil.addItems(["admin", "tecnico", "visualizador"])
         if self.usuario:
             idx = self.combo_perfil.findText(self.usuario.perfil)
             if idx >= 0:
                 self.combo_perfil.setCurrentIndex(idx)
-        form.addRow("Perfil:", self.combo_perfil)
+        seg_form.addRow("Perfil:", self.combo_perfil)
 
         if self.modo == "editar":
             self.combo_ativo = QComboBox()
             configurar_combo(self.combo_ativo)
+            cmp = self.combo_ativo.completer()
+            if cmp:
+                cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+                cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             self.combo_ativo.addItems(["Sim", "Não"])
             if self.usuario and not self.usuario.ativo:
                 self.combo_ativo.setCurrentIndex(1)
-            form.addRow("Ativo:", self.combo_ativo)
+            seg_form.addRow("Ativo:", self.combo_ativo)
 
-        layout.addLayout(form)
+        seg_layout.addLayout(seg_form)
+        layout.addWidget(seg_box)
 
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
+        btn_ok = botoes.button(QDialogButtonBox.Ok)
+        if btn_ok:
+            btn_ok.setToolTip("Salvar usuário")
+        btn_cancel = botoes.button(QDialogButtonBox.Cancel)
+        if btn_cancel:
+            btn_cancel.setToolTip("Cancelar alterações")
         layout.addWidget(botoes)
 
     def _validar(self) -> None:

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -28,6 +29,7 @@ from app.utils.ui_helpers import tratar_erro
 from app.utils.validacao import ValidadorCampo, obrigatorio, email
 from app.views.styles.theme import (
     COR,
+    ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
@@ -41,6 +43,10 @@ from app.views.styles.theme import (
     ESTILO_LABEL_CAMPO,
     ESTILO_TABELA_SIMPLES,
     ESTILO_TITULO_PAGINA,
+    group_box,
+    input_label,
+    campo_rotulo,
+    campo_readonly,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
@@ -78,12 +84,14 @@ class ClientsPage(QWidget):
         header.addStretch()
 
         btn_nova = QPushButton("\u2795 Nova Empresa")
+        btn_nova.setToolTip("Cadastrar nova empresa")
         btn_nova.setCursor(Qt.PointingHandCursor)
         btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
         btn_nova.clicked.connect(self._nova)
         header.addWidget(btn_nova)
 
         btn_importar = QPushButton("  Importar")
+        btn_importar.setToolTip("Importar empresas de arquivo CSV ou XLSX")
         btn_importar.setCursor(Qt.PointingHandCursor)
         btn_importar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
         btn_importar.clicked.connect(lambda: self._importar())
@@ -97,7 +105,7 @@ class ClientsPage(QWidget):
 
         self._empresas_visiveis = []
         self.tabela = TabelaPadrao(["Nome", "CNPJ", "Cidade/UF", "Telefone", "Email", "Impressoras"])
-        self.tabela.cellDoubleClicked.connect(self._editar)
+        self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
         self._paginacao = PaginacaoWidget()
@@ -129,60 +137,292 @@ class ClientsPage(QWidget):
             self.tabela.setItem(i, 5, QTableWidgetItem(str(num)))
         self.tabela.redimensionar()
 
+    def _detalhes(self, row: int) -> None:
+        nome_empresa = self.tabela.item(row, 0).text()
+        empresa = self.company_service.buscar_por_nome(nome_empresa)
+        if not empresa:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(empresa.nome)
+        dialog.setMinimumSize(650, 500)
+        dialog.setStyleSheet(ESTILO_DIALOG + ESTILO_TABELA_SIMPLES)
+
+        tabs = QTabWidget()
+
+        # ── Tab Dados (read-only) ──
+        tab_dados = QWidget()
+        tab_dados_layout = QVBoxLayout(tab_dados)
+        tab_dados_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(20, 16, 20, 16)
+        content.setSpacing(16)
+
+        # Identificação
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setSpacing(8)
+        id_form.addRow(campo_rotulo("Nome"), campo_readonly(empresa.nome))
+        id_form.addRow(campo_rotulo("CNPJ"), campo_readonly(empresa.cnpj or "—"))
+        id_form.addRow(campo_rotulo("Tipo"), campo_readonly(empresa.tipo or "—"))
+        id_layout.addLayout(id_form)
+        content.addWidget(id_box)
+
+        # Contato
+        cont_box, cont_layout = group_box("Contato")
+        cont_form = QFormLayout()
+        cont_form.setSpacing(8)
+        cont_form.addRow(campo_rotulo("Telefone"), campo_readonly(empresa.telefone or "—"))
+        cont_form.addRow(campo_rotulo("Email"), campo_readonly(empresa.email or "—"))
+        cont_layout.addLayout(cont_form)
+        content.addWidget(cont_box)
+
+        # Endereço
+        end_box, end_layout = group_box("Endereço")
+        end_form = QFormLayout()
+        end_form.setSpacing(8)
+        end_form.addRow(campo_rotulo("Endereço"), campo_readonly(empresa.endereco or "—"))
+        end_form.addRow(campo_rotulo("Cidade"), campo_readonly(empresa.cidade or "—"))
+        end_form.addRow(campo_rotulo("UF"), campo_readonly(empresa.uf or "—"))
+        end_layout.addLayout(end_form)
+        content.addWidget(end_box)
+
+        # Observações
+        obs_box, obs_layout = group_box("Observações")
+        obs_layout.addWidget(campo_readonly(empresa.observacao or "—"))
+        content.addWidget(obs_box)
+
+        content.addStretch()
+        scroll.setWidget(container)
+        tab_dados_layout.addWidget(scroll)
+
+        # Buttons at bottom of Dados tab
+        btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(20, 8, 20, 12)
+        btn_layout.setSpacing(10)
+
+        btn_editar = QPushButton("✏️  Editar")
+        btn_editar.setCursor(Qt.PointingHandCursor)
+        btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_editar.clicked.connect(lambda: (dialog.accept(), self._editar(row)))
+        btn_layout.addWidget(btn_editar)
+
+        btn_excluir = QPushButton("🗑️ Excluir")
+        btn_excluir.setCursor(Qt.PointingHandCursor)
+        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.clicked.connect(lambda: self._excluir(dialog, empresa))
+        btn_layout.addWidget(btn_excluir)
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setCursor(Qt.PointingHandCursor)
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.clicked.connect(dialog.accept)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_fechar)
+
+        tab_dados_layout.addLayout(btn_layout)
+
+        tabs.addTab(tab_dados, "\U0001f4cb Dados")
+
+        # ── Tab Impressoras (read-only, same as _editar) ──
+        tab_impressoras = QWidget()
+        imp_layout = QVBoxLayout(tab_impressoras)
+
+        impressoras = self.printer_service.listar_por_local(empresa.nome)
+
+        imp_label = QLabel(f"\U0001f5a8\ufe0f Impressoras em '{empresa.nome}' ({len(impressoras)})")
+        imp_label.setStyleSheet(ESTILO_LABEL_CAMPO.replace("font-size: 12px;", "font-size: 14px;"))
+        imp_layout.addWidget(imp_label)
+
+        if impressoras:
+            imp_tabela = QTableWidget()
+            imp_tabela.setColumnCount(5)
+            imp_tabela.setHorizontalHeaderLabels(["Patrimônio", "Modelo", "Serial", "Status", "Última Revisão"])
+            imp_tabela.setRowCount(len(impressoras))
+            imp_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
+            imp_tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
+            imp_tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            imp_tabela.verticalHeader().setVisible(False)
+
+            for i, p in enumerate(impressoras):
+                imp_tabela.setItem(i, 0, QTableWidgetItem(p.patrimonio))
+                imp_tabela.setItem(i, 1, QTableWidgetItem(p.modelo))
+                imp_tabela.setItem(i, 2, QTableWidgetItem(p.serial or "-"))
+
+                status_item = QTableWidgetItem(p.status)
+                if p.status in ["Operacional", "Em uso"]:
+                    status_item.setForeground(QColor(COR["sucesso"]))
+                elif p.status in ["Em manutenção", "Manutenção", "Aguardando peça"]:
+                    status_item.setForeground(QColor(COR["aviso"]))
+                elif p.status in ["Parada", "Sucata"]:
+                    status_item.setForeground(QColor(COR["erro"]))
+                imp_tabela.setItem(i, 3, status_item)
+
+                rev_text = p.proxima_revisao.strftime("%d/%m/%Y") if p.proxima_revisao else "-"
+                imp_tabela.setItem(i, 4, QTableWidgetItem(rev_text))
+
+            imp_tabela.verticalHeader().setDefaultSectionSize(44)
+            for i in range(imp_tabela.columnCount()):
+                imp_tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
+
+            imp_tabela.cellDoubleClicked.connect(lambda r, c: self._abrir_impressora_por_patrimonio(
+                imp_tabela.item(r, 0).text(), dialog
+            ))
+
+            imp_layout.addWidget(imp_tabela)
+        else:
+            sem = QLabel("Nenhuma impressora vinculada a esta empresa.")
+            sem.setStyleSheet("color: #94949f; font-size: 13px; padding: 30px;")
+            sem.setAlignment(Qt.AlignCenter)
+            imp_layout.addWidget(sem)
+
+        tabs.addTab(tab_impressoras, "\U0001f5a8\ufe0f Impressoras")
+
+        main_layout = QVBoxLayout(dialog)
+        main_layout.addWidget(tabs)
+        dialog.exec()
+
     def _nova(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Nova Empresa")
-        dialog.setFixedSize(400, 300)
+        dialog.setMinimumSize(600, 500)
         dialog.setStyleSheet(ESTILO_DIALOG + ESTILO_INPUT + ESTILO_COMBO)
 
-        layout = QFormLayout(dialog)
-        layout.setSpacing(8)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(16, 8, 16, 8)
+        content.setSpacing(16)
+
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setSpacing(12)
 
         nome_input = QLineEdit()
         nome_input.setPlaceholderText("Nome da empresa")
         nome_input.setMaxLength(150)
-        layout.addRow("Nome:", nome_input)
+        id_form.addRow("Nome:", nome_input)
 
         erro_nome = QLabel()
         erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_nome.hide()
-        layout.addRow("", erro_nome)
+        id_form.addRow("", erro_nome)
         ValidadorCampo(nome_input, obrigatorio, erro_nome)
 
         cnpj_input = QLineEdit()
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
         cnpj_input.setMaxLength(18)
-        layout.addRow("CNPJ:", cnpj_input)
+        id_form.addRow("CNPJ:", cnpj_input)
+
+        tipo_input = QComboBox()
+        configurar_combo(tipo_input)
+        cmp = tipo_input.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        tipo_input.addItems(["Cliente", "Filial", "Parceiro"])
+        id_form.addRow("Tipo:", tipo_input)
+
+        id_layout.addLayout(id_form)
+        content.addWidget(id_box)
+
+        cont_box, cont_layout = group_box("Contato")
+        cont_form = QFormLayout()
+        cont_form.setSpacing(12)
 
         telefone_input = QLineEdit()
         telefone_input.setPlaceholderText("(00) 00000-0000")
         telefone_input.setMaxLength(20)
-        layout.addRow("Telefone:", telefone_input)
+        cont_form.addRow("Telefone:", telefone_input)
 
         email_input = QLineEdit()
         email_input.setPlaceholderText("email@empresa.com")
         email_input.setMaxLength(120)
-        layout.addRow("Email:", email_input)
+        cont_form.addRow("Email:", email_input)
 
         erro_email = QLabel()
         erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_email.hide()
-        layout.addRow("", erro_email)
+        cont_form.addRow("", erro_email)
         ValidadorCampo(email_input, email, erro_email)
 
-        tipo_input = QComboBox()
-        configurar_combo(tipo_input)
-        tipo_input.addItems(["Cliente", "Filial", "Parceiro"])
-        layout.addRow("Tipo:", tipo_input)
+        cont_layout.addLayout(cont_form)
+        content.addWidget(cont_box)
 
-        botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        botoes.accepted.connect(lambda: self._salvar_nova(dialog, nome_input, cnpj_input, telefone_input, email_input, tipo_input))
-        botoes.rejected.connect(dialog.reject)
-        layout.addRow(botoes)
+        end_box, end_layout = group_box("Endereço")
+        end_form = QFormLayout()
+        end_form.setSpacing(12)
+
+        endereco_input = QLineEdit()
+        endereco_input.setPlaceholderText("Rua/Av, número")
+        endereco_input.setMaxLength(255)
+        end_form.addRow("Endereço:", endereco_input)
+
+        cidade_input = QLineEdit()
+        cidade_input.setPlaceholderText("Cidade")
+        cidade_input.setMaxLength(100)
+        end_form.addRow("Cidade:", cidade_input)
+
+        uf_input = QLineEdit()
+        uf_input.setPlaceholderText("UF")
+        uf_input.setMaxLength(2)
+        end_form.addRow("UF:", uf_input)
+
+        end_layout.addLayout(end_form)
+        content.addWidget(end_box)
+
+        obs_box, obs_lay = group_box("Observações")
+        obs_input = QTextEdit()
+        obs_input.setPlaceholderText("Observações sobre a empresa...")
+        obs_input.setStyleSheet(ESTILO_INPUT)
+        obs_input.setMaximumHeight(100)
+        obs_lay.addWidget(input_label("Observações"))
+        obs_lay.addWidget(obs_input)
+        content.addWidget(obs_box)
+
+        content.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+
+        btn_salvar = QPushButton("💾 Salvar")
+        btn_salvar.setToolTip("Salvar nova empresa")
+        btn_salvar.setCursor(Qt.PointingHandCursor)
+        btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar.clicked.connect(lambda: self._salvar_nova(dialog, nome_input, cnpj_input, telefone_input, email_input, tipo_input, endereco_input, cidade_input, uf_input, obs_input))
+
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Descartar alterações e fechar")
+        btn_cancelar.setCursor(Qt.PointingHandCursor)
+        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_cancelar.clicked.connect(dialog.reject)
+
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_salvar)
+        btn_layout.addWidget(btn_cancelar)
+        layout.addLayout(btn_layout)
 
         dialog.exec()
 
-    def _salvar_nova(self, dialog: QDialog, nome: QLineEdit, cnpj: QLineEdit, telefone: QLineEdit, email: QLineEdit, tipo: QComboBox) -> None:
+    def _salvar_nova(self, dialog: QDialog, nome: QLineEdit, cnpj: QLineEdit, telefone: QLineEdit, email: QLineEdit, tipo: QComboBox, endereco: QLineEdit, cidade: QLineEdit, uf: QLineEdit, obs: QTextEdit) -> None:
         nome_text = nome.text().strip()
         if not nome_text:
             return
@@ -192,7 +432,11 @@ class ClientsPage(QWidget):
                 cnpj=cnpj.text().strip(),
                 telefone=telefone.text().strip(),
                 email=email.text().strip(),
-                tipo=tipo.currentText()
+                tipo=tipo.currentText(),
+                endereco=endereco.text().strip(),
+                cidade=cidade.text().strip(),
+                uf=uf.text().strip().upper(),
+                observacao=obs.toPlainText().strip()
             )
             self.recarregar()
             dialog.accept()
@@ -212,70 +456,111 @@ class ClientsPage(QWidget):
         tabs = QTabWidget()
 
         tab_dados = QWidget()
-        form = QFormLayout(tab_dados)
-        form.setSpacing(8)
+        outer_layout = QVBoxLayout(tab_dados)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(16, 8, 16, 8)
+        content.setSpacing(16)
+
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setSpacing(12)
 
         nome_input = QLineEdit(empresa.nome or "")
         nome_input.setMaxLength(150)
-        form.addRow("Nome:", nome_input)
+        id_form.addRow("Nome:", nome_input)
 
         erro_nome = QLabel()
         erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_nome.hide()
-        form.addRow("", erro_nome)
+        id_form.addRow("", erro_nome)
         ValidadorCampo(nome_input, obrigatorio, erro_nome)
 
         cnpj_input = QLineEdit(empresa.cnpj or "")
         cnpj_input.setPlaceholderText("00.000.000/0000-00")
         cnpj_input.setMaxLength(18)
-        form.addRow("CNPJ:", cnpj_input)
+        id_form.addRow("CNPJ:", cnpj_input)
 
         tipo_combo = QComboBox()
         configurar_combo(tipo_combo)
+        cmp = tipo_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         tipo_combo.addItems(["Cliente", "Filial", "Parceiro"])
         tipo_combo.setCurrentText(empresa.tipo or "Cliente")
-        form.addRow("Tipo:", tipo_combo)
+        id_form.addRow("Tipo:", tipo_combo)
+
+        id_layout.addLayout(id_form)
+        content.addWidget(id_box)
+
+        cont_box, cont_layout = group_box("Contato")
+        cont_form = QFormLayout()
+        cont_form.setSpacing(12)
 
         tel_input = QLineEdit(empresa.telefone or "")
         tel_input.setPlaceholderText("(00) 00000-0000")
         tel_input.setMaxLength(20)
-        form.addRow("Telefone:", tel_input)
+        cont_form.addRow("Telefone:", tel_input)
 
         email_input = QLineEdit(empresa.email or "")
         email_input.setPlaceholderText("email@empresa.com")
         email_input.setMaxLength(120)
-        form.addRow("Email:", email_input)
+        cont_form.addRow("Email:", email_input)
 
         erro_email = QLabel()
         erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_email.hide()
-        form.addRow("", erro_email)
+        cont_form.addRow("", erro_email)
         ValidadorCampo(email_input, email, erro_email)
+
+        cont_layout.addLayout(cont_form)
+        content.addWidget(cont_box)
+
+        end_box, end_layout = group_box("Endereço")
+        end_form = QFormLayout()
+        end_form.setSpacing(12)
 
         end_input = QLineEdit(empresa.endereco or "")
         end_input.setPlaceholderText("Rua/Av, n\u00famero")
         end_input.setMaxLength(255)
-        form.addRow("Endere\u00e7o:", end_input)
+        end_form.addRow("Endere\u00e7o:", end_input)
 
         cidade_input = QLineEdit(empresa.cidade or "")
         cidade_input.setPlaceholderText("Cidade")
         cidade_input.setMaxLength(100)
-        form.addRow("Cidade:", cidade_input)
+        end_form.addRow("Cidade:", cidade_input)
 
         uf_input = QLineEdit(empresa.uf or "")
         uf_input.setPlaceholderText("UF")
         uf_input.setMaxLength(2)
-        form.addRow("UF:", uf_input)
+        end_form.addRow("UF:", uf_input)
 
+        end_layout.addLayout(end_form)
+        content.addWidget(end_box)
+
+        obs_box, obs_layout = group_box("Observações")
         obs_input = QTextEdit()
-        obs_input.setMaximumHeight(60)
+        obs_input.setMaximumHeight(100)
+        obs_input.setStyleSheet(ESTILO_INPUT)
         obs_input.setPlainText(empresa.observacao or "")
-        form.addRow("Observa\u00e7\u00e3o:", obs_input)
+        obs_layout.addWidget(input_label("Observações"))
+        obs_layout.addWidget(obs_input)
+        content.addWidget(obs_box)
 
         btn_form_layout = QHBoxLayout()
         btn_form_layout.setSpacing(10)
 
         btn_salvar = QPushButton("\U0001f4be Salvar")
+        btn_salvar.setToolTip("Salvar alterações da empresa")
         btn_salvar.setCursor(Qt.PointingHandCursor)
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         btn_salvar.clicked.connect(lambda: self._salvar_edicao(
@@ -285,18 +570,24 @@ class ClientsPage(QWidget):
         btn_form_layout.addWidget(btn_salvar)
 
         btn_excluir = QPushButton("\U0001f5d1\ufe0f Excluir")
+        btn_excluir.setToolTip("Excluir esta empresa (pode ser desfeito pela Lixeira)")
         btn_excluir.setCursor(Qt.PointingHandCursor)
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_excluir.clicked.connect(lambda: self._excluir(dialog, empresa))
         btn_form_layout.addWidget(btn_excluir)
 
         btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Descartar alterações e fechar")
         btn_cancelar.setCursor(Qt.PointingHandCursor)
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_cancelar.clicked.connect(dialog.reject)
         btn_form_layout.addWidget(btn_cancelar)
 
-        form.addRow(btn_form_layout)
+        content.addLayout(btn_form_layout)
+        content.addStretch()
+        scroll.setWidget(container)
+        outer_layout.addWidget(scroll)
+
         tabs.addTab(tab_dados, "\U0001f4cb Dados")
 
         tab_impressoras = QWidget()

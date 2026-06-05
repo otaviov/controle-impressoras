@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime as dt
+from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
@@ -26,6 +28,7 @@ from app.utils.ui_helpers import tratar_erro
 from app.utils.helpers import formatar_data_hora, parse_data
 from db import transacao
 from app.views.styles.theme import (
+    ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
@@ -37,6 +40,10 @@ from app.views.styles.theme import (
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
     configurar_combo,
+    group_box,
+    input_label,
+    campo_rotulo,
+    campo_readonly,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniClicavel
@@ -44,6 +51,48 @@ from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
+
+
+def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
+    """Retorna callback que formata dd/mm/aaaa automaticamente no QLineEdit dado."""
+    def _mascarar(texto: str) -> None:
+        old_pos = le.cursorPosition()
+        digits = ''.join(c for c in texto if c.isdigit())[:8]
+        if not digits and texto:
+            le.blockSignals(True)
+            le.clear()
+            le.blockSignals(False)
+            return
+        partes = [digits[:2]]
+        if len(digits) > 2:
+            partes.append(digits[2:4])
+        if len(digits) > 4:
+            partes.append(digits[4:8])
+        nova = '/'.join(partes)
+        if nova != texto:
+            le.blockSignals(True)
+            le.setText(nova)
+            le.blockSignals(False)
+            le.setCursorPosition(old_pos + (len(nova) - len(texto)))
+    return _mascarar
+    old_pos = le.cursorPosition()
+    digits = ''.join(c for c in texto if c.isdigit())[:8]
+    if not digits and texto:
+        le.blockSignals(True)
+        le.clear()
+        le.blockSignals(False)
+        return
+    partes = [digits[:2]]
+    if len(digits) > 2:
+        partes.append(digits[2:4])
+    if len(digits) > 4:
+        partes.append(digits[4:8])
+    nova = '/'.join(partes)
+    if nova != texto:
+        le.blockSignals(True)
+        le.setText(nova)
+        le.blockSignals(False)
+        le.setCursorPosition(old_pos + (len(nova) - len(texto)))
 
 
 class OSPage(QWidget):
@@ -105,26 +154,31 @@ class OSPage(QWidget):
 
         self.btn_nova = QPushButton("Nova OS")
         self.btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+        self.btn_nova.setToolTip("Criar nova ordem de serviço")
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
 
         self.btn_manut = QPushButton("Manutenções")
         self.btn_manut.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        self.btn_manut.setToolTip("Filtrar apenas manutenções")
         self.btn_manut.clicked.connect(lambda: self._filtrar_tipo("MANUTENCAO"))
         header.addWidget(self.btn_manut)
 
         self.btn_mov = QPushButton("Movimentações")
         self.btn_mov.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        self.btn_mov.setToolTip("Filtrar apenas movimentações")
         self.btn_mov.clicked.connect(lambda: self._filtrar_tipo("MOVIMENTACAO"))
         header.addWidget(self.btn_mov)
 
         self.btn_todas = QPushButton("Todas")
         self.btn_todas.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        self.btn_todas.setToolTip("Mostrar todas as ordens de serviço")
         self.btn_todas.clicked.connect(lambda: self._filtrar_tipo("TODAS"))
         header.addWidget(self.btn_todas)
 
         self.btn_atualizar = QPushButton("Atualizar")
         self.btn_atualizar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        self.btn_atualizar.setToolTip("Recarregar lista de ordens de serviço")
         self.btn_atualizar.clicked.connect(self.recarregar)
         header.addWidget(self.btn_atualizar)
 
@@ -156,7 +210,7 @@ class OSPage(QWidget):
         layout.addLayout(cards)
 
         self.tabela = TabelaPadrao(["Data/Hora", "Patrimônio", "Tipo", "Descrição", "Peças", "Origem", "Destino", "Técnico"])
-        self.tabela.cellDoubleClicked.connect(self._editar)
+        self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
         self._paginacao = PaginacaoWidget()
@@ -328,22 +382,143 @@ class OSPage(QWidget):
             return
         self._atividades = [atividade]
         self._preencher_tabela(self._atividades)
-        self._editar(0)
+        self._abrir_edicao(atividade)
 
-    def _editar(self, row: int) -> None:
+    def _detalhes(self, row: int) -> None:
         if row < 0 or row >= len(self._atividades):
             return
         atividade = self._atividades[row]
 
+        printer_str = "-"
+        if atividade.printer_id:
+            printer = self.printer_service.buscar_por_id(atividade.printer_id)
+            if printer:
+                printer_str = f"{printer.patrimonio} - {printer.modelo}"
+
+        tecnico_str = "-"
+        if atividade.tecnico_id and self.technician_service:
+            tec = self.technician_service.buscar_por_id(atividade.tecnico_id)
+            if tec:
+                tecnico_str = tec.nome_exibicao
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Ordem de Serviço")
+        dialog.setMinimumSize(650, 500)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+
+        root = QVBoxLayout(dialog)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(20)
+
+        equip_box, equip_layout = group_box("Equipamento")
+        equip_form = QFormLayout()
+        equip_form.setSpacing(8)
+        equip_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        equip_form.addRow(campo_rotulo("Impressora"), campo_readonly(printer_str))
+        equip_form.addRow(campo_rotulo("Tipo"), campo_readonly(atividade.kind or "-"))
+        equip_form.addRow(campo_rotulo("Técnico"), campo_readonly(tecnico_str))
+        equip_layout.addLayout(equip_form)
+        layout.addWidget(equip_box)
+
+        detalhes_box, detalhes_layout = group_box("Detalhes")
+        detalhes_form = QFormLayout()
+        detalhes_form.setSpacing(8)
+        detalhes_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        detalhes_form.addRow(campo_rotulo("Data/Hora"), campo_readonly(formatar_data_hora(atividade.event_at)))
+        detalhes_form.addRow(campo_rotulo("Descrição"), campo_readonly(atividade.notes or "—"))
+        detalhes_form.addRow(campo_rotulo("Peças Trocadas"), campo_readonly(atividade.parts_used or "—"))
+        detalhes_form.addRow(campo_rotulo("Status"), campo_readonly(atividade.status_atividade or "—"))
+        detalhes_layout.addLayout(detalhes_form)
+        layout.addWidget(detalhes_box)
+
+        if atividade.kind == "MOVIMENTACAO":
+            mov_box, mov_layout = group_box("Movimentação")
+            mov_form = QFormLayout()
+            mov_form.setSpacing(8)
+            mov_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            mov_form.addRow(campo_rotulo("Origem"), campo_readonly(atividade.from_location or "—"))
+            mov_form.addRow(campo_rotulo("Destino"), campo_readonly(atividade.to_location or "—"))
+            mov_layout.addLayout(mov_form)
+            layout.addWidget(mov_box)
+
+        layout.addStretch()
+        scroll.setWidget(container)
+        root.addWidget(scroll, stretch=1)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(24, 12, 24, 16)
+        btn_layout.setSpacing(10)
+
+        btn_editar = QPushButton("✏️  Editar")
+        btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_editar.setToolTip("Editar esta ordem de serviço")
+
+        btn_excluir = QPushButton("🗑️ Excluir")
+        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.setToolTip("Excluir esta ordem de serviço (pode ser desfeito pela Lixeira)")
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.setToolTip("Fechar detalhes")
+
+        def excluir():
+            if ConfirmacaoDigitarDialog.confirmar(
+                "Confirmar", "Deseja realmente excluir esta OS?",
+                dialog,
+            ):
+                try:
+                    self.activity_service.excluir(atividade)
+                    ToastManager.mostrar(
+                        "OS excluída.",
+                        "aviso", duracao=8000,
+                        acao=("Desfazer", lambda o=atividade, svc=self.activity_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                    )
+                    dialog.accept()
+                    self.recarregar()
+                except Exception as e:
+                    QMessageBox.critical(dialog, "Erro", f"Erro ao excluir: {e}")
+
+        def editar():
+            dialog.accept()
+            self._abrir_edicao(atividade)
+
+        btn_editar.clicked.connect(editar)
+        btn_excluir.clicked.connect(excluir)
+        btn_fechar.clicked.connect(dialog.accept)
+
+        btn_layout.addWidget(btn_editar)
+        btn_layout.addWidget(btn_excluir)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_fechar)
+
+        root.addLayout(btn_layout)
+
+        dialog.exec()
+
+    def _abrir_edicao(self, atividade: Any) -> None:
         dialog, campos = self._criar_form_dialog("Editar OS", atividade)
 
         botoes = QHBoxLayout()
         btn_salvar = QPushButton("Salvar")
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar.setToolTip("Salvar alterações da ordem de serviço")
         btn_excluir = QPushButton("Excluir")
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.setToolTip("Excluir esta ordem de serviço (pode ser desfeito pela Lixeira)")
         btn_cancelar = QPushButton("Cancelar")
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_cancelar.setToolTip("Descartar alterações e fechar")
         botoes.addWidget(btn_salvar)
         botoes.addWidget(btn_excluir)
         botoes.addWidget(btn_cancelar)
@@ -433,9 +608,7 @@ class OSPage(QWidget):
         dialog.setStyleSheet(ESTILO_DIALOG)
 
         layout = QVBoxLayout(dialog)
-        form = QFormLayout()
-        form.setSpacing(12)
-        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        layout.setSpacing(14)
 
         printers = self.printer_service.listar_todos()
         nomes_impressoras = [p.patrimonio for p in printers]
@@ -443,37 +616,65 @@ class OSPage(QWidget):
         cmb_printer = QComboBox()
         cmb_printer.setEditable(True)
         configurar_combo(cmb_printer)
+        cmp = cmb_printer.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         cmb_printer.addItems(nomes_impressoras)
         cmb_printer.setInsertPolicy(QComboBox.NoInsert)
-        form.addRow("Impressora:", cmb_printer)
 
         cmb_tipo = QComboBox()
         configurar_combo(cmb_tipo)
+        cmp = cmb_tipo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         cmb_tipo.addItems(["MANUTENCAO", "MOVIMENTACAO"])
-        form.addRow("Tipo:", cmb_tipo)
+
+        cmb_tecnico = QComboBox()
+        cmb_tecnico.setEditable(True)
+        configurar_combo(cmb_tecnico)
+        cmp = cmb_tecnico.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if self.technician_service:
+            cmb_tecnico.addItems(self.technician_service.nomes_exibicao())
+        cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
+
+        equip_box, equip_layout = group_box("Equipamento")
+        equip_form = QFormLayout()
+        equip_form.setSpacing(8)
+        equip_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        equip_form.addRow("Impressora:", cmb_printer)
+        equip_form.addRow("Tipo:", cmb_tipo)
+        equip_form.addRow("Técnico:", cmb_tecnico)
+        equip_layout.addLayout(equip_form)
+        layout.addWidget(equip_box)
 
         data_atual = dt.now().strftime("%d/%m/%Y %H:%M")
         edt_data = QLineEdit(data_atual)
         edt_data.setStyleSheet(ESTILO_INPUT)
-        form.addRow("Data/Hora:", edt_data)
+        edt_data.textChanged.connect(_criar_mascara_data(edt_data))
 
         txt_descricao = QTextEdit()
         txt_descricao.setStyleSheet(ESTILO_INPUT)
         txt_descricao.setMaximumHeight(80)
-        form.addRow("Descrição:", txt_descricao)
 
         txt_pecas = QTextEdit()
         txt_pecas.setStyleSheet(ESTILO_INPUT)
         txt_pecas.setMaximumHeight(60)
-        form.addRow("Peças Trocadas:", txt_pecas)
 
         estoque_combo_os = QComboBox()
         configurar_combo(estoque_combo_os)
+        cmp = estoque_combo_os.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         estoque_combo_os.addItem("-- Nenhuma --", None)
         for p in self.part_service.listar_todas():
             if p.quantidade_estoque > 0:
                 estoque_combo_os.addItem(f"{p.nome} ({p.quantidade_estoque} un.)", p.id)
-        form.addRow("Peça do Estoque:", estoque_combo_os)
 
         def _preencher_pecas_os(idx):
             if idx <= 0:
@@ -490,52 +691,74 @@ class OSPage(QWidget):
                 pass
         estoque_combo_os.currentIndexChanged.connect(_preencher_pecas_os)
 
+        detalhes_box, detalhes_layout = group_box("Detalhes")
+        detalhes_form = QFormLayout()
+        detalhes_form.setSpacing(8)
+        detalhes_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        detalhes_form.addRow("Data/Hora:", edt_data)
+        detalhes_form.addRow("Descrição:", txt_descricao)
+        detalhes_form.addRow("Peças Trocadas:", txt_pecas)
+        detalhes_form.addRow("Peça do Estoque:", estoque_combo_os)
+        detalhes_layout.addLayout(detalhes_form)
+        layout.addWidget(detalhes_box)
+
         empresas = self.company_service.listar_nomes() if self.company_service else []
 
         cmb_origem = QComboBox()
         cmb_origem.setEditable(True)
         configurar_combo(cmb_origem)
+        cmp = cmb_origem.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         cmb_origem.addItems(empresas)
         cmb_origem.setInsertPolicy(QComboBox.NoInsert)
         cmb_origem.setCurrentText("")
-        form.addRow("Origem:", cmb_origem)
-        lbl_origem = form.labelForField(cmb_origem)
 
         cmb_destino = QComboBox()
         cmb_destino.setEditable(True)
         configurar_combo(cmb_destino)
+        cmp = cmb_destino.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         cmb_destino.addItems(empresas)
         cmb_destino.setInsertPolicy(QComboBox.NoInsert)
         cmb_destino.setCurrentText("")
-        form.addRow("Destino:", cmb_destino)
-        lbl_destino = form.labelForField(cmb_destino)
+
+        mov_box, mov_layout = group_box("Movimentação")
+        mov_form = QFormLayout()
+        mov_form.setSpacing(8)
+        mov_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        mov_form.addRow("Origem:", cmb_origem)
+        mov_form.addRow("Destino:", cmb_destino)
+        mov_layout.addLayout(mov_form)
+        layout.addWidget(mov_box)
 
         def _toggle_origem_destino(tipo):
             visivel = tipo == "MOVIMENTACAO"
-            lbl_origem.setVisible(visivel)
-            cmb_origem.setVisible(visivel)
-            lbl_destino.setVisible(visivel)
-            cmb_destino.setVisible(visivel)
+            mov_box.setVisible(visivel)
             if not visivel:
                 cmb_origem.setCurrentText("")
                 cmb_destino.setCurrentText("")
         cmb_tipo.currentTextChanged.connect(_toggle_origem_destino)
         _toggle_origem_destino(cmb_tipo.currentText())
 
-        cmb_tecnico = QComboBox()
-        cmb_tecnico.setEditable(True)
-        configurar_combo(cmb_tecnico)
-        if self.technician_service:
-            cmb_tecnico.addItems(self.technician_service.nomes_exibicao())
-        cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
-        form.addRow("Técnico:", cmb_tecnico)
-
         cmb_status = QComboBox()
         configurar_combo(cmb_status)
+        cmp = cmb_status.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
-        form.addRow("Status:", cmb_status)
 
-        layout.addLayout(form)
+        status_box, status_layout = group_box("Status")
+        status_form = QFormLayout()
+        status_form.setSpacing(8)
+        status_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        status_form.addRow("Status:", cmb_status)
+        status_layout.addLayout(status_form)
+        layout.addWidget(status_box)
 
         campos = {
             "printer": cmb_printer,
@@ -553,13 +776,19 @@ class OSPage(QWidget):
             self._preencher_campos(atividade, campos)
 
         if not atividade:
+            btn_layout = QHBoxLayout()
+            btn_layout.setSpacing(10)
             btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
             btn_box.button(QDialogButtonBox.Save).setText("Salvar")
             btn_box.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
+            btn_box.button(QDialogButtonBox.Save).setToolTip("Salvar alterações da ordem de serviço")
             btn_box.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
+            btn_box.button(QDialogButtonBox.Cancel).setToolTip("Cancelar e fechar")
             btn_box.accepted.connect(dialog.accept)
             btn_box.rejected.connect(dialog.reject)
-            layout.addWidget(btn_box)
+            btn_layout.addStretch()
+            btn_layout.addWidget(btn_box)
+            layout.addLayout(btn_layout)
 
         return dialog, campos
 

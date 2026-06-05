@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.utils.ui_helpers import tratar_erro
-from app.views.styles.theme import configurar_combo, COR
+from app.views.styles.theme import configurar_combo, COR, group_box, input_label, campo_rotulo, campo_readonly
 
 BG: str = COR["fundo"]
 CARD: str = COR["fundo_card"]
@@ -157,6 +157,10 @@ class RelatorioDialog(QDialog):
         filtro_layout.addWidget(QLabel("Status da Impressora:"))
         self.status_combo = QComboBox()
         configurar_combo(self.status_combo)
+        cmp = self.status_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.status_combo.addItems(["Todos", "Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         self.status_combo.currentTextChanged.connect(self._atualizar_patrimonios)
         filtro_layout.addWidget(self.status_combo)
@@ -170,6 +174,10 @@ class RelatorioDialog(QDialog):
         filtro_layout.addWidget(QLabel("Modelo:"))
         self.modelo_combo = QComboBox()
         configurar_combo(self.modelo_combo)
+        cmp = self.modelo_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.modelo_combo.addItem("Todos")
         from app.models import Printer
         modelos = self.printer_service.modelos_distintos()
@@ -181,6 +189,10 @@ class RelatorioDialog(QDialog):
         filtro_layout.addWidget(QLabel("Local / Empresa:"))
         self.local_combo = QComboBox()
         configurar_combo(self.local_combo)
+        cmp = self.local_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.local_combo.addItem("Todos")
         from app.models import Company
         empresas = self.company_service.listar_todas()
@@ -218,10 +230,12 @@ class RelatorioDialog(QDialog):
         btn_gerar.setCursor(Qt.PointingHandCursor)
         btn_gerar.setMinimumWidth(180)
         btn_gerar.setMinimumHeight(40)
+        btn_gerar.setToolTip("Gerar o relatório com os filtros selecionados")
         btn_gerar.setStyleSheet(f"QPushButton {{ background-color: {VERDE}; color: #ffffff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; padding: 0px; }} QPushButton:hover {{ background-color: #2ea043; }}")
         btn_gerar.clicked.connect(self.gerar_relatorio)
         btn_layout.addWidget(btn_gerar)
         btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Fechar sem gerar relatório")
         btn_cancelar.setCursor(Qt.PointingHandCursor)
         btn_cancelar.setStyleSheet(f"QPushButton {{ background-color: #2a2a3e; color: {TEXTO}; padding: 10px 24px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: center; }} QPushButton:hover {{ background-color: #3a3a50; }}")
         btn_cancelar.clicked.connect(self.reject)

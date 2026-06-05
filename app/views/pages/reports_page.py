@@ -11,7 +11,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from app.views.relatorio_dialog import RelatorioDialog
-from app.views.styles.theme import COR, ESTILO_TITULO_PAGINA
+from app.views.styles.theme import COR, ESTILO_TITULO_PAGINA, group_box, input_label, campo_rotulo, campo_readonly
 
 BG: str = COR["fundo"]
 CARD: str = COR["fundo_card"]
@@ -60,6 +60,7 @@ class ReportsPage(QWidget):
         layout.addLayout(header)
 
         self.btn_relatorio = QPushButton("Gerar Relatório Personalizado")
+        self.btn_relatorio.setToolTip("Abrir diálogo para gerar relatório personalizado")
         self.btn_relatorio.setMinimumHeight(56)
         self.btn_relatorio.setCursor(Qt.PointingHandCursor)
         self.btn_relatorio.setStyleSheet("""

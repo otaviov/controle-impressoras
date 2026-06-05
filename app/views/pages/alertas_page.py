@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,9 +35,12 @@ from app.views.styles.theme import (
     configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
-    ESTILO_INPUT_READONLY,
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
+    group_box,
+    input_label,
+    campo_rotulo,
+    campo_readonly,
 )
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
@@ -116,18 +120,21 @@ class AlertasPage(QWidget):
         btn_estoque = QPushButton("📦  Verif. Estoque")
         btn_estoque.setCursor(Qt.PointingHandCursor)
         btn_estoque.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_estoque.setToolTip("Verificar alertas de estoque baixo")
         btn_estoque.clicked.connect(self._gerar_alertas_estoque)
         header.addWidget(btn_estoque)
 
         btn_novo = QPushButton("➕  Novo Alerta")
         btn_novo.setCursor(Qt.PointingHandCursor)
         btn_novo.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+        btn_novo.setToolTip("Criar novo alerta")
         btn_novo.clicked.connect(self._novo)
         header.addWidget(btn_novo)
 
         btn_atualizar = QPushButton("🔄  Atualizar")
         btn_atualizar.setCursor(Qt.PointingHandCursor)
         btn_atualizar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_atualizar.setToolTip("Recarregar lista de alertas")
         btn_atualizar.clicked.connect(self.recarregar)
         header.addWidget(btn_atualizar)
 
@@ -139,16 +146,19 @@ class AlertasPage(QWidget):
         self.btn_todos = QPushButton("📋  Todos")
         self.btn_todos.setCursor(Qt.PointingHandCursor)
         self.btn_todos.setStyleSheet(self._estilo_filtro(True))
+        self.btn_todos.setToolTip("Mostrar todos os alertas")
         self.btn_todos.clicked.connect(lambda: self._alternar_filtro(None))
 
         self.btn_pendentes = QPushButton("⏳  Pendentes")
         self.btn_pendentes.setCursor(Qt.PointingHandCursor)
         self.btn_pendentes.setStyleSheet(self._estilo_filtro(False))
+        self.btn_pendentes.setToolTip("Filtrar alertas pendentes")
         self.btn_pendentes.clicked.connect(lambda: self._alternar_filtro("pendentes"))
 
         self.btn_resolvidos = QPushButton("✅  Resolvidos")
         self.btn_resolvidos.setCursor(Qt.PointingHandCursor)
         self.btn_resolvidos.setStyleSheet(self._estilo_filtro(False))
+        self.btn_resolvidos.setToolTip("Filtrar alertas resolvidos")
         self.btn_resolvidos.clicked.connect(lambda: self._alternar_filtro("resolvidos"))
 
         filtros.addWidget(self.btn_todos)
@@ -271,49 +281,72 @@ class AlertasPage(QWidget):
         dialog.setWindowTitle("Novo Alerta")
         dialog.setMinimumSize(520, 500)
         dialog.setStyleSheet(ESTILO_DIALOG)
-        layout = QFormLayout(dialog)
-        layout.setSpacing(8)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(14)
         layout.setContentsMargins(20, 20, 20, 20)
+
+        alerta_box, alerta_layout = group_box("Alerta")
+        form_alerta = QFormLayout()
+        form_alerta.setSpacing(8)
 
         printer_combo = QComboBox()
         configurar_combo(printer_combo)
+        cmp = printer_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         impressoras = self.printer_service.listar_todos()
         printer_combo.addItem("(nenhuma impressora)", None)
         for p in impressoras:
             printer_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
-        layout.addRow("Impressora:", printer_combo)
+        form_alerta.addRow("Impressora:", printer_combo)
 
         part_combo = QComboBox()
         configurar_combo(part_combo)
+        cmp = part_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         part_combo.addItem("(nenhuma peça)", None)
         if self.part_service:
             partes = self.part_service.listar_todas()
             for p in partes:
                 part_combo.addItem(f"{p.nome} ({p.codigo})", p.id)
-        layout.addRow("Peça:", part_combo)
+        form_alerta.addRow("Peça:", part_combo)
 
         tipo_combo = QComboBox()
         configurar_combo(tipo_combo)
+        cmp = tipo_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         for t in TIPO_OPCOES:
             tipo_combo.addItem(TIPO_LABELS.get(t, t), t)
-        layout.addRow("Tipo *:", tipo_combo)
+        form_alerta.addRow("Tipo *:", tipo_combo)
 
         titulo_input = QLineEdit()
         titulo_input.setPlaceholderText("Título do alerta")
         titulo_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Título *:", titulo_input)
+        form_alerta.addRow("Título *:", titulo_input)
 
         erro_titulo = QLabel()
         erro_titulo.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_titulo.hide()
-        layout.addRow("", erro_titulo)
+        form_alerta.addRow("", erro_titulo)
         ValidadorCampo(titulo_input, obrigatorio, erro_titulo)
+
+        alerta_layout.addLayout(form_alerta)
+        layout.addWidget(alerta_box)
+
+        detalhes_box, detalhes_layout = group_box("Detalhes")
+        form_detalhes = QFormLayout()
+        form_detalhes.setSpacing(8)
 
         desc_input = QTextEdit()
         desc_input.setPlaceholderText("Descrição detalhada...")
         desc_input.setMaximumHeight(80)
         desc_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Descrição:", desc_input)
+        form_detalhes.addRow("Descrição:", desc_input)
 
         from PySide6.QtWidgets import QDateEdit
         data_agendada = QDateEdit()
@@ -321,18 +354,27 @@ class AlertasPage(QWidget):
         data_agendada.setDate(data_agendada.date().addDays(1))
         data_agendada.setStyleSheet(ESTILO_INPUT)
         data_agendada.setSpecialValueText("Sem data")
-        layout.addRow("Agendar para:", data_agendada)
+        form_detalhes.addRow("Agendar para:", data_agendada)
 
-        layout.addRow("", None)
+        detalhes_layout.addLayout(form_detalhes)
+        layout.addWidget(detalhes_box)
+
+        layout.addStretch()
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.setStyleSheet(
             "QPushButton { border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }"
             " QPushButton[text='OK'] { background-color: #a78bfa; color: white; }"
             " QPushButton[text='Cancel'] { background-color: #1f2937; color: #94a3b8; }"
         )
+        btn_ok = botoes.button(QDialogButtonBox.Ok)
+        if btn_ok:
+            btn_ok.setToolTip("Salvar novo alerta")
+        btn_cancel = botoes.button(QDialogButtonBox.Cancel)
+        if btn_cancel:
+            btn_cancel.setToolTip("Cancelar")
         botoes.accepted.connect(lambda: self._salvar_novo(dialog, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, data_agendada))
         botoes.rejected.connect(dialog.reject)
-        layout.addRow(botoes)
+        layout.addWidget(botoes)
         dialog.exec()
 
     def _salvar_novo(self, dialog: QDialog, printer_combo: QComboBox, part_combo: QComboBox, tipo_combo: QComboBox, titulo_input: QLineEdit, desc_input: QTextEdit, data_agendada: Any) -> None:
@@ -374,7 +416,7 @@ class AlertasPage(QWidget):
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Alerta - {alerta.titulo}")
-        dialog.setMinimumSize(560, 500)
+        dialog.setMinimumSize(600, 500)
         dialog.setStyleSheet(ESTILO_DIALOG)
 
         layout = QVBoxLayout(dialog)
@@ -409,48 +451,42 @@ class AlertasPage(QWidget):
         linha.setStyleSheet("border: none; border-top: 1px solid #2a2a3e;")
         layout.addWidget(linha)
 
-        grid = QVBoxLayout()
-        grid.setSpacing(6)
-        campos = [
-            ("🖨️ Impressora:", pat),
+        info_box, info_layout = group_box("Informações")
+        info_grid = QGridLayout()
+        info_grid.setSpacing(6)
+        info_grid.setHorizontalSpacing(12)
+
+        campos_info = [
+            ("🖨️ Impressora", str(pat)),
         ]
         if alerta.part_id:
             nome_peca = alerta.part.nome if alerta.part else f"ID {alerta.part_id}"
-            campos.append(("🔧 Peça:", nome_peca))
-        campos += [
-            ("📋 Tipo:", label_tipo),
-            ("📅 Data:", formatar_data_hora(alerta.data_alerta or alerta.created_at)),
-        ]
+            campos_info.append(("🔧 Peça", nome_peca))
+        campos_info.append(("📋 Tipo", label_tipo))
+        campos_info.append(("📅 Data", formatar_data_hora(alerta.data_alerta or alerta.created_at)))
         if alerta.data_agendada:
-            campos.append(("⏰ Agendado:", formatar_data_hora(alerta.data_agendada)))
-        campos.append(("🕐 Criado em:", formatar_data_hora(alerta.created_at)))
+            campos_info.append(("⏰ Agendado", formatar_data_hora(alerta.data_agendada)))
         if alerta.resolvido:
-            campos.append(("✅ Resolvido em:", formatar_data_hora(alerta.resolvido_em)))
-        for rotulo, valor in campos:
-            linha_info = QHBoxLayout()
-            linha_info.setSpacing(8)
-            lbl_r = QLabel(rotulo)
-            lbl_r.setStyleSheet("color: #94a3b8; font-size: 12px; background: transparent; min-width: 100px;")
-            linha_info.addWidget(lbl_r)
-            lbl_v = QLabel(str(valor))
-            lbl_v.setStyleSheet("color: #e2e8f0; font-size: 12px; background: transparent;")
-            lbl_v.setWordWrap(True)
-            linha_info.addWidget(lbl_v, stretch=1)
-            grid.addLayout(linha_info)
-        layout.addLayout(grid)
+            campos_info.append(("✅ Resolvido em", formatar_data_hora(alerta.resolvido_em)))
 
-        linha2 = QFrame()
-        linha2.setFrameShape(QFrame.HLine)
-        linha2.setStyleSheet("border: none; border-top: 1px solid #2a2a3e;")
-        layout.addWidget(linha2)
+        for i, (rotulo, valor) in enumerate(campos_info):
+            col = i % 2
+            row_g = (i // 2) * 2
+            info_grid.addWidget(campo_rotulo(rotulo), row_g, col)
+            val_lbl = QLabel(str(valor))
+            val_lbl.setWordWrap(True)
+            val_lbl.setStyleSheet("color: #c8c8e0; font-size: 11px; font-weight: 500; background: transparent; padding: 0; margin: 0;")
+            info_grid.addWidget(val_lbl, row_g + 1, col)
 
-        layout.addWidget(QLabel("<b style='color:#94a3b8;font-size:13px'>📝 Descrição</b>"))
-        desc = QTextEdit()
-        desc.setPlainText(alerta.descricao or "(sem descrição)")
-        desc.setReadOnly(True)
-        desc.setMinimumHeight(80)
-        desc.setStyleSheet(ESTILO_INPUT_READONLY + " QTextEdit { background: #16162a; }")
-        layout.addWidget(desc, stretch=1)
+        info_grid.setColumnStretch(0, 1)
+        info_grid.setColumnStretch(1, 1)
+        info_layout.addLayout(info_grid)
+        layout.addWidget(info_box)
+
+        desc_box, desc_layout = group_box("Descrição")
+        desc_label = campo_readonly(alerta.descricao or "—")
+        desc_layout.addWidget(desc_label)
+        layout.addWidget(desc_box)
 
         botoes = QHBoxLayout()
         botoes.setSpacing(10)
@@ -460,6 +496,7 @@ class AlertasPage(QWidget):
             btn_resolver.setCursor(Qt.PointingHandCursor)
             btn_resolver.setMinimumHeight(38)
             btn_resolver.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+            btn_resolver.setToolTip("Marcar este alerta como resolvido")
             btn_resolver.clicked.connect(lambda: self._resolver(alerta, dialog))
             botoes.addWidget(btn_resolver)
 
@@ -467,6 +504,7 @@ class AlertasPage(QWidget):
         btn_editar.setCursor(Qt.PointingHandCursor)
         btn_editar.setMinimumHeight(38)
         btn_editar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_editar.setToolTip("Editar este alerta")
         btn_editar.clicked.connect(lambda: self._editar(alerta, dialog))
         botoes.addWidget(btn_editar)
 
@@ -474,6 +512,7 @@ class AlertasPage(QWidget):
         btn_excluir.setCursor(Qt.PointingHandCursor)
         btn_excluir.setMinimumHeight(38)
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.setToolTip("Excluir este alerta (pode ser desfeito pela Lixeira)")
         btn_excluir.clicked.connect(lambda: self._excluir(alerta, dialog))
         botoes.addWidget(btn_excluir)
 
@@ -483,6 +522,7 @@ class AlertasPage(QWidget):
         btn_fechar.setCursor(Qt.PointingHandCursor)
         btn_fechar.setMinimumHeight(38)
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.setToolTip("Fechar janela")
         btn_fechar.clicked.connect(dialog.accept)
         botoes.addWidget(btn_fechar)
 
@@ -494,12 +534,20 @@ class AlertasPage(QWidget):
         dialog.setWindowTitle("Editar Alerta")
         dialog.setMinimumSize(520, 540)
         dialog.setStyleSheet(ESTILO_DIALOG)
-        layout = QFormLayout(dialog)
-        layout.setSpacing(8)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(14)
         layout.setContentsMargins(20, 20, 20, 20)
+
+        alerta_box, alerta_layout = group_box("Alerta")
+        form_alerta = QFormLayout()
+        form_alerta.setSpacing(8)
 
         printer_combo = QComboBox()
         configurar_combo(printer_combo)
+        cmp = printer_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         impressoras = self.printer_service.listar_todos()
         printer_combo.addItem("(nenhuma impressora)", None)
         idx_selecionado = 0
@@ -508,10 +556,14 @@ class AlertasPage(QWidget):
             if p.id == alerta.printer_id:
                 idx_selecionado = i + 1
         printer_combo.setCurrentIndex(idx_selecionado)
-        layout.addRow("Impressora:", printer_combo)
+        form_alerta.addRow("Impressora:", printer_combo)
 
         part_combo = QComboBox()
         configurar_combo(part_combo)
+        cmp = part_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         part_combo.addItem("(nenhuma peça)", None)
         idx_part = 0
         if self.part_service:
@@ -521,31 +573,42 @@ class AlertasPage(QWidget):
                 if p.id == alerta.part_id:
                     idx_part = i + 1
         part_combo.setCurrentIndex(idx_part)
-        layout.addRow("Peça:", part_combo)
+        form_alerta.addRow("Peça:", part_combo)
 
         tipo_combo = QComboBox()
         configurar_combo(tipo_combo)
+        cmp = tipo_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         for t in TIPO_OPCOES:
             tipo_combo.addItem(TIPO_LABELS.get(t, t), t)
         tipo_combo.setCurrentIndex(TIPO_OPCOES.index(alerta.tipo) if alerta.tipo in TIPO_OPCOES else 0)
-        layout.addRow("Tipo *:", tipo_combo)
+        form_alerta.addRow("Tipo *:", tipo_combo)
 
         titulo_input = QLineEdit()
         titulo_input.setText(alerta.titulo or "")
         titulo_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Título *:", titulo_input)
+        form_alerta.addRow("Título *:", titulo_input)
 
         erro_titulo = QLabel()
         erro_titulo.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_titulo.hide()
-        layout.addRow("", erro_titulo)
+        form_alerta.addRow("", erro_titulo)
         ValidadorCampo(titulo_input, obrigatorio, erro_titulo)
+
+        alerta_layout.addLayout(form_alerta)
+        layout.addWidget(alerta_box)
+
+        detalhes_box, detalhes_layout = group_box("Detalhes")
+        form_detalhes = QFormLayout()
+        form_detalhes.setSpacing(8)
 
         desc_input = QTextEdit()
         desc_input.setPlainText(alerta.descricao or "")
         desc_input.setMaximumHeight(80)
         desc_input.setStyleSheet(ESTILO_INPUT)
-        layout.addRow("Descrição:", desc_input)
+        form_detalhes.addRow("Descrição:", desc_input)
 
         from PySide6.QtWidgets import QCheckBox, QDateEdit
         chk_resolvido = QCheckBox("Alerta resolvido")
@@ -556,7 +619,7 @@ class AlertasPage(QWidget):
             " border: 2px solid #475569; background: transparent; }"
             " QCheckBox::indicator:checked { background-color: #a78bfa; border-color: #a78bfa; }"
         )
-        layout.addRow("Status:", chk_resolvido)
+        form_detalhes.addRow("Status:", chk_resolvido)
 
         data_agendada = QDateEdit()
         data_agendada.setCalendarPopup(True)
@@ -567,18 +630,27 @@ class AlertasPage(QWidget):
             data_agendada.setDate(data_agendada.date().fromPython(alerta.data_agendada.date()))
         else:
             data_agendada.setDate(data_agendada.minimumDate())
-        layout.addRow("Agendar para:", data_agendada)
+        form_detalhes.addRow("Agendar para:", data_agendada)
 
-        layout.addRow("", None)
+        detalhes_layout.addLayout(form_detalhes)
+        layout.addWidget(detalhes_box)
+
+        layout.addStretch()
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.setStyleSheet(
             "QPushButton { border: none; border-radius: 6px; padding: 8px 16px; font-weight: bold; }"
             " QPushButton[text='OK'] { background-color: #a78bfa; color: white; }"
             " QPushButton[text='Cancel'] { background-color: #1f2937; color: #94a3b8; }"
         )
+        btn_ok = botoes.button(QDialogButtonBox.Ok)
+        if btn_ok:
+            btn_ok.setToolTip("Salvar alterações do alerta")
+        btn_cancel = botoes.button(QDialogButtonBox.Cancel)
+        if btn_cancel:
+            btn_cancel.setToolTip("Cancelar")
         botoes.accepted.connect(lambda: self._salvar_edicao(dialog, alerta, printer_combo, part_combo, tipo_combo, titulo_input, desc_input, chk_resolvido, data_agendada, parent_dialog))
         botoes.rejected.connect(dialog.reject)
-        layout.addRow(botoes)
+        layout.addWidget(botoes)
         dialog.exec()
 
     def _salvar_edicao(self, dialog: QDialog, alerta: Any, printer_combo: QComboBox, part_combo: QComboBox, tipo_combo: QComboBox, titulo_input: QLineEdit, desc_input: QTextEdit, chk_resolvido: Any, data_agendada: Any, parent_dialog: QDialog) -> None:

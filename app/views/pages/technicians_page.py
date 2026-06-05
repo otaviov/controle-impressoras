@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -20,10 +21,15 @@ from PySide6.QtWidgets import (
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
+    ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_TITULO_PAGINA,
+    group_box,
+    input_label,
+    campo_rotulo,
+    campo_readonly,
 )
 from app.utils.validacao import ValidadorCampo, obrigatorio, email
 from app.views.widgets import ToastManager
@@ -48,8 +54,13 @@ class _TechnicianDialog(QDialog):
         self.setStyleSheet(ESTILO_DIALOG)
 
         layout = QVBoxLayout(self)
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignRight)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # ── Identificação ──
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setLabelAlignment(Qt.AlignRight)
 
         self.input_nome = QLineEdit()
         self.input_nome.setStyleSheet(ESTILO_INPUT)
@@ -61,6 +72,22 @@ class _TechnicianDialog(QDialog):
         self.input_exibicao.setPlaceholderText("Nome de exibição (apelido)")
         self.input_exibicao.setMaxLength(80)
 
+        id_form.addRow("Nome Completo:", self.input_nome)
+
+        erro_nome = QLabel()
+        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
+        erro_nome.hide()
+        id_form.addRow("", erro_nome)
+
+        id_form.addRow("Nome Exibição:", self.input_exibicao)
+        id_layout.addLayout(id_form)
+        layout.addWidget(id_box)
+
+        # ── Contato ──
+        ct_box, ct_layout = group_box("Contato")
+        ct_form = QFormLayout()
+        ct_form.setLabelAlignment(Qt.AlignRight)
+
         self.input_telefone = QLineEdit()
         self.input_telefone.setStyleSheet(ESTILO_INPUT)
         self.input_telefone.setPlaceholderText("(81) 99999-9999")
@@ -71,25 +98,21 @@ class _TechnicianDialog(QDialog):
         self.input_email.setPlaceholderText("email@exemplo.com")
         self.input_email.setMaxLength(120)
 
-        form.addRow("Nome Completo:", self.input_nome)
-
-        erro_nome = QLabel()
-        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
-        erro_nome.hide()
-        form.addRow("", erro_nome)
-
-        form.addRow("Nome Exibição:", self.input_exibicao)
-        form.addRow("Telefone:", self.input_telefone)
-        form.addRow("Email:", self.input_email)
+        ct_form.addRow("Telefone:", self.input_telefone)
+        ct_form.addRow("Email:", self.input_email)
 
         erro_email = QLabel()
         erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_email.hide()
-        form.addRow("", erro_email)
+        ct_form.addRow("", erro_email)
+
+        ct_layout.addLayout(ct_form)
+        layout.addWidget(ct_box)
 
         ValidadorCampo(self.input_nome, obrigatorio, erro_nome)
         ValidadorCampo(self.input_email, email, erro_email)
-        layout.addLayout(form)
+
+        layout.addStretch()
 
         if dados:
             self.input_nome.setText(dados.get("nome_completo", ""))
@@ -99,10 +122,12 @@ class _TechnicianDialog(QDialog):
 
             botoes = QHBoxLayout()
             self.btn_salvar = QPushButton("💾 Salvar")
+            self.btn_salvar.setToolTip("Salvar dados do técnico")
             self.btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
             self.btn_salvar.clicked.connect(self.accept)
 
             self.btn_excluir = QPushButton("🗑️ Excluir")
+            self.btn_excluir.setToolTip("Excluir este técnico (pode ser desfeito pela Lixeira)")
             self.btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
             self.btn_excluir.clicked.connect(self._confirmar_exclusao)
 
@@ -114,7 +139,9 @@ class _TechnicianDialog(QDialog):
             botoes.accepted.connect(self.accept)
             botoes.rejected.connect(self.reject)
             botoes.button(QDialogButtonBox.Ok).setText("💾 Salvar")
+            botoes.button(QDialogButtonBox.Ok).setToolTip("Salvar novo técnico")
             botoes.button(QDialogButtonBox.Cancel).setText("Cancelar")
+            botoes.button(QDialogButtonBox.Cancel).setToolTip("Cancelar")
             botoes.button(QDialogButtonBox.Ok).setStyleSheet(ESTILO_BOTAO_SUCESSO)
             botoes.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_AVISO)
             layout.addWidget(botoes)
@@ -168,6 +195,7 @@ class TechniciansPage(QWidget):
         header.addStretch()
 
         self.btn_novo = QPushButton("➕ Novo Técnico")
+        self.btn_novo.setToolTip("Cadastrar novo técnico")
         self.btn_novo.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         self.btn_novo.clicked.connect(self._novo)
         header.addWidget(self.btn_novo)
@@ -176,7 +204,7 @@ class TechniciansPage(QWidget):
 
         self._tecnicos_visiveis = []
         self.tabela = TabelaPadrao(self.COLUNAS)
-        self.tabela.cellDoubleClicked.connect(self._editar)
+        self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela, 1)
 
         self._paginacao = PaginacaoWidget()
@@ -221,6 +249,97 @@ class TechniciansPage(QWidget):
                 self.recarregar()
             except Exception as e:
                 QMessageBox.critical(self, "Erro", f"Erro ao criar técnico:\n{e}")
+
+    def _detalhes(self, row: int) -> None:
+        if row < 0 or row >= len(self._tecnicos_visiveis):
+            return
+        tecnico = self._tecnicos_visiveis[row]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tecnico.nome_exibicao or "Técnico")
+        dialog.setMinimumSize(500, 400)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+
+        root = QVBoxLayout(dialog)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(20)
+
+        # ── Identificação ──
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setLabelAlignment(Qt.AlignRight)
+        id_form.addRow(campo_rotulo("Nome Completo"), campo_readonly(tecnico.nome_completo))
+        id_form.addRow(campo_rotulo("Nome Exibição"), campo_readonly(tecnico.nome_exibicao))
+        id_layout.addLayout(id_form)
+        layout.addWidget(id_box)
+
+        # ── Contato ──
+        ct_box, ct_layout = group_box("Contato")
+        ct_form = QFormLayout()
+        ct_form.setLabelAlignment(Qt.AlignRight)
+        ct_form.addRow(campo_rotulo("Telefone"), campo_readonly(tecnico.telefone or "—"))
+        ct_form.addRow(campo_rotulo("Email"), campo_readonly(tecnico.email or "—"))
+        ct_layout.addLayout(ct_form)
+        layout.addWidget(ct_box)
+
+        layout.addStretch()
+        scroll.setWidget(container)
+        root.addWidget(scroll, 1)
+
+        # ── Botões ──
+        botoes = QHBoxLayout()
+        botoes.setSpacing(10)
+        botoes.setContentsMargins(24, 12, 24, 12)
+
+        btn_editar = QPushButton("✏️  Editar")
+        btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_editar.clicked.connect(lambda: (dialog.accept(), self._editar(row)))
+
+        btn_excluir = QPushButton("🗑️ Excluir")
+        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.clicked.connect(lambda: self._excluir_do_detalhes(tecnico, dialog))
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.clicked.connect(dialog.accept)
+
+        botoes.addWidget(btn_editar)
+        botoes.addWidget(btn_excluir)
+        botoes.addStretch()
+        botoes.addWidget(btn_fechar)
+        root.addLayout(botoes)
+
+        dialog.exec()
+
+    def _excluir_do_detalhes(self, tecnico: Any, dialog: QDialog) -> None:
+        from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar Exclusão",
+            "Tem certeza que deseja excluir este técnico?",
+            dialog,
+        ):
+            try:
+                self._technician_service.excluir(tecnico)
+                ToastManager.mostrar(
+                    f"Técnico '{tecnico.nome_exibicao or tecnico.nome_completo}' excluído.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=tecnico, svc=self._technician_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                )
+                dialog.accept()
+                self.recarregar()
+            except Exception as e:
+                QMessageBox.critical(dialog, "Erro", f"Erro ao excluir técnico:\n{e}")
 
     def _editar(self, row: int) -> None:
         if row < 0 or row >= len(self._tecnicos_visiveis):

@@ -371,16 +371,21 @@ class _PrinterForm(QWidget):
         self.obs.setStyleSheet(ESTILO_INPUT)
         self.obs.setFixedHeight(100)
 
+        obs_layout.addWidget(_input_label("Observações"))
+        obs_layout.addWidget(self.obs)
+        content.addWidget(obs_box)
+
+        # ── SEÇÃO: Peças Faltantes ──────────────────────────
+        pecas_box, pecas_layout = _group_box("Peças Faltantes")
+
         self.pecas = QTextEdit()
         self.pecas.setPlaceholderText("Peças faltantes ou que precisam de reposição...")
         self.pecas.setStyleSheet(ESTILO_INPUT)
         self.pecas.setFixedHeight(100)
 
-        obs_layout.addWidget(_input_label("Observações"))
-        obs_layout.addWidget(self.obs)
-        obs_layout.addWidget(_input_label("Peças Faltantes"))
-        obs_layout.addWidget(self.pecas)
-        content.addWidget(obs_box)
+        pecas_layout.addWidget(_input_label("Peças Faltantes"))
+        pecas_layout.addWidget(self.pecas)
+        content.addWidget(pecas_box)
 
         content.addStretch()
         scroll.setWidget(container)
@@ -882,23 +887,16 @@ class _PrinterDetailDialog(QDialog):
         layout.addWidget(man_box)
 
         # ── Bloco 4: Observações ─────────────────────────────
-        if p.observacao or p.pecas_faltantes:
+        if p.observacao:
             obs_box, obs_lay = _group_box("Observações")
-            obs_grid = QGridLayout()
-            obs_grid.setSpacing(12)
-            obs_grid.setHorizontalSpacing(24)
-
-            if p.observacao:
-                obs_grid.addWidget(_campo_rotulo("Observações"), 0, 0)
-                obs_grid.addWidget(_campo_readonly(p.observacao), 1, 0)
-            if p.pecas_faltantes:
-                obs_grid.addWidget(_campo_rotulo("Peças Faltantes"), 0, 1)
-                obs_grid.addWidget(_campo_readonly(p.pecas_faltantes), 1, 1)
-
-            obs_grid.setColumnStretch(0, 1)
-            obs_grid.setColumnStretch(1, 1)
-            obs_lay.addLayout(obs_grid)
+            obs_lay.addWidget(_campo_readonly(p.observacao))
             layout.addWidget(obs_box)
+
+        # ── Bloco 5: Peças Faltantes ────────────────────────
+        if p.pecas_faltantes:
+            pecas_box, pecas_lay = _group_box("Peças Faltantes")
+            pecas_lay.addWidget(_campo_readonly(p.pecas_faltantes))
+            layout.addWidget(pecas_box)
 
         layout.addStretch()
         scroll.setWidget(container)

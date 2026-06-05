@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -29,13 +30,18 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
     ESTILO_BOTAO_PRIMARIO,
+    ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_SUBTITULO,
+    campo_readonly,
+    campo_rotulo,
     configurar_combo,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
     ESTILO_TITULO_PAGINA,
+    group_box,
+    input_label,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniWidget
@@ -95,11 +101,13 @@ class PartsPage(QWidget):
 
         self.btn_nova = QPushButton("\u2795 Nova Peça")
         self.btn_nova.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+        self.btn_nova.setToolTip("Cadastrar nova peça no estoque")
         self.btn_nova.clicked.connect(self._nova)
         header.addWidget(self.btn_nova)
 
         btn_importar = QPushButton("  Importar")
         btn_importar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_importar.setToolTip("Importar peças de arquivo CSV ou XLSX")
         btn_importar.clicked.connect(lambda: self._importar())
         header.addWidget(btn_importar)
 
@@ -118,7 +126,7 @@ class PartsPage(QWidget):
         self._filtro_atual = None
         self._partes_visiveis = []
         self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque", "Mín."])
-        self.tabela.cellDoubleClicked.connect(self._editar)
+        self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
         self._paginacao = PaginacaoWidget()
@@ -192,51 +200,72 @@ class PartsPage(QWidget):
         dialog.setStyleSheet(ESTILO_DIALOG)
         dialog.setMinimumWidth(400)
 
-        form = QFormLayout(dialog)
-        form.setLabelAlignment(Qt.AlignRight)
-        form.setSpacing(12)
-        form.setContentsMargins(20, 20, 20, 20)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         codigo = self.part_service.gerar_codigo()
+
+        id_box, id_layout = group_box("Identificação")
+        form_id = QFormLayout()
+        form_id.setLabelAlignment(Qt.AlignRight)
+        form_id.setSpacing(8)
 
         edit_codigo = QLineEdit(codigo)
         edit_codigo.setStyleSheet(ESTILO_INPUT_READONLY)
         edit_codigo.setReadOnly(True)
-        form.addRow("Código:", edit_codigo)
+        form_id.addRow("Código:", edit_codigo)
 
         edit_nome = QLineEdit()
         edit_nome.setStyleSheet(ESTILO_INPUT)
         edit_nome.setMaxLength(150)
         edit_nome.setPlaceholderText("* Obrigatório")
-        form.addRow("Nome:", edit_nome)
+        form_id.addRow("Nome:", edit_nome)
 
         edit_descricao = QLineEdit()
         edit_descricao.setStyleSheet(ESTILO_INPUT)
-        form.addRow("Descrição:", edit_descricao)
+        form_id.addRow("Descrição:", edit_descricao)
 
         combo_modelo = QComboBox()
         configurar_combo(combo_modelo)
+        cmp = combo_modelo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         combo_modelo.setEditable(True)
         combo_modelo.setInsertPolicy(QComboBox.NoInsert)
         modelos = self.printer_service.modelos_distintos()
         combo_modelo.addItems(modelos)
-        form.addRow("Modelo Compatível:", combo_modelo)
+        form_id.addRow("Modelo Compatível:", combo_modelo)
+
+        id_layout.addLayout(form_id)
+        layout.addWidget(id_box)
+
+        est_box, est_layout = group_box("Estoque")
+        form_est = QFormLayout()
+        form_est.setLabelAlignment(Qt.AlignRight)
+        form_est.setSpacing(8)
 
         edit_qtd = QLineEdit("0")
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         edit_qtd.setValidator(QIntValidator(0, 999999, edit_qtd))
-        form.addRow("Quantidade:", edit_qtd)
+        form_est.addRow("Quantidade:", edit_qtd)
 
         edit_minimo = QLineEdit("1")
         edit_minimo.setStyleSheet(ESTILO_INPUT)
         edit_minimo.setValidator(QIntValidator(0, 999999, edit_minimo))
-        form.addRow("Estoque Mín.:", edit_minimo)
+        form_est.addRow("Estoque Mín.:", edit_minimo)
+
+        est_layout.addLayout(form_est)
+        layout.addWidget(est_box)
 
         botoes = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         botoes.button(QDialogButtonBox.Save).setText("Salvar")
         botoes.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        botoes.button(QDialogButtonBox.Save).setToolTip("Salvar nova peça")
         botoes.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
-        form.addRow(botoes)
+        botoes.button(QDialogButtonBox.Cancel).setToolTip("Cancelar")
+        layout.addWidget(botoes)
 
         botoes.accepted.connect(lambda: self._salvar_nova(dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd, edit_minimo))
         botoes.rejected.connect(dialog.reject)
@@ -263,44 +292,47 @@ class PartsPage(QWidget):
             dialog.accept()
             self.recarregar()
 
-    def _editar(self, row: int) -> None:
-        if row < 0 or row >= len(self._partes_visiveis):
-            return
-
-        peca = self._partes_visiveis[row]
-
+    def _abrir_edicao(self, peca, parent_dialog: QDialog | None = None) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Editar Peça")
         dialog.setStyleSheet(ESTILO_DIALOG)
         dialog.setMinimumWidth(400)
 
-        form = QFormLayout(dialog)
-        form.setLabelAlignment(Qt.AlignRight)
-        form.setSpacing(12)
-        form.setContentsMargins(20, 20, 20, 20)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        id_box, id_layout = group_box("Identificação")
+        form_id = QFormLayout()
+        form_id.setLabelAlignment(Qt.AlignRight)
+        form_id.setSpacing(8)
 
         edit_codigo = QLineEdit(peca.codigo)
         edit_codigo.setStyleSheet(ESTILO_INPUT_READONLY)
         edit_codigo.setReadOnly(True)
-        form.addRow("Código:", edit_codigo)
+        form_id.addRow("Código:", edit_codigo)
 
         edit_nome = QLineEdit(peca.nome)
         edit_nome.setStyleSheet(ESTILO_INPUT)
         edit_nome.setMaxLength(150)
-        form.addRow("Nome:", edit_nome)
+        form_id.addRow("Nome:", edit_nome)
 
         erro_nome = QLabel()
         erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_nome.hide()
-        form.addRow("", erro_nome)
+        form_id.addRow("", erro_nome)
         ValidadorCampo(edit_nome, obrigatorio, erro_nome)
 
         edit_descricao = QLineEdit(peca.descricao)
         edit_descricao.setStyleSheet(ESTILO_INPUT)
-        form.addRow("Descrição:", edit_descricao)
+        form_id.addRow("Descrição:", edit_descricao)
 
         combo_modelo = QComboBox()
         configurar_combo(combo_modelo)
+        cmp = combo_modelo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         combo_modelo.setEditable(True)
         combo_modelo.setInsertPolicy(QComboBox.NoInsert)
         modelos = self.printer_service.modelos_distintos()
@@ -311,30 +343,37 @@ class PartsPage(QWidget):
                 combo_modelo.setCurrentIndex(idx)
             else:
                 combo_modelo.setCurrentText(peca.modelo_compativel)
-        form.addRow("Modelo Compatível:", combo_modelo)
+        form_id.addRow("Modelo Compatível:", combo_modelo)
+
+        id_layout.addLayout(form_id)
+        layout.addWidget(id_box)
+
+        est_box, est_layout = group_box("Estoque")
+        form_est = QFormLayout()
+        form_est.setLabelAlignment(Qt.AlignRight)
+        form_est.setSpacing(8)
 
         edit_qtd = QLineEdit(str(peca.quantidade_estoque))
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         edit_qtd.setValidator(QIntValidator(0, 999999, edit_qtd))
-        form.addRow("Quantidade:", edit_qtd)
+        form_est.addRow("Quantidade:", edit_qtd)
 
         edit_minimo = QLineEdit(str(peca.estoque_minimo))
         edit_minimo.setStyleSheet(ESTILO_INPUT)
         edit_minimo.setValidator(QIntValidator(0, 999999, edit_minimo))
-        form.addRow("Estoque Mín.:", edit_minimo)
+        form_est.addRow("Estoque Mín.:", edit_minimo)
+
+        est_layout.addLayout(form_est)
+        layout.addWidget(est_box)
 
         botoes = QDialogButtonBox()
         btn_salvar = botoes.addButton("Salvar", QDialogButtonBox.AcceptRole)
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
-        btn_excluir = botoes.addButton("Excluir", QDialogButtonBox.DestructiveRole)
-        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_salvar.setToolTip("Salvar alterações da peça")
         btn_cancelar = botoes.addButton("Cancelar", QDialogButtonBox.RejectRole)
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
-        if self.activity_service:
-            btn_historico = botoes.addButton("📋 Histórico de Uso", QDialogButtonBox.ActionRole)
-            btn_historico.setStyleSheet(ESTILO_BOTAO_AVISO)
-            btn_historico.clicked.connect(lambda: self._mostrar_uso(peca))
-        form.addRow(botoes)
+        btn_cancelar.setToolTip("Descartar alterações e fechar")
+        layout.addWidget(botoes)
 
         def salvar():
             nome = edit_nome.text().strip()
@@ -351,28 +390,122 @@ class PartsPage(QWidget):
             with tratar_erro("atualizar peça"):
                 self.part_service.atualizar(peca, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
                 dialog.accept()
-                self.recarregar()
-
-        def excluir():
-            if ConfirmacaoDigitarDialog.confirmar(
-                "Confirmar", f"Excluir a peça '{peca.nome}'?",
-                dialog,
-            ):
-                with tratar_erro("excluir peça"):
-                    self.part_service.excluir(peca)
-                    ToastManager.mostrar(
-                        f"Peça '{peca.nome}' excluída.",
-                        "aviso", duracao=8000,
-                        acao=("Desfazer", lambda o=peca, svc=self.part_service, pag=self: (svc.restaurar(o), pag.recarregar())),
-                    )
-                    dialog.accept()
+                if parent_dialog:
+                    parent_dialog.accept()
+                idx = next((i for i, p in enumerate(self._partes_visiveis) if p.id == peca.id), -1)
+                if idx >= 0:
+                    self._detalhes(idx)
+                else:
                     self.recarregar()
 
         botoes.accepted.connect(salvar)
         botoes.rejected.connect(dialog.reject)
-        btn_excluir.clicked.connect(excluir)
 
         dialog.exec()
+
+    def _detalhes(self, row: int) -> None:
+        if row < 0 or row >= len(self._partes_visiveis):
+            return
+        peca = self._partes_visiveis[row]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(peca.nome)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+        dialog.setMinimumSize(650, 500)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(24, 20, 24, 20)
+        content.setSpacing(20)
+
+        id_box, id_layout = group_box("Identificação")
+        id_form = QFormLayout()
+        id_form.setLabelAlignment(Qt.AlignRight)
+        id_form.setSpacing(8)
+        id_form.addRow(campo_rotulo("Código"), campo_readonly(peca.codigo))
+        id_form.addRow(campo_rotulo("Nome"), campo_readonly(peca.nome))
+        id_form.addRow(campo_rotulo("Descrição"), campo_readonly(peca.descricao))
+        id_form.addRow(campo_rotulo("Modelo Compatível"), campo_readonly(peca.modelo_compativel))
+        id_layout.addLayout(id_form)
+        content.addWidget(id_box)
+
+        est_box, est_layout = group_box("Estoque")
+        est_form = QFormLayout()
+        est_form.setLabelAlignment(Qt.AlignRight)
+        est_form.setSpacing(8)
+        est_form.addRow(campo_rotulo("Quantidade"), campo_readonly(str(peca.quantidade_estoque)))
+        est_form.addRow(campo_rotulo("Estoque Mín."), campo_readonly(str(peca.estoque_minimo)))
+        if peca.quantidade_estoque <= peca.estoque_minimo:
+            warn = QLabel("⚠️  Estoque baixo! A quantidade está no ou abaixo do mínimo.")
+            warn.setStyleSheet("color: #ef4444; font-size: 11px; font-weight: 600; background: transparent; padding: 8px 0 0 0;")
+            est_layout.addWidget(warn)
+        est_layout.addLayout(est_form)
+        content.addWidget(est_box)
+
+        content.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll, stretch=1)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(24, 12, 24, 16)
+        btn_layout.setSpacing(10)
+
+        btn_editar = QPushButton("✏️  Editar")
+        btn_editar.setStyleSheet(ESTILO_BOTAO_AVISO)
+        btn_editar.setToolTip("Editar esta peça")
+        btn_editar.clicked.connect(lambda: self._abrir_edicao(peca, dialog))
+
+        btn_excluir = QPushButton("🗑️ Excluir")
+        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_excluir.setToolTip("Excluir esta peça (pode ser desfeito pela Lixeira)")
+        btn_excluir.clicked.connect(lambda: self._confirmar_exclusao(peca, dialog))
+
+        btn_layout.addWidget(btn_editar)
+        btn_layout.addWidget(btn_excluir)
+
+        if self.activity_service:
+            btn_historico = QPushButton("📋 Histórico de Uso")
+            btn_historico.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+            btn_historico.setToolTip("Ver histórico de uso desta peça em ordens de serviço")
+            btn_historico.clicked.connect(lambda: self._mostrar_uso(peca))
+            btn_layout.addWidget(btn_historico)
+
+        btn_layout.addStretch()
+
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.setToolTip("Fechar")
+        btn_fechar.clicked.connect(dialog.accept)
+        btn_layout.addWidget(btn_fechar)
+
+        layout.addLayout(btn_layout)
+
+        dialog.exec()
+
+    def _confirmar_exclusao(self, peca, dialog: QDialog) -> None:
+        if ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar", f"Excluir a peça '{peca.nome}'?",
+            dialog,
+        ):
+            with tratar_erro("excluir peça"):
+                self.part_service.excluir(peca)
+                ToastManager.mostrar(
+                    f"Peça '{peca.nome}' excluída.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=peca, svc=self.part_service, pag=self: (svc.restaurar(o), pag.recarregar())),
+                )
+                dialog.accept()
+                self.recarregar()
 
     def _mostrar_uso(self, peca: Any) -> None:
         from app.utils.helpers import formatar_data_hora
@@ -410,19 +543,24 @@ class PartsPage(QWidget):
             tabela.resizeColumnsToContents()
             return tabela
 
-        layout.addWidget(QLabel(f"<b style='font-size:14px'>📌 Uso direto — {len(diretas)} registro(s)</b>"))
+        box, box_layout = group_box("Histórico de Uso")
+
+        box_layout.addWidget(QLabel(f"<b style='font-size:14px'>📌 Uso direto — {len(diretas)} registro(s)</b>"))
         tab_diretas = preencher_tabela(diretas)
         tab_diretas.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(diretas[r].id, dialog))
-        layout.addWidget(tab_diretas)
+        box_layout.addWidget(tab_diretas)
 
         if relacionadas:
-            layout.addWidget(QLabel(f"<b style='font-size:14px'>🔗 Outras atividades nas mesmas impressoras — {len(relacionadas)} registro(s)</b>"))
+            box_layout.addWidget(QLabel(f"<b style='font-size:14px'>🔗 Outras atividades nas mesmas impressoras — {len(relacionadas)} registro(s)</b>"))
             tab_rel = preencher_tabela(relacionadas)
             tab_rel.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(relacionadas[r].id, dialog))
-            layout.addWidget(tab_rel)
+            box_layout.addWidget(tab_rel)
+
+        layout.addWidget(box)
 
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.setToolTip("Fechar janela")
         btn_fechar.clicked.connect(dialog.accept)
         layout.addWidget(btn_fechar, alignment=Qt.AlignCenter)
 

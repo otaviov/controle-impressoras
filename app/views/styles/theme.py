@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from app.utils.constants import STATUS_MANUTENCAO, STATUS_OPERACIONAL, STATUS_ATIVIDADE_OPCOES
 
@@ -386,3 +386,51 @@ def configurar_combo(combo: QComboBox) -> None:
                 " color: #a5b4fc; }"
             )
     combo.showPopup = _popup
+
+
+def input_label(texto: str) -> QLabel:
+    """Label para campos de formulário (cinza, uppercase)."""
+    lbl = QLabel(texto)
+    lbl.setStyleSheet(
+        "color: #94949f; font-size: 10px; font-weight: 600;"
+        " background: transparent; letter-spacing: 0.5px;"
+        " text-transform: uppercase;"
+    )
+    return lbl
+
+
+def group_box(titulo: str) -> tuple[QWidget, QVBoxLayout]:
+    """Retorna um widget agrupado com título azul (#6366f1) e layout interno."""
+    box = QWidget()
+    box.setStyleSheet("background: transparent;")
+    outer = QVBoxLayout(box)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(6)
+    title_lbl = QLabel(titulo.upper())
+    title_lbl.setStyleSheet(
+        "color: #6366f1; font-size: 9px; font-weight: 700;"
+        " letter-spacing: 1.2px; background: transparent;"
+    )
+    outer.addWidget(title_lbl)
+    return box, outer
+
+
+def campo_rotulo(texto: str) -> QLabel:
+    """Rótulo em negrito para exibição de campo em detalhes."""
+    lbl = QLabel(texto)
+    lbl.setStyleSheet(
+        "color: #717182; font-size: 9px; font-weight: 700;"
+        " letter-spacing: 0.8px; background: transparent;"
+    )
+    return lbl
+
+
+def campo_readonly(texto: str) -> QLabel:
+    """Valor readonly para exibição de campo em detalhes."""
+    lbl = QLabel(texto)
+    lbl.setWordWrap(True)
+    lbl.setStyleSheet(
+        "color: #c8c8e0; font-size: 12px; font-weight: 500;"
+        " background: transparent; padding: 0; margin: 0;"
+    )
+    return lbl
