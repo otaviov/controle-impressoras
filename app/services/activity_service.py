@@ -88,7 +88,10 @@ class ActivityService:
               parts_used: str = "", from_location: str = "", to_location: str = "",
               numero_recibo: str = "", status_atividade: str = "Concluida",
               event_at: Optional[datetime] = None, tecnico_id: Optional[int] = None,
-              procedimentos: str = "") -> Activity:
+              procedimentos: str = "", sintoma_relatado: str = "",
+              diagnostico_tecnico: str = "", solucao_aplicada: str = "",
+              inicio_atendimento: Optional[datetime] = None,
+              fim_atendimento: Optional[datetime] = None) -> Activity:
         atividade = Activity(
             printer_id=printer_id,
             kind=sanitizar(kind, "Activity", "kind"),
@@ -101,6 +104,11 @@ class ActivityService:
             status_atividade=sanitizar(status_atividade, "Activity", "status_atividade"),
             tecnico_id=tecnico_id,
             procedimentos=procedimentos,
+            sintoma_relatado=sanitizar(sintoma_relatado),
+            diagnostico_tecnico=sanitizar(diagnostico_tecnico),
+            solucao_aplicada=sanitizar(solucao_aplicada),
+            inicio_atendimento=inicio_atendimento,
+            fim_atendimento=fim_atendimento,
         )
         self.session.add(atividade)
         safe_commit(self.session)

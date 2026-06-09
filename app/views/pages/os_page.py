@@ -5,10 +5,11 @@ from datetime import datetime as dt
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDateTimeEdit,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -30,7 +31,7 @@ from PySide6.QtWidgets import (
 from app.models import Part
 from app.services.part_service import PartService
 from app.utils.ui_helpers import tratar_erro
-from app.utils.helpers import formatar_data_hora, parse_data
+from app.utils.helpers import formatar_data_hora
 from db import transacao
 from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
@@ -80,24 +81,6 @@ def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
             le.blockSignals(False)
             le.setCursorPosition(old_pos + (len(nova) - len(texto)))
     return _mascarar
-    old_pos = le.cursorPosition()
-    digits = ''.join(c for c in texto if c.isdigit())[:8]
-    if not digits and texto:
-        le.blockSignals(True)
-        le.clear()
-        le.blockSignals(False)
-        return
-    partes = [digits[:2]]
-    if len(digits) > 2:
-        partes.append(digits[2:4])
-    if len(digits) > 4:
-        partes.append(digits[4:8])
-    nova = '/'.join(partes)
-    if nova != texto:
-        le.blockSignals(True)
-        le.setText(nova)
-        le.blockSignals(False)
-        le.setCursorPosition(old_pos + (len(nova) - len(texto)))
 
 
 class OSPage(QWidget):
@@ -346,10 +329,12 @@ class OSPage(QWidget):
             return
 
         kind = campos["tipo"].currentText()
-        data_texto = campos["data"].text().strip()
-        event_at = parse_data(data_texto) if data_texto else dt.now()
+        event_at = campos["data"].dateTime().toPython()
         notes = campos["descricao"].toPlainText().strip()
         parts_used = campos["pecas"].toPlainText().strip()
+        sintoma_relatado = campos["sintoma"].toPlainText().strip()
+        diagnostico_tecnico = campos["diagnostico"].toPlainText().strip()
+        solucao_aplicada = campos["solucao"].toPlainText().strip()
         from_location = campos["origem"].currentText().strip()
         to_location = campos["destino"].currentText().strip()
         status_atividade = campos["status"].currentText()
@@ -357,6 +342,11 @@ class OSPage(QWidget):
         from_company_id = self._resolver_empresa(from_location)
         to_company_id = self._resolver_empresa(to_location)
         tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
+
+        inicio_qdt = campos["inicio"].dateTime()
+        fim_qdt = campos["fim"].dateTime()
+        inicio_atendimento = inicio_qdt.toPython() if inicio_qdt.isValid() else None
+        fim_atendimento = fim_qdt.toPython() if fim_qdt.isValid() else None
 
         tbl = campos.get("checklist")
         procedimentos = ""
@@ -376,6 +366,11 @@ class OSPage(QWidget):
                     kind=kind,
                     notes=notes,
                     parts_used=parts_used,
+                    sintoma_relatado=sintoma_relatado,
+                    diagnostico_tecnico=diagnostico_tecnico,
+                    solucao_aplicada=solucao_aplicada,
+                    inicio_atendimento=inicio_atendimento,
+                    fim_atendimento=fim_atendimento,
                     from_location=from_location,
                     to_location=to_location,
                     status_atividade=status_atividade,
@@ -400,6 +395,229 @@ class OSPage(QWidget):
         self._atividades = [atividade]
         self._preencher_tabela(self._atividades)
         self._abrir_edicao(atividade)
+
+    def _concluir_os_dialog(self, atividade: Any) -> None:
+        printer = self.printer_service.buscar_por_id(atividade.printer_id)
+        printer_str = f"{printer.patrimonio} - {printer.modelo}" if printer else "-"
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Concluir OS")
+        dialog.setMinimumSize(500, 480)
+        dialog.setStyleSheet(ESTILO_DIALOG)
+
+        root = QVBoxLayout(dialog)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(20)
+
+        equip_box, equip_layout = group_box("Equipamento")
+        ef = QFormLayout()
+        ef.setSpacing(8)
+        ef.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        ef.addRow(campo_rotulo("Impressora"), campo_readonly(printer_str))
+        ef.addRow(campo_rotulo("Tipo"), campo_readonly(atividade.kind or "-"))
+        if atividade.tecnico_id and self.technician_service:
+            tec = self.technician_service.buscar_por_id(atividade.tecnico_id)
+            ef.addRow(campo_rotulo("Técnico"), campo_readonly(tec.nome_exibicao if tec else "-"))
+        equip_layout.addLayout(ef)
+        layout.addWidget(equip_box)
+
+        concluir_box, concluir_layout = group_box("Finalização")
+
+        edt_solucao = QTextEdit()
+        edt_solucao.setStyleSheet(ESTILO_INPUT)
+        edt_solucao.setMaximumHeight(80)
+        edt_solucao.setPlainText(atividade.solucao_aplicada or "")
+
+        edt_fim = QDateTimeEdit()
+        edt_fim.setCalendarPopup(True)
+        edt_fim.setDisplayFormat("dd/MM/yyyy HH:mm")
+        edt_fim.setStyleSheet(ESTILO_INPUT)
+        edt_fim.setDateTime(QDateTime.currentDateTime())
+
+        edt_pecas = QTextEdit()
+        edt_pecas.setStyleSheet(ESTILO_INPUT)
+        edt_pecas.setMaximumHeight(60)
+        edt_pecas.setPlainText(atividade.parts_used or "")
+
+        estoque_combo = QComboBox()
+        estoque_combo.setEditable(True)
+        configurar_combo(estoque_combo)
+        cmp = estoque_combo.completer()
+        if cmp:
+            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
+            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        estoque_combo.addItem("-- Nenhuma --", None)
+        for p in self.part_service.listar_todas():
+            if p.quantidade_estoque > 0:
+                estoque_combo.addItem(f"{p.nome} ({p.quantidade_estoque} un.)", p.id)
+
+        def _add_peca():
+            idx = estoque_combo.currentIndex()
+            if idx <= 0:
+                return
+            pid = estoque_combo.currentData()
+            if pid is None:
+                return
+            part = self.part_service.buscar_por_id(pid)
+            if part:
+                atual = edt_pecas.toPlainText().strip()
+                edt_pecas.setPlainText(f"{part.nome}" if not atual else f"{atual}, {part.nome}")
+        estoque_combo.currentIndexChanged.connect(lambda i: _add_peca() if i > 0 else None)
+
+        tbl = QTableWidget()
+        tbl.setColumnCount(2)
+        tbl.setHorizontalHeaderLabels(["Feito", "Procedimento"])
+        tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+        tbl.setSelectionMode(QAbstractItemView.SingleSelection)
+        tbl.setStyleSheet("""
+            QTableWidget { background: transparent; border: none; }
+            QTableWidget::item { padding: 4px; }
+            QHeaderView::section { background: transparent; color: #a0a0b0; border: none; font-weight: 600; padding: 4px; }
+        """)
+        if atividade.procedimentos:
+            try:
+                dados = json.loads(atividade.procedimentos)
+                for item in dados:
+                    r = tbl.rowCount()
+                    tbl.insertRow(r)
+                    chk = QTableWidgetItem()
+                    chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
+                    chk.setCheckState(Qt.Checked if item.get("feito") else Qt.Unchecked)
+                    tbl.setItem(r, 0, chk)
+                    tbl.setItem(r, 1, QTableWidgetItem(item.get("nome", "")))
+            except json.JSONDecodeError:
+                pass
+        else:
+            itens_padrao = [
+                "Limpeza de laser", "Lubrificação do fusor",
+                "Troca de película", "Troca de rolo de pressão", "Teste de impressão",
+            ]
+            for nome in itens_padrao:
+                r = tbl.rowCount()
+                tbl.insertRow(r)
+                chk = QTableWidgetItem()
+                chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
+                chk.setCheckState(Qt.Unchecked)
+                tbl.setItem(r, 0, chk)
+                tbl.setItem(r, 1, QTableWidgetItem(nome))
+
+        btn_add = QPushButton("+ Adicionar")
+        btn_add.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_add.setToolTip("Adicionar procedimento")
+        btn_add.setCursor(Qt.PointingHandCursor)
+        btn_rem = QPushButton("— Remover")
+        btn_rem.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_rem.setToolTip("Remover selecionado")
+        btn_rem.setCursor(Qt.PointingHandCursor)
+
+        def _add():
+            r = tbl.rowCount()
+            tbl.insertRow(r)
+            chk = QTableWidgetItem()
+            chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
+            chk.setCheckState(Qt.Unchecked)
+            tbl.setItem(r, 0, chk)
+            tbl.setItem(r, 1, QTableWidgetItem(""))
+            tbl.editItem(tbl.item(r, 1))
+
+        def _rem():
+            r = tbl.currentRow()
+            if r >= 0:
+                tbl.removeRow(r)
+
+        btn_add.clicked.connect(_add)
+        btn_rem.clicked.connect(_rem)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setHorizontalSpacing(16)
+        grid.addWidget(input_label("Solução Aplicada"), 0, 0, 1, 2)
+        grid.addWidget(edt_solucao, 1, 0, 1, 2)
+        grid.addWidget(input_label("Fim Atendimento"), 2, 0)
+        grid.addWidget(edt_fim, 3, 0)
+        grid.addWidget(input_label("Peças Trocadas"), 4, 0, 1, 2)
+        grid.addWidget(edt_pecas, 5, 0, 1, 2)
+        grid.addWidget(input_label("Peça do Estoque"), 6, 0, 1, 2)
+        grid.addWidget(estoque_combo, 7, 0, 1, 2)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        concluir_layout.addLayout(grid)
+        concluir_layout.addWidget(QLabel("Checklist"))
+        concluir_layout.addWidget(tbl)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(btn_add)
+        btn_row.addWidget(btn_rem)
+        concluir_layout.addLayout(btn_row)
+        layout.addWidget(concluir_box)
+
+        layout.addStretch()
+        scroll.setWidget(container)
+        root.addWidget(scroll, stretch=1)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(24, 12, 24, 16)
+        btn_layout.setSpacing(10)
+
+        btn_concluir = QPushButton("✅ Concluir OS")
+        btn_concluir.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_concluir.setToolTip("Finalizar ordem de serviço")
+        btn_fechar = QPushButton("Fechar")
+        btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_fechar.setToolTip("Fechar sem concluir")
+
+        def _salvar():
+            solucao = edt_solucao.toPlainText().strip()
+            fim = edt_fim.dateTime().toPython()
+            pecas = edt_pecas.toPlainText().strip()
+
+            dados = []
+            for r in range(tbl.rowCount()):
+                chk = tbl.item(r, 0)
+                nome = tbl.item(r, 1)
+                if nome and nome.text().strip():
+                    dados.append({"nome": nome.text().strip(), "feito": bool(chk and chk.checkState() == Qt.Checked)})
+            procedimentos = json.dumps(dados, ensure_ascii=False)
+
+            try:
+                with transacao(self.session):
+                    self.activity_service.atualizar(
+                        atividade,
+                        solucao_aplicada=solucao,
+                        fim_atendimento=fim,
+                        parts_used=pecas,
+                        status_atividade="Concluida",
+                        procedimentos=procedimentos,
+                    )
+                    self._dar_baixa_estoque(pecas)
+                dialog.accept()
+                self.recarregar()
+            except Exception as e:
+                QMessageBox.critical(dialog, "Erro", f"Erro ao concluir OS: {e}")
+
+        btn_concluir.clicked.connect(_salvar)
+        btn_fechar.clicked.connect(dialog.reject)
+
+        btn_layout.addWidget(btn_concluir)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_fechar)
+        root.addLayout(btn_layout)
+
+        dialog.exec()
 
     def _detalhes(self, row: int) -> None:
         if row < 0 or row >= len(self._atividades):
@@ -448,11 +666,30 @@ class OSPage(QWidget):
         equip_layout.addLayout(equip_form)
         layout.addWidget(equip_box)
 
+        def _formatar_tempo(diff):
+            total_seg = int(diff.total_seconds())
+            h = total_seg // 3600
+            m = (total_seg % 3600) // 60
+            if h > 0:
+                return f"{h}h {m}min"
+            return f"{m}min"
+
+        tempo_str = "—"
+        if atividade.inicio_atendimento and atividade.fim_atendimento:
+            diff = atividade.fim_atendimento - atividade.inicio_atendimento
+            tempo_str = _formatar_tempo(diff)
+
         detalhes_box, detalhes_layout = group_box("Detalhes")
         detalhes_form = QFormLayout()
         detalhes_form.setSpacing(8)
         detalhes_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         detalhes_form.addRow(campo_rotulo("Data/Hora"), campo_readonly(formatar_data_hora(atividade.event_at)))
+        detalhes_form.addRow(campo_rotulo("Início Atendimento"), campo_readonly(formatar_data_hora(atividade.inicio_atendimento) if atividade.inicio_atendimento else "—"))
+        detalhes_form.addRow(campo_rotulo("Fim Atendimento"), campo_readonly(formatar_data_hora(atividade.fim_atendimento) if atividade.fim_atendimento else "—"))
+        detalhes_form.addRow(campo_rotulo("Tempo Atendimento"), campo_readonly(tempo_str))
+        detalhes_form.addRow(campo_rotulo("Sintoma Relatado"), campo_readonly(atividade.sintoma_relatado or "—"))
+        detalhes_form.addRow(campo_rotulo("Diagnóstico Técnico"), campo_readonly(atividade.diagnostico_tecnico or "—"))
+        detalhes_form.addRow(campo_rotulo("Solução Aplicada"), campo_readonly(atividade.solucao_aplicada or "—"))
         detalhes_form.addRow(campo_rotulo("Descrição"), campo_readonly(atividade.notes or "—"))
         detalhes_form.addRow(campo_rotulo("Peças Trocadas"), campo_readonly(atividade.parts_used or "—"))
         detalhes_form.addRow(campo_rotulo("Status"), campo_readonly(atividade.status_atividade or "—"))
@@ -500,6 +737,12 @@ class OSPage(QWidget):
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_excluir.setToolTip("Excluir esta ordem de serviço (pode ser desfeito pela Lixeira)")
 
+        pode_concluir = atividade.status_atividade in ("Pendente", "Em Andamento")
+        btn_concluir = QPushButton("✅ Concluir")
+        btn_concluir.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_concluir.setToolTip("Finalizar esta ordem de serviço")
+        btn_concluir.setVisible(pode_concluir)
+
         btn_fechar = QPushButton("Fechar")
         btn_fechar.setStyleSheet(ESTILO_BOTAO_FECHAR)
         btn_fechar.setToolTip("Fechar detalhes")
@@ -525,10 +768,16 @@ class OSPage(QWidget):
             dialog.accept()
             self._abrir_edicao(atividade)
 
+        def concluir():
+            dialog.accept()
+            self._concluir_os_dialog(atividade)
+
         btn_editar.clicked.connect(editar)
         btn_excluir.clicked.connect(excluir)
+        btn_concluir.clicked.connect(concluir)
         btn_fechar.clicked.connect(dialog.accept)
 
+        btn_layout.addWidget(btn_concluir)
         btn_layout.addWidget(btn_editar)
         btn_layout.addWidget(btn_excluir)
         btn_layout.addStretch()
@@ -571,16 +820,22 @@ class OSPage(QWidget):
                 return
 
             kind = campos["tipo"].currentText()
-            data_texto = campos["data"].text().strip()
-            event_at = parse_data(data_texto) if data_texto else dt.now()
+            event_at = campos["data"].dateTime().toPython()
             notes = campos["descricao"].toPlainText().strip()
             parts_used = campos["pecas"].toPlainText().strip()
+            sintoma_relatado = campos["sintoma"].toPlainText().strip()
+            diagnostico_tecnico = campos["diagnostico"].toPlainText().strip()
+            solucao_aplicada = campos["solucao"].toPlainText().strip()
             from_location = campos["origem"].currentText().strip()
             to_location = campos["destino"].currentText().strip()
             status_atividade = campos["status"].currentText()
             from_company_id = self._resolver_empresa(from_location)
             to_company_id = self._resolver_empresa(to_location)
             tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
+            inicio_qdt = campos["inicio"].dateTime()
+            fim_qdt = campos["fim"].dateTime()
+            inicio_atendimento = inicio_qdt.toPython() if inicio_qdt.isValid() else None
+            fim_atendimento = fim_qdt.toPython() if fim_qdt.isValid() else None
 
             tbl = campos.get("checklist")
             procedimentos = ""
@@ -602,6 +857,11 @@ class OSPage(QWidget):
                         event_at=event_at,
                         notes=notes,
                         parts_used=parts_used,
+                        sintoma_relatado=sintoma_relatado,
+                        diagnostico_tecnico=diagnostico_tecnico,
+                        solucao_aplicada=solucao_aplicada,
+                        inicio_atendimento=inicio_atendimento,
+                        fim_atendimento=fim_atendimento,
                         from_location=from_location,
                         to_location=to_location,
                         status_atividade=status_atividade,
@@ -713,10 +973,12 @@ class OSPage(QWidget):
         equip_layout.addLayout(equip_grid)
         content.addWidget(equip_box)
 
-        data_atual = dt.now().strftime("%d/%m/%Y %H:%M")
-        edt_data = QLineEdit(data_atual)
+        from PySide6.QtCore import QDateTime
+
+        edt_data = QDateTimeEdit(QDateTime.currentDateTime())
+        edt_data.setCalendarPopup(True)
+        edt_data.setDisplayFormat("dd/MM/yyyy HH:mm")
         edt_data.setStyleSheet(ESTILO_INPUT)
-        edt_data.textChanged.connect(_criar_mascara_data(edt_data))
 
         cmb_status = QComboBox()
         configurar_combo(cmb_status)
@@ -760,6 +1022,29 @@ class OSPage(QWidget):
                 pass
         estoque_combo_os.currentIndexChanged.connect(_preencher_pecas_os)
 
+        txt_sintoma = QTextEdit()
+        txt_sintoma.setStyleSheet(ESTILO_INPUT)
+        txt_sintoma.setMaximumHeight(80)
+
+        txt_diagnostico = QTextEdit()
+        txt_diagnostico.setStyleSheet(ESTILO_INPUT)
+        txt_diagnostico.setMaximumHeight(80)
+
+        txt_solucao = QTextEdit()
+        txt_solucao.setStyleSheet(ESTILO_INPUT)
+        txt_solucao.setMaximumHeight(80)
+
+        edt_inicio = QDateTimeEdit()
+        edt_inicio.setCalendarPopup(True)
+        edt_inicio.setDisplayFormat("dd/MM/yyyy HH:mm")
+        edt_inicio.setStyleSheet(ESTILO_INPUT)
+        edt_inicio.setDateTime(QDateTime.currentDateTime())
+
+        edt_fim = QDateTimeEdit()
+        edt_fim.setCalendarPopup(True)
+        edt_fim.setDisplayFormat("dd/MM/yyyy HH:mm")
+        edt_fim.setStyleSheet(ESTILO_INPUT)
+
         detalhes_box, detalhes_layout = group_box("Detalhes")
         detalhes_grid = QGridLayout()
         detalhes_grid.setSpacing(8)
@@ -768,12 +1053,22 @@ class OSPage(QWidget):
         detalhes_grid.addWidget(edt_data, 1, 0)
         detalhes_grid.addWidget(input_label("Status"), 0, 1)
         detalhes_grid.addWidget(cmb_status, 1, 1)
-        detalhes_grid.addWidget(input_label("Descrição"), 2, 0, 1, 2)
-        detalhes_grid.addWidget(txt_descricao, 3, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Peças Trocadas"), 4, 0, 1, 2)
-        detalhes_grid.addWidget(txt_pecas, 5, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Peça do Estoque"), 6, 0, 1, 2)
-        detalhes_grid.addWidget(estoque_combo_os, 7, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Início Atendimento"), 2, 0)
+        detalhes_grid.addWidget(edt_inicio, 3, 0)
+        detalhes_grid.addWidget(input_label("Fim Atendimento"), 2, 1)
+        detalhes_grid.addWidget(edt_fim, 3, 1)
+        detalhes_grid.addWidget(input_label("Sintoma Relatado"), 4, 0, 1, 2)
+        detalhes_grid.addWidget(txt_sintoma, 5, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Diagnóstico Técnico"), 6, 0, 1, 2)
+        detalhes_grid.addWidget(txt_diagnostico, 7, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Solução Aplicada"), 8, 0, 1, 2)
+        detalhes_grid.addWidget(txt_solucao, 9, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Descrição"), 10, 0, 1, 2)
+        detalhes_grid.addWidget(txt_descricao, 11, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Peças Trocadas"), 12, 0, 1, 2)
+        detalhes_grid.addWidget(txt_pecas, 13, 0, 1, 2)
+        detalhes_grid.addWidget(input_label("Peça do Estoque"), 14, 0, 1, 2)
+        detalhes_grid.addWidget(estoque_combo_os, 15, 0, 1, 2)
         detalhes_grid.setColumnStretch(0, 1)
         detalhes_grid.setColumnStretch(1, 1)
         detalhes_layout.addLayout(detalhes_grid)
@@ -902,6 +1197,11 @@ class OSPage(QWidget):
             "printer": cmb_printer,
             "tipo": cmb_tipo,
             "data": edt_data,
+            "inicio": edt_inicio,
+            "fim": edt_fim,
+            "sintoma": txt_sintoma,
+            "diagnostico": txt_diagnostico,
+            "solucao": txt_solucao,
             "descricao": txt_descricao,
             "pecas": txt_pecas,
             "origem": cmb_origem,
@@ -944,7 +1244,14 @@ class OSPage(QWidget):
         if idx_tipo >= 0:
             campos["tipo"].setCurrentIndex(idx_tipo)
 
-        campos["data"].setText(formatar_data_hora(atividade.event_at))
+        campos["data"].setDateTime(QDateTime(atividade.event_at))
+        if atividade.inicio_atendimento:
+            campos["inicio"].setDateTime(QDateTime(atividade.inicio_atendimento))
+        if atividade.fim_atendimento:
+            campos["fim"].setDateTime(QDateTime(atividade.fim_atendimento))
+        campos["sintoma"].setPlainText(atividade.sintoma_relatado or "")
+        campos["diagnostico"].setPlainText(atividade.diagnostico_tecnico or "")
+        campos["solucao"].setPlainText(atividade.solucao_aplicada or "")
         campos["descricao"].setPlainText(atividade.notes or "")
         campos["pecas"].setPlainText(atividade.parts_used or "")
 

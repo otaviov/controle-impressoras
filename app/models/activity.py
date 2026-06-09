@@ -35,11 +35,16 @@ class Activity(Base, SoftDeleteMixin):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     event_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    inicio_atendimento: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    fim_atendimento: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     parts_used: Mapped[str] = mapped_column(Text, default="")
     from_location: Mapped[str] = mapped_column(String(120), default="")
     to_location: Mapped[str] = mapped_column(String(120), default="")
     procedimentos: Mapped[str] = mapped_column(Text, default="")
+    sintoma_relatado: Mapped[str] = mapped_column(Text, default="")
+    diagnostico_tecnico: Mapped[str] = mapped_column(Text, default="")
+    solucao_aplicada: Mapped[str] = mapped_column(Text, default="")
 
     printer: Mapped[Printer] = relationship(back_populates="activities")
     from_company: Mapped[Optional[Company]] = relationship(back_populates="activities_from", foreign_keys=[from_company_id])
