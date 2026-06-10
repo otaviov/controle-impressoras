@@ -342,11 +342,10 @@ class OSPage(QWidget):
 
         kind = campos["tipo"].currentText()
         event_at = campos["data"].dateTime().toPython()
-        notes = campos["descricao"].text().strip()
-        parts_used = campos["pecas"].toPlainText().strip()
-        sintoma_relatado = campos["sintoma"].text().strip()
-        diagnostico_tecnico = campos["diagnostico"].text().strip()
-        solucao_aplicada = campos["solucao"].text().strip()
+        notes = campos["descricao"].toPlainText().strip()
+        sintoma_relatado = campos["sintoma"].toPlainText().strip()
+        diagnostico_tecnico = campos["diagnostico"].toPlainText().strip()
+        solucao_aplicada = campos["solucao"].toPlainText().strip()
         from_location = campos["origem"].currentText().strip()
         to_location = campos["destino"].currentText().strip()
         status_atividade = campos["status"].currentText()
@@ -360,6 +359,7 @@ class OSPage(QWidget):
         fim_qdt = campos["fim"].dateTime()
         inicio_atendimento = inicio_qdt.toPython() if inicio_qdt.isValid() else None
         fim_atendimento = fim_qdt.toPython() if fim_qdt.isValid() else None
+        parts_used = campos["pecas"].toPlainText().strip()
 
         tbl = campos.get("checklist")
         procedimentos = ""
@@ -832,6 +832,8 @@ class OSPage(QWidget):
         dialog, campos = self._criar_form_dialog("Editar OS", atividade)
 
         botoes = QHBoxLayout()
+        botoes.setContentsMargins(24, 12, 24, 16)
+        botoes.setSpacing(10)
         btn_salvar = QPushButton("Salvar")
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         btn_salvar.setToolTip("Salvar alterações da ordem de serviço")
@@ -862,11 +864,11 @@ class OSPage(QWidget):
 
             kind = campos["tipo"].currentText()
             event_at = campos["data"].dateTime().toPython()
-            notes = campos["descricao"].text().strip()
+            notes = campos["descricao"].toPlainText().strip()
             parts_used = campos["pecas"].toPlainText().strip()
-            sintoma_relatado = campos["sintoma"].text().strip()
-            diagnostico_tecnico = campos["diagnostico"].text().strip()
-            solucao_aplicada = campos["solucao"].text().strip()
+            sintoma_relatado = campos["sintoma"].toPlainText().strip()
+            diagnostico_tecnico = campos["diagnostico"].toPlainText().strip()
+            solucao_aplicada = campos["solucao"].toPlainText().strip()
             from_location = campos["origem"].currentText().strip()
             to_location = campos["destino"].currentText().strip()
             status_atividade = campos["status"].currentText()
@@ -1066,21 +1068,25 @@ class OSPage(QWidget):
         content.addWidget(agend_box)
 
         # ── DETALHES TÉCNICOS ─────────────────────────────────────────────────
-        txt_sintoma = QLineEdit()
+        txt_sintoma = QTextEdit()
         txt_sintoma.setStyleSheet(ESTILO_INPUT)
-        txt_sintoma.setFixedHeight(60)
+        txt_sintoma.setMaximumHeight(56)
+        txt_sintoma.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        txt_diagnostico = QLineEdit()
+        txt_diagnostico = QTextEdit()
         txt_diagnostico.setStyleSheet(ESTILO_INPUT)
-        txt_diagnostico.setFixedHeight(60)
+        txt_diagnostico.setMaximumHeight(56)
+        txt_diagnostico.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        txt_solucao = QLineEdit()
+        txt_solucao = QTextEdit()
         txt_solucao.setStyleSheet(ESTILO_INPUT)
-        txt_solucao.setFixedHeight(60)
+        txt_solucao.setMaximumHeight(56)
+        txt_solucao.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        txt_descricao = QLineEdit()
+        txt_descricao = QTextEdit()
         txt_descricao.setStyleSheet(ESTILO_INPUT)
-        txt_descricao.setFixedHeight(60)
+        txt_descricao.setMaximumHeight(56)
+        txt_descricao.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         atend_box, atend_layout = group_box("DETALHES TÉCNICOS")
         atend_form = QFormLayout()
@@ -1267,8 +1273,19 @@ class OSPage(QWidget):
             "checklist": tbl,
         }
 
+        def _toggle_campos_conclusao(status_text: str) -> None:
+            bloq = status_text in ("Pendente", "Em Andamento")
+            edt_fim.setEnabled(not bloq)
+            txt_solucao.setEnabled(not bloq)
+            txt_descricao.setEnabled(not bloq)
+            txt_pecas.setEnabled(not bloq)
+            estoque_combo_os.setEnabled(not bloq)
+        cmb_status.currentTextChanged.connect(_toggle_campos_conclusao)
+
         if atividade:
             self._preencher_campos(atividade, campos)
+
+        _toggle_campos_conclusao(cmb_status.currentText())
 
         if not atividade:
             btn_layout = QHBoxLayout()
@@ -1303,10 +1320,10 @@ class OSPage(QWidget):
             campos["inicio"].setDateTime(QDateTime(atividade.inicio_atendimento))
         if atividade.fim_atendimento:
             campos["fim"].setDateTime(QDateTime(atividade.fim_atendimento))
-        campos["sintoma"].setText(atividade.sintoma_relatado or "")
-        campos["diagnostico"].setText(atividade.diagnostico_tecnico or "")
-        campos["solucao"].setText(atividade.solucao_aplicada or "")
-        campos["descricao"].setText(atividade.notes or "")
+        campos["sintoma"].setPlainText(atividade.sintoma_relatado or "")
+        campos["diagnostico"].setPlainText(atividade.diagnostico_tecnico or "")
+        campos["solucao"].setPlainText(atividade.solucao_aplicada or "")
+        campos["descricao"].setPlainText(atividade.notes or "")
         campos["pecas"].setPlainText(atividade.parts_used or "")
 
         if atividade.from_location:

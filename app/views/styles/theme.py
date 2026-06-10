@@ -174,6 +174,7 @@ ESTILO_INPUT = """\
     }
     QLineEdit:hover, QTextEdit:hover, QDateEdit:hover, QTimeEdit:hover, QDateTimeEdit:hover { border-color: #3a3a50; }
     QLineEdit:focus, QTextEdit:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus { border-color: #6366f1; }
+    QLineEdit:disabled, QTextEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled, QDateTimeEdit:disabled { background-color: #14141f; color: #555568; border-color: #1e1e2e; }
     QDateEdit::drop-down, QTimeEdit::drop-down, QDateTimeEdit::drop-down {
         border: none; width: 30px; background: transparent;
     }
