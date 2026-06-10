@@ -8,6 +8,16 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QVBoxLa
 
 from app.utils.constants import STATUS_MANUTENCAO, STATUS_OPERACIONAL, STATUS_ATIVIDADE_OPCOES
 
+# ── Urgência / SLA ─────────────────────────────────────────────────────────────
+URGENCIAS = ["Baixa", "Normal", "Alta", "Crítica"]
+SLA_DIAS: dict[str, int] = {"Baixa": 30, "Normal": 15, "Alta": 3, "Crítica": 1}
+URGENCIA_CORES: dict[str, str] = {
+    "Baixa": "#a6e3a1",
+    "Normal": "#f9e2af",
+    "Alta": "#fab387",
+    "Crítica": "#f38ba8",
+}
+
 STATUS_CORES: dict[str, str] = {
     "Operacional": "#34d399",
     "Em uso": "#34d399",

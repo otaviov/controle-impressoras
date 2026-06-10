@@ -91,7 +91,8 @@ class ActivityService:
               procedimentos: str = "", sintoma_relatado: str = "",
               diagnostico_tecnico: str = "", solucao_aplicada: str = "",
               inicio_atendimento: Optional[datetime] = None,
-              fim_atendimento: Optional[datetime] = None) -> Activity:
+              fim_atendimento: Optional[datetime] = None,
+              urgencia: str = "Normal") -> Activity:
         atividade = Activity(
             printer_id=printer_id,
             kind=sanitizar(kind, "Activity", "kind"),
@@ -104,6 +105,7 @@ class ActivityService:
             status_atividade=sanitizar(status_atividade, "Activity", "status_atividade"),
             tecnico_id=tecnico_id,
             procedimentos=procedimentos,
+            urgencia=sanitizar(urgencia, "Activity", "urgencia") if isinstance(urgencia, str) else urgencia,
             sintoma_relatado=sanitizar(sintoma_relatado),
             diagnostico_tecnico=sanitizar(diagnostico_tecnico),
             solucao_aplicada=sanitizar(solucao_aplicada),

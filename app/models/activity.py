@@ -42,6 +42,7 @@ class Activity(Base, SoftDeleteMixin):
     from_location: Mapped[str] = mapped_column(String(120), default="")
     to_location: Mapped[str] = mapped_column(String(120), default="")
     procedimentos: Mapped[str] = mapped_column(Text, default="")
+    urgencia: Mapped[str] = mapped_column(String(20), default="Normal")
     sintoma_relatado: Mapped[str] = mapped_column(Text, default="")
     diagnostico_tecnico: Mapped[str] = mapped_column(Text, default="")
     solucao_aplicada: Mapped[str] = mapped_column(Text, default="")

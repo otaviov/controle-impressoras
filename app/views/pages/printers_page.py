@@ -6,12 +6,13 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QCompleter,
+    QDateEdit,
     QDialog,
     QFileDialog,
     QFrame,
@@ -52,6 +53,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     STATUS_CORES,
 )
+from app.views.styles.theme import URGENCIAS, URGENCIA_CORES, SLA_DIAS
 from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
@@ -338,8 +340,8 @@ class _PrinterForm(QWidget):
         loc_layout.addLayout(loc_grid)
         content.addWidget(loc_box)
 
-        # ── SEÇÃO: Técnico e Revisão ─────────────────────────
-        tec_box, tec_layout = _group_box("Técnico e Revisão")
+        # ── SEÇÃO: Técnico e Manutenção ─────────────────────
+        tec_box, tec_layout = _group_box("Técnico e Manutenção")
         tec_grid = QGridLayout()
         tec_grid.setSpacing(8)
         tec_grid.setHorizontalSpacing(16)
@@ -351,13 +353,32 @@ class _PrinterForm(QWidget):
         for t in self._technician_service.listar_ativos():
             self.tec.addItem(t.nome_exibicao)
 
-        self.revisao = self._campo_texto("dd/mm/aaaa", 10)
-        self.revisao.textChanged.connect(self._mascara_data)
+        self.ultima_revisao = QDateEdit()
+        self.ultima_revisao.setCalendarPopup(True)
+        self.ultima_revisao.setDisplayFormat("dd/MM/yyyy")
+        self.ultima_revisao.setDate(QDate.currentDate())
+        self.ultima_revisao.setStyleSheet(ESTILO_INPUT)
+        self.ultima_revisao.setToolTip("Data da última manutenção realizada")
+
+        self.prox_manutencao = QDateEdit()
+        self.prox_manutencao.setCalendarPopup(True)
+        self.prox_manutencao.setDisplayFormat("dd/MM/yyyy")
+        self.prox_manutencao.setDate(QDate.currentDate())
+        self.prox_manutencao.setStyleSheet(ESTILO_INPUT)
+        self.prox_manutencao.setToolTip("Data agendada para a próxima manutenção")
+
+        self.urgencia_combo = QComboBox()
+        self.urgencia_combo.addItems(URGENCIAS)
+        configurar_combo(self.urgencia_combo)
 
         tec_grid.addWidget(_input_label("Técnico Responsável"), 0, 0)
         tec_grid.addWidget(self.tec, 1, 0)
         tec_grid.addWidget(_input_label("Última Revisão"), 0, 1)
-        tec_grid.addWidget(self.revisao, 1, 1)
+        tec_grid.addWidget(self.ultima_revisao, 1, 1)
+        tec_grid.addWidget(_input_label("Próxima Manutenção"), 2, 0)
+        tec_grid.addWidget(self.prox_manutencao, 3, 0)
+        tec_grid.addWidget(_input_label("Urgência"), 2, 1)
+        tec_grid.addWidget(self.urgencia_combo, 3, 1)
         tec_grid.setColumnStretch(0, 1)
         tec_grid.setColumnStretch(1, 1)
         tec_layout.addLayout(tec_grid)
@@ -457,8 +478,20 @@ class _PrinterForm(QWidget):
         self.mac.setText(p.mac_address or "")
         if p.tecnico:
             self.tec.setCurrentText(p.tecnico)
+        if p.ultima_revisao:
+            self.ultima_revisao.setDate(QDate(
+                p.ultima_revisao.year,
+                p.ultima_revisao.month,
+                p.ultima_revisao.day,
+            ))
         if p.proxima_revisao:
-            self.revisao.setText(formatar_data(p.proxima_revisao))
+            self.prox_manutencao.setDate(QDate(
+                p.proxima_revisao.year,
+                p.proxima_revisao.month,
+                p.proxima_revisao.day,
+            ))
+        if hasattr(p, 'urgencia_prox_manutencao') and p.urgencia_prox_manutencao in URGENCIAS:
+            self.urgencia_combo.setCurrentText(p.urgencia_prox_manutencao)
         self.obs.setPlainText(p.observacao or "")
         self.pecas.setPlainText(p.pecas_faltantes or "")
 
@@ -474,7 +507,9 @@ class _PrinterForm(QWidget):
             ip_rede=self.ip.text().strip(),
             mac_address=self.mac.text().strip(),
             tecnico=self.tec.currentText().strip(),
-            proxima_revisao=parse_data(self.revisao.text()) or None,
+            ultima_revisao=self.ultima_revisao.date().toPython(),
+            proxima_revisao=self.prox_manutencao.date().toPython(),
+            urgencia_prox_manutencao=self.urgencia_combo.currentText(),
             observacao=self.obs.toPlainText().strip(),
             pecas_faltantes=self.pecas.toPlainText().strip(),
         )
@@ -672,6 +707,137 @@ class _PrinterDialog(QDialog):
 
 
 # ── Dialog de Detalhes ────────────────────────────────────────────────────────
+
+class _AgendarManutencaoDialog(QDialog):
+    """Dialog para agendar a próxima manutenção de uma impressora."""
+
+    def __init__(self, printer: Any, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._printer = printer
+        self._data: QDate | None = None
+        self._urgencia: str = "Normal"
+
+        self.setWindowTitle(f"Agendar Manutenção — {printer.patrimonio}")
+        self.setMinimumSize(420, 320)
+        self.setStyleSheet(ESTILO_DIALOG)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(16)
+
+        titulo = QLabel("Agendar Próxima Manutenção")
+        titulo.setStyleSheet(
+            "color: #e8e8f0; font-size: 16px; font-weight: 700; background: transparent;"
+        )
+        root.addWidget(titulo)
+
+        info = QLabel(f"Impressora: {printer.patrimonio} — {printer.modelo or ''}")
+        info.setStyleSheet("color: #94949f; font-size: 12px; background: transparent;")
+        root.addWidget(info)
+
+        label_data = QLabel("Data da próxima manutenção:")
+        label_data.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        root.addWidget(label_data)
+
+        self.date_edit = QDateEdit()
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setDisplayFormat("dd/MM/yyyy")
+        if printer.proxima_revisao:
+            self.date_edit.setDate(QDate(
+                printer.proxima_revisao.year,
+                printer.proxima_revisao.month,
+                printer.proxima_revisao.day,
+            ))
+        else:
+            self.date_edit.setDate(QDate.currentDate().addMonths(3))
+        self.date_edit.setMinimumDate(QDate.currentDate())
+        self.date_edit.setStyleSheet(ESTILO_INPUT)
+        root.addWidget(self.date_edit)
+
+        label_urgencia = QLabel("Nível de urgência:")
+        label_urgencia.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        root.addWidget(label_urgencia)
+
+        self.urgencia_combo = QComboBox()
+        self.urgencia_combo.addItems(URGENCIAS)
+        configurar_combo(self.urgencia_combo)
+        if printer.urgencia_prox_manutencao in URGENCIAS:
+            self.urgencia_combo.setCurrentText(printer.urgencia_prox_manutencao)
+        self.urgencia_combo.currentTextChanged.connect(self._atualizar_sla)
+        root.addWidget(self.urgencia_combo)
+
+        self.sla_label = QLabel()
+        self.sla_label.setStyleSheet("color: #94949f; font-size: 11px; background: transparent;")
+        root.addWidget(self.sla_label)
+        self._atualizar_sla(self.urgencia_combo.currentText())
+
+        root.addStretch()
+
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+
+        btn_salvar = QPushButton("Salvar Agendamento")
+        btn_salvar.setToolTip("Salvar a data de agendamento")
+        btn_salvar.setCursor(Qt.PointingHandCursor)
+        btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar.clicked.connect(self._salvar)
+
+        btn_remover = QPushButton("Remover Agendamento")
+        btn_remover.setToolTip("Cancelar o agendamento existente")
+        btn_remover.setCursor(Qt.PointingHandCursor)
+        btn_remover.setStyleSheet(ESTILO_BOTAO_ERRO)
+        btn_remover.clicked.connect(self._remover)
+
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Fechar sem alterar")
+        btn_cancelar.setCursor(Qt.PointingHandCursor)
+        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_cancelar.clicked.connect(self.reject)
+
+        btn_layout.addWidget(btn_salvar)
+        btn_layout.addWidget(btn_remover)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_cancelar)
+        root.addLayout(btn_layout)
+
+    def _atualizar_sla(self, urgencia: str) -> None:
+        dias = SLA_DIAS.get(urgencia, 0)
+        cor = URGENCIA_CORES.get(urgencia, "#94949f")
+        if dias == 1:
+            texto = f"SLA: até {dias} dia útil"
+        else:
+            texto = f"SLA: até {dias} dias úteis"
+        self.sla_label.setText(texto)
+        self.sla_label.setStyleSheet(
+            f"color: {cor}; font-size: 11px; font-weight: 600; background: transparent;"
+        )
+
+    def _salvar(self) -> None:
+        self._data = self.date_edit.date()
+        self._urgencia = self.urgencia_combo.currentText()
+        self.accept()
+
+    def _remover(self) -> None:
+        self._data = None
+        self._urgencia = ""
+        self.accept()
+
+    def data_agendada(self) -> QDate | None:
+        return self._data
+
+    def urgencia(self) -> str:
+        return self._urgencia
+
+
+def _obter_printer_service(widget: QWidget):
+    """Sobe na hierarquia de widgets até achar o PrintersPage com printer_service."""
+    parent = widget.parent()
+    while parent is not None:
+        if hasattr(parent, 'printer_service'):
+            return parent.printer_service
+        parent = parent.parent()
+    return None
+
 
 class _PrinterDetailDialog(QDialog):
     """Dialog de visualização detalhada de uma impressora."""
@@ -874,17 +1040,82 @@ class _PrinterDetailDialog(QDialog):
         man_grid.setSpacing(12)
         man_grid.setHorizontalSpacing(24)
 
-        rev_val = formatar_data(p.proxima_revisao) if p.proxima_revisao else "—"
-        campos_man = [
-            ("Técnico Responsável", p.tecnico or "—"),
-            ("Última Revisão", rev_val),
-        ]
-        for i, (lbl, val) in enumerate(campos_man):
-            man_grid.addWidget(_campo_rotulo(lbl), 0, i)
-            man_grid.addWidget(_campo_readonly(val), 1, i)
+        man_grid.addWidget(_campo_rotulo("Técnico Responsável"), 0, 0)
+        man_grid.addWidget(_campo_readonly(p.tecnico or "—"), 1, 0)
+
+        man_grid.addWidget(_campo_rotulo("Última Revisão"), 0, 1)
+        ult_val = formatar_data(p.ultima_revisao) if p.ultima_revisao else "—"
+        man_grid.addWidget(_campo_readonly(ult_val), 1, 1)
 
         man_grid.setColumnStretch(0, 1)
         man_grid.setColumnStretch(1, 1)
+
+        man_grid.addWidget(_campo_rotulo("Próxima Manutenção"), 2, 0)
+        data_prox = p.proxima_revisao
+        if data_prox:
+            dias = (data_prox - dt.now()).days
+            if dias < 0:
+                cor_prox = "#f38ba8"
+                txt_prox = f"{formatar_data(data_prox)} (VENCIDA há {abs(dias)} dias)"
+            elif dias <= 15:
+                cor_prox = "#f9e2af"
+                txt_prox = f"{formatar_data(data_prox)} (em {dias} dias)"
+            elif dias <= 30:
+                cor_prox = "#f9e2af"
+                txt_prox = f"{formatar_data(data_prox)} ({dias} dias)"
+            else:
+                cor_prox = "#a6e3a1"
+                txt_prox = formatar_data(data_prox)
+        else:
+            cor_prox = "#717182"
+            txt_prox = "Não agendada"
+
+        prox_lbl = QLabel(txt_prox)
+        prox_lbl.setToolTip("Data agendada para a próxima manutenção")
+        prox_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        prox_lbl.setStyleSheet(
+            f"color: {cor_prox}; font-size: 13px; font-weight: 600;"
+            f" background: transparent; padding: 0;"
+        )
+        man_grid.addWidget(prox_lbl, 3, 0)
+
+        man_grid.addWidget(_campo_rotulo("Urgência"), 2, 1)
+        urgencia = getattr(p, 'urgencia_prox_manutencao', '')
+        if urgencia in URGENCIA_CORES:
+            sla_dias = SLA_DIAS.get(urgencia, 0)
+            cor_urg = URGENCIA_CORES[urgencia]
+            urg_txt = f"{urgencia}  —  SLA: {sla_dias} dia(s) útil(eis)"
+        else:
+            cor_urg = "#717182"
+            urg_txt = "—"
+        urg_lbl = QLabel(urg_txt)
+        urg_lbl.setToolTip("Nível de urgência e SLA para esta manutenção")
+        urg_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        urg_lbl.setStyleSheet(
+            f"color: {cor_urg}; font-size: 13px; font-weight: 600;"
+            f" background: transparent; padding: 0;"
+        )
+        man_grid.addWidget(urg_lbl, 3, 1)
+
+        btn_agendar = QPushButton("Agendar" if not data_prox else "Reagendar")
+        btn_agendar.setToolTip("Definir ou alterar a data da próxima manutenção")
+        btn_agendar.setCursor(Qt.PointingHandCursor)
+        btn_agendar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_agendar.clicked.connect(lambda: self._agendar_manutencao(prox_lbl))
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_row.addWidget(btn_agendar)
+        if data_prox:
+            btn_remover_ag = QPushButton("Remover Agendamento")
+            btn_remover_ag.setToolTip("Cancelar agendamento existente")
+            btn_remover_ag.setCursor(Qt.PointingHandCursor)
+            btn_remover_ag.setStyleSheet(ESTILO_BOTAO_ERRO)
+            btn_remover_ag.clicked.connect(lambda: self._remover_agendamento(prox_lbl, btn_agendar, btn_remover_ag))
+            btn_row.addWidget(btn_remover_ag)
+        btn_row.addStretch()
+        man_grid.addLayout(btn_row, 4, 0, 1, 2)
+
         man_lay.addLayout(man_grid)
         layout.addWidget(man_box)
 
@@ -955,6 +1186,58 @@ class _PrinterDetailDialog(QDialog):
         elif a.kind == "MOVIMENTACAO":
             if hasattr(self._main_window, 'pagina_transferencias'):
                 self._main_window.pagina_transferencias._abrir_edicao(a)
+
+    def _agendar_manutencao(self, prox_lbl: QLabel) -> None:
+        dlg = _AgendarManutencaoDialog(self._printer, self)
+        if dlg.exec() == QDialog.Accepted:
+            data = dlg.data_agendada()
+            urgencia = dlg.urgencia()
+            printer_service = _obter_printer_service(self)
+            if printer_service:
+                printer_service.atualizar(
+                    self._printer,
+                    proxima_revisao=data.toPython() if data else None,
+                    urgencia_prox_manutencao=urgencia,
+                )
+                self._atualizar_label_manutencao(prox_lbl)
+
+    def _remover_agendamento(self, prox_lbl: QLabel, btn_agendar: QPushButton, btn_remover: QPushButton) -> None:
+        printer_service = _obter_printer_service(self)
+        if printer_service:
+            printer_service.atualizar(self._printer, proxima_revisao=None, urgencia_prox_manutencao="Normal")
+            prox_lbl.setText("Não agendada")
+            prox_lbl.setStyleSheet("color: #717182; font-size: 13px; font-weight: 600; background: transparent; padding: 0;")
+            btn_agendar.setText("Agendar")
+            btn_remover.hide()
+
+    def _atualizar_label_manutencao(self, prox_lbl: QLabel) -> None:
+        data_prox = self._printer.proxima_revisao
+        urgencia = getattr(self._printer, 'urgencia_prox_manutencao', '')
+        badge = ""
+        if urgencia and urgencia in URGENCIA_CORES:
+            badge = f"  [{urgencia}]"
+        if data_prox:
+            dias = (data_prox - dt.now()).days
+            if dias < 0:
+                cor = "#f38ba8"
+                txt = f"{formatar_data(data_prox)} (VENCIDA há {abs(dias)} dias){badge}"
+            elif dias <= 15:
+                cor = "#f9e2af"
+                txt = f"{formatar_data(data_prox)} (em {dias} dias){badge}"
+            elif dias <= 30:
+                cor = "#f9e2af"
+                txt = f"{formatar_data(data_prox)} ({dias} dias){badge}"
+            else:
+                cor = "#a6e3a1"
+                txt = f"{formatar_data(data_prox)}{badge}"
+        else:
+            cor = "#717182"
+            txt = "Não agendada"
+        prox_lbl.setText(txt)
+        prox_lbl.setStyleSheet(
+            f"color: {cor}; font-size: 13px; font-weight: 600;"
+            f" background: transparent; padding: 0;"
+        )
 
     def _build_tab_locais(self) -> QWidget:
         tab = QWidget()

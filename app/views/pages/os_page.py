@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime as dt
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QDateTime, Qt
+log = logging.getLogger(__name__)
+
+from PySide6.QtCore import QDate, QDateTime, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
+    QDateEdit,
     QDateTimeEdit,
     QDialog,
     QDialogButtonBox,
@@ -45,6 +50,8 @@ from app.views.styles.theme import (
     ESTILO_INPUT,
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
+    URGENCIAS,
+    URGENCIA_CORES,
     configurar_combo,
     group_box,
     input_label,
@@ -107,13 +114,14 @@ class OSPage(QWidget):
     tabela: TabelaPadrao
     _paginacao: PaginacaoWidget
 
-    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, technician_service: Any, parent: QWidget | None = None) -> None:
+    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, technician_service: Any, alert_service: Any = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.printer_service = printer_service
         self.activity_service = activity_service
         self.company_service = company_service
         self.technician_service = technician_service
+        self.alert_service = alert_service
 
         self._atividades = []
         self._filtro_tipo_atual = None
@@ -197,7 +205,7 @@ class OSPage(QWidget):
 
         layout.addLayout(cards)
 
-        self.tabela = TabelaPadrao(["Data/Hora", "Patrimônio", "Tipo", "Descrição", "Peças", "Origem", "Destino", "Técnico"])
+        self.tabela = TabelaPadrao(["Data/Hora", "Patrimônio", "Tipo", "Descrição", "Peças", "Urgência", "Origem", "Destino", "Técnico"])
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
@@ -266,6 +274,10 @@ class OSPage(QWidget):
 
             pecas_item = QTableWidgetItem(atv.parts_used or "-")
 
+            urg_val = getattr(atv, 'urgencia', '') or 'Normal'
+            cor_urg = URGENCIA_CORES.get(urg_val, "#717182")
+            self.tabela.definir_badge(row, 5, urg_val, cor_urg)
+
             orig_item = QTableWidgetItem(atv.from_location or "-")
             orig_item.setTextAlignment(Qt.AlignCenter)
 
@@ -284,9 +296,9 @@ class OSPage(QWidget):
             self.tabela.setItem(row, 1, pat_item)
             self.tabela.setItem(row, 3, desc_item)
             self.tabela.setItem(row, 4, pecas_item)
-            self.tabela.setItem(row, 5, orig_item)
-            self.tabela.setItem(row, 6, dest_item)
-            self.tabela.setItem(row, 7, tecnico_item)
+            self.tabela.setItem(row, 6, orig_item)
+            self.tabela.setItem(row, 7, dest_item)
+            self.tabela.setItem(row, 8, tecnico_item)
 
         self.tabela.redimensionar()
 
@@ -330,14 +342,15 @@ class OSPage(QWidget):
 
         kind = campos["tipo"].currentText()
         event_at = campos["data"].dateTime().toPython()
-        notes = campos["descricao"].toPlainText().strip()
+        notes = campos["descricao"].text().strip()
         parts_used = campos["pecas"].toPlainText().strip()
-        sintoma_relatado = campos["sintoma"].toPlainText().strip()
-        diagnostico_tecnico = campos["diagnostico"].toPlainText().strip()
-        solucao_aplicada = campos["solucao"].toPlainText().strip()
+        sintoma_relatado = campos["sintoma"].text().strip()
+        diagnostico_tecnico = campos["diagnostico"].text().strip()
+        solucao_aplicada = campos["solucao"].text().strip()
         from_location = campos["origem"].currentText().strip()
         to_location = campos["destino"].currentText().strip()
         status_atividade = campos["status"].currentText()
+        urgencia = campos["urgencia"].currentText()
 
         from_company_id = self._resolver_empresa(from_location)
         to_company_id = self._resolver_empresa(to_location)
@@ -377,7 +390,9 @@ class OSPage(QWidget):
                     event_at=event_at,
                     tecnico_id=tecnico_id,
                     procedimentos=procedimentos,
+                    urgencia=urgencia,
                 )
+                self._criar_alerta_urgencia(printer, urgencia)
                 self._dar_baixa_estoque(parts_used)
                 self.activity_service.atualizar(
                     atividade,
@@ -542,6 +557,19 @@ class OSPage(QWidget):
         btn_add.clicked.connect(_add)
         btn_rem.clicked.connect(_rem)
 
+        chk_agendar = QCheckBox("Agendar próxima manutenção da impressora")
+        chk_agendar.setStyleSheet("color: #e2e8f0; font-size: 12px; spacing: 8px; margin-top: 4px;")
+        chk_agendar.setToolTip("Define a data da próxima manutenção programada para esta impressora")
+        chk_agendar.setChecked(True)
+
+        edt_prox = QDateEdit()
+        edt_prox.setCalendarPopup(True)
+        edt_prox.setDisplayFormat("dd/MM/yyyy")
+        edt_prox.setDate(QDate.currentDate().addMonths(3))
+        edt_prox.setStyleSheet(ESTILO_INPUT)
+        edt_prox.setEnabled(True)
+        chk_agendar.toggled.connect(edt_prox.setEnabled)
+
         grid = QGridLayout()
         grid.setSpacing(8)
         grid.setHorizontalSpacing(16)
@@ -553,6 +581,8 @@ class OSPage(QWidget):
         grid.addWidget(edt_pecas, 5, 0, 1, 2)
         grid.addWidget(input_label("Peça do Estoque"), 6, 0, 1, 2)
         grid.addWidget(estoque_combo, 7, 0, 1, 2)
+        grid.addWidget(chk_agendar, 8, 0, 1, 2)
+        grid.addWidget(edt_prox, 9, 0)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
         concluir_layout.addLayout(grid)
@@ -604,6 +634,10 @@ class OSPage(QWidget):
                         procedimentos=procedimentos,
                     )
                     self._dar_baixa_estoque(pecas)
+                    self.printer_service.atualizar(printer, ultima_revisao=fim)
+                    if chk_agendar.isChecked():
+                        data_prox = edt_prox.date().toPython()
+                        self.printer_service.atualizar(printer, proxima_revisao=data_prox)
                 dialog.accept()
                 self.recarregar()
             except Exception as e:
@@ -693,6 +727,13 @@ class OSPage(QWidget):
         detalhes_form.addRow(campo_rotulo("Descrição"), campo_readonly(atividade.notes or "—"))
         detalhes_form.addRow(campo_rotulo("Peças Trocadas"), campo_readonly(atividade.parts_used or "—"))
         detalhes_form.addRow(campo_rotulo("Status"), campo_readonly(atividade.status_atividade or "—"))
+        urg_val = getattr(atividade, 'urgencia', '') or 'Normal'
+        cor_urg = URGENCIA_CORES.get(urg_val, "#717182")
+        urg_lbl = campo_readonly(urg_val)
+        urg_lbl.setStyleSheet(
+            f"color: {cor_urg}; font-size: 13px; font-weight: 600; background: transparent; border: none; padding: 0;"
+        )
+        detalhes_form.addRow(campo_rotulo("Urgência"), urg_lbl)
         detalhes_layout.addLayout(detalhes_form)
         layout.addWidget(detalhes_box)
 
@@ -821,14 +862,15 @@ class OSPage(QWidget):
 
             kind = campos["tipo"].currentText()
             event_at = campos["data"].dateTime().toPython()
-            notes = campos["descricao"].toPlainText().strip()
+            notes = campos["descricao"].text().strip()
             parts_used = campos["pecas"].toPlainText().strip()
-            sintoma_relatado = campos["sintoma"].toPlainText().strip()
-            diagnostico_tecnico = campos["diagnostico"].toPlainText().strip()
-            solucao_aplicada = campos["solucao"].toPlainText().strip()
+            sintoma_relatado = campos["sintoma"].text().strip()
+            diagnostico_tecnico = campos["diagnostico"].text().strip()
+            solucao_aplicada = campos["solucao"].text().strip()
             from_location = campos["origem"].currentText().strip()
             to_location = campos["destino"].currentText().strip()
             status_atividade = campos["status"].currentText()
+            urgencia = campos["urgencia"].currentText()
             from_company_id = self._resolver_empresa(from_location)
             to_company_id = self._resolver_empresa(to_location)
             tecnico_id = self._resolver_tecnico(campos["tecnico"].currentText().strip())
@@ -865,6 +907,7 @@ class OSPage(QWidget):
                         from_location=from_location,
                         to_location=to_location,
                         status_atividade=status_atividade,
+                        urgencia=urgencia,
                         from_company_id=from_company_id,
                         to_company_id=to_company_id,
                         tecnico_id=tecnico_id,
@@ -875,9 +918,10 @@ class OSPage(QWidget):
                 dialog.accept()
                 self.recarregar()
             except Exception as e:
-                QMessageBox.critical(dialog, "Erro", f"Erro ao salvar: {e}")
+                QMessageBox.critical(self, "Erro", f"Erro ao salvar: {e}")
 
         def excluir():
+
             if ConfirmacaoDigitarDialog.confirmar(
                 "Confirmar", "Deseja realmente excluir esta OS?",
                 dialog,
@@ -908,7 +952,7 @@ class OSPage(QWidget):
     def _criar_form_dialog(self, titulo: str, atividade: Any = None) -> tuple[QDialog, dict[str, Any]]:
         dialog = QDialog(self)
         dialog.setWindowTitle(titulo)
-        dialog.setMinimumSize(580, 620)
+        dialog.setMinimumSize(850, 700)
         dialog.setStyleSheet(ESTILO_DIALOG)
 
         outer = QVBoxLayout(dialog)
@@ -923,9 +967,10 @@ class OSPage(QWidget):
         container = QWidget()
         container.setStyleSheet("background: transparent;")
         content = QVBoxLayout(container)
-        content.setContentsMargins(16, 8, 16, 8)
-        content.setSpacing(14)
+        content.setContentsMargins(24, 20, 24, 20)
+        content.setSpacing(16)
 
+        # ── EQUIPAMENTO ───────────────────────────────────────────────────────
         printers = self.printer_service.listar_todos()
         nomes_impressoras = [p.patrimonio for p in printers]
 
@@ -941,40 +986,37 @@ class OSPage(QWidget):
 
         cmb_tipo = QComboBox()
         configurar_combo(cmb_tipo)
-        cmp = cmb_tipo.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if cmb_tipo.completer():
+            cmb_tipo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         cmb_tipo.addItems(["MANUTENCAO", "MOVIMENTACAO"])
 
         cmb_tecnico = QComboBox()
         cmb_tecnico.setEditable(True)
         configurar_combo(cmb_tecnico)
-        cmp = cmb_tecnico.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if cmb_tecnico.completer():
+            cmb_tecnico.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         if self.technician_service:
             cmb_tecnico.addItems(self.technician_service.nomes_exibicao())
         cmb_tecnico.setInsertPolicy(QComboBox.NoInsert)
 
-        equip_box, equip_layout = group_box("Equipamento")
+        equip_box, equip_layout = group_box("EQUIPAMENTO")
         equip_grid = QGridLayout()
         equip_grid.setSpacing(8)
         equip_grid.setHorizontalSpacing(16)
-        equip_grid.addWidget(input_label("Impressora"), 0, 0)
+        equip_grid.addWidget(input_label("IMPRESSORA"), 0, 0)
         equip_grid.addWidget(cmb_printer, 1, 0)
-        equip_grid.addWidget(input_label("Tipo"), 0, 1)
+        equip_grid.addWidget(input_label("TIPO"), 0, 1)
         equip_grid.addWidget(cmb_tipo, 1, 1)
-        equip_grid.addWidget(input_label("Técnico"), 2, 0, 1, 2)
-        equip_grid.addWidget(cmb_tecnico, 3, 0, 1, 2)
+        equip_grid.addWidget(input_label("TÉCNICO"), 0, 2)
+        equip_grid.addWidget(cmb_tecnico, 1, 2)
         equip_grid.setColumnStretch(0, 1)
         equip_grid.setColumnStretch(1, 1)
+        equip_grid.setColumnStretch(2, 1)
         equip_layout.addLayout(equip_grid)
         content.addWidget(equip_box)
 
+        # ── AGENDAMENTO ───────────────────────────────────────────────────────
         from PySide6.QtCore import QDateTime
-
         edt_data = QDateTimeEdit(QDateTime.currentDateTime())
         edt_data.setCalendarPopup(True)
         edt_data.setDisplayFormat("dd/MM/yyyy HH:mm")
@@ -982,26 +1024,88 @@ class OSPage(QWidget):
 
         cmb_status = QComboBox()
         configurar_combo(cmb_status)
-        cmp = cmb_status.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if cmb_status.completer():
+            cmb_status.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
 
-        txt_descricao = QTextEdit()
-        txt_descricao.setStyleSheet(ESTILO_INPUT)
-        txt_descricao.setMaximumHeight(80)
+        cmb_urgencia = QComboBox()
+        configurar_combo(cmb_urgencia)
+        if cmb_urgencia.completer():
+            cmb_urgencia.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        cmb_urgencia.addItems(URGENCIAS)
 
+        edt_inicio = QDateTimeEdit()
+        edt_inicio.setCalendarPopup(True)
+        edt_inicio.setDisplayFormat("dd/MM/yyyy HH:mm")
+        edt_inicio.setStyleSheet(ESTILO_INPUT)
+        edt_inicio.setDateTime(QDateTime.currentDateTime())
+
+        edt_fim = QDateTimeEdit()
+        edt_fim.setCalendarPopup(True)
+        edt_fim.setDisplayFormat("dd/MM/yyyy HH:mm")
+        edt_fim.setStyleSheet(ESTILO_INPUT)
+
+        agend_box, agend_layout = group_box("AGENDAMENTO")
+        agend_grid = QGridLayout()
+        agend_grid.setSpacing(8)
+        agend_grid.setHorizontalSpacing(16)
+        agend_grid.addWidget(input_label("DATA/HORA AGENDA."), 0, 0)
+        agend_grid.addWidget(edt_data, 1, 0)
+        agend_grid.addWidget(input_label("STATUS"), 0, 1)
+        agend_grid.addWidget(cmb_status, 1, 1)
+        agend_grid.addWidget(input_label("URGÊNCIA"), 0, 2)
+        agend_grid.addWidget(cmb_urgencia, 1, 2)
+        agend_grid.addWidget(input_label("INÍCIO ATENDIMENTO"), 2, 0)
+        agend_grid.addWidget(edt_inicio, 3, 0)
+        agend_grid.addWidget(input_label("FIM ATENDIMENTO"), 2, 1)
+        agend_grid.addWidget(edt_fim, 3, 1)
+        agend_grid.setColumnStretch(0, 1)
+        agend_grid.setColumnStretch(1, 1)
+        agend_grid.setColumnStretch(2, 1)
+        agend_layout.addLayout(agend_grid)
+        content.addWidget(agend_box)
+
+        # ── DETALHES TÉCNICOS ─────────────────────────────────────────────────
+        txt_sintoma = QLineEdit()
+        txt_sintoma.setStyleSheet(ESTILO_INPUT)
+        txt_sintoma.setFixedHeight(60)
+
+        txt_diagnostico = QLineEdit()
+        txt_diagnostico.setStyleSheet(ESTILO_INPUT)
+        txt_diagnostico.setFixedHeight(60)
+
+        txt_solucao = QLineEdit()
+        txt_solucao.setStyleSheet(ESTILO_INPUT)
+        txt_solucao.setFixedHeight(60)
+
+        txt_descricao = QLineEdit()
+        txt_descricao.setStyleSheet(ESTILO_INPUT)
+        txt_descricao.setFixedHeight(60)
+
+        atend_box, atend_layout = group_box("DETALHES TÉCNICOS")
+        atend_form = QFormLayout()
+        atend_form.setSpacing(10)
+        atend_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        atend_form.addRow(input_label("Sintoma Relatado"), txt_sintoma)
+        atend_form.addRow(input_label("Diagnóstico Técnico"), txt_diagnostico)
+        atend_form.addRow(input_label("Solução Aplicada"), txt_solucao)
+        atend_form.addRow(input_label("Descrição"), txt_descricao)
+        atend_layout.addLayout(atend_form)
+        content.addWidget(atend_box)
+
+        # ── SEÇÃO INFERIOR DIVIDIDA (Peças vs Checklist) ──────────────────────
+        colunas_layout = QHBoxLayout()
+        colunas_layout.setSpacing(20)
+
+        pecas_box, pecas_layout = group_box("PEÇAS E ESTOQUE")
         txt_pecas = QTextEdit()
         txt_pecas.setStyleSheet(ESTILO_INPUT)
-        txt_pecas.setMaximumHeight(60)
+        txt_pecas.setMaximumHeight(80)
 
         estoque_combo_os = QComboBox()
         configurar_combo(estoque_combo_os)
-        cmp = estoque_combo_os.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if estoque_combo_os.completer():
+            estoque_combo_os.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         estoque_combo_os.addItem("-- Nenhuma --", None)
         for p in self.part_service.listar_todas():
             if p.quantidade_estoque > 0:
@@ -1022,60 +1126,15 @@ class OSPage(QWidget):
                 pass
         estoque_combo_os.currentIndexChanged.connect(_preencher_pecas_os)
 
-        txt_sintoma = QTextEdit()
-        txt_sintoma.setStyleSheet(ESTILO_INPUT)
-        txt_sintoma.setMaximumHeight(80)
+        pecas_grid = QVBoxLayout()
+        pecas_grid.setSpacing(6)
+        pecas_grid.addWidget(input_label("PEÇAS TROCADAS"))
+        pecas_grid.addWidget(txt_pecas)
+        pecas_grid.addWidget(input_label("ADICIONAR DO ESTOQUE"))
+        pecas_grid.addWidget(estoque_combo_os)
+        pecas_layout.addLayout(pecas_grid)
 
-        txt_diagnostico = QTextEdit()
-        txt_diagnostico.setStyleSheet(ESTILO_INPUT)
-        txt_diagnostico.setMaximumHeight(80)
-
-        txt_solucao = QTextEdit()
-        txt_solucao.setStyleSheet(ESTILO_INPUT)
-        txt_solucao.setMaximumHeight(80)
-
-        edt_inicio = QDateTimeEdit()
-        edt_inicio.setCalendarPopup(True)
-        edt_inicio.setDisplayFormat("dd/MM/yyyy HH:mm")
-        edt_inicio.setStyleSheet(ESTILO_INPUT)
-        edt_inicio.setDateTime(QDateTime.currentDateTime())
-
-        edt_fim = QDateTimeEdit()
-        edt_fim.setCalendarPopup(True)
-        edt_fim.setDisplayFormat("dd/MM/yyyy HH:mm")
-        edt_fim.setStyleSheet(ESTILO_INPUT)
-
-        detalhes_box, detalhes_layout = group_box("Detalhes")
-        detalhes_grid = QGridLayout()
-        detalhes_grid.setSpacing(8)
-        detalhes_grid.setHorizontalSpacing(16)
-        detalhes_grid.addWidget(input_label("Data/Hora"), 0, 0)
-        detalhes_grid.addWidget(edt_data, 1, 0)
-        detalhes_grid.addWidget(input_label("Status"), 0, 1)
-        detalhes_grid.addWidget(cmb_status, 1, 1)
-        detalhes_grid.addWidget(input_label("Início Atendimento"), 2, 0)
-        detalhes_grid.addWidget(edt_inicio, 3, 0)
-        detalhes_grid.addWidget(input_label("Fim Atendimento"), 2, 1)
-        detalhes_grid.addWidget(edt_fim, 3, 1)
-        detalhes_grid.addWidget(input_label("Sintoma Relatado"), 4, 0, 1, 2)
-        detalhes_grid.addWidget(txt_sintoma, 5, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Diagnóstico Técnico"), 6, 0, 1, 2)
-        detalhes_grid.addWidget(txt_diagnostico, 7, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Solução Aplicada"), 8, 0, 1, 2)
-        detalhes_grid.addWidget(txt_solucao, 9, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Descrição"), 10, 0, 1, 2)
-        detalhes_grid.addWidget(txt_descricao, 11, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Peças Trocadas"), 12, 0, 1, 2)
-        detalhes_grid.addWidget(txt_pecas, 13, 0, 1, 2)
-        detalhes_grid.addWidget(input_label("Peça do Estoque"), 14, 0, 1, 2)
-        detalhes_grid.addWidget(estoque_combo_os, 15, 0, 1, 2)
-        detalhes_grid.setColumnStretch(0, 1)
-        detalhes_grid.setColumnStretch(1, 1)
-        detalhes_layout.addLayout(detalhes_grid)
-        content.addWidget(detalhes_box)
-
-        # ── Checklist ──
-        checklist_box, checklist_layout = group_box("Checklist")
+        checklist_box, checklist_layout = group_box("CHECKLIST")
         tbl = QTableWidget()
         tbl.setColumnCount(2)
         tbl.setHorizontalHeaderLabels(["Feito", "Procedimento"])
@@ -1089,13 +1148,7 @@ class OSPage(QWidget):
             QTableWidget::item { padding: 4px; }
             QHeaderView::section { background: transparent; color: #a0a0b0; border: none; font-weight: 600; padding: 4px; }
         """)
-        itens_padrao = [
-            "Limpeza de laser",
-            "Lubrificação do fusor",
-            "Troca de película",
-            "Troca de rolo de pressão",
-            "Teste de impressão",
-        ]
+        itens_padrao = ["Limpeza de laser", "Lubrificação do fusor", "Troca de película", "Troca de rolo de pressão", "Teste de impressão"]
         for nome in itens_padrao:
             r = tbl.rowCount()
             tbl.insertRow(r)
@@ -1104,17 +1157,14 @@ class OSPage(QWidget):
             chk.setCheckState(Qt.Unchecked)
             tbl.setItem(r, 0, chk)
             tbl.setItem(r, 1, QTableWidgetItem(nome))
-        tbl.setMinimumHeight(140)
-        checklist_layout.addWidget(tbl)
+        tbl.setMinimumHeight(120)
+        tbl.setMaximumHeight(140)
 
         btn_add = QPushButton("+ Adicionar")
         btn_add.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
-        btn_add.setToolTip("Adicionar procedimento personalizado")
         btn_add.setCursor(Qt.PointingHandCursor)
-
         btn_rem = QPushButton("— Remover")
         btn_rem.setStyleSheet(ESTILO_BOTAO_ERRO)
-        btn_rem.setToolTip("Remover procedimento selecionado")
         btn_rem.setCursor(Qt.PointingHandCursor)
 
         def _add_procedimento():
@@ -1140,18 +1190,25 @@ class OSPage(QWidget):
         btn_row.addStretch()
         btn_row.addWidget(btn_add)
         btn_row.addWidget(btn_rem)
-        checklist_layout.addLayout(btn_row)
-        content.addWidget(checklist_box)
 
+        checklist_grid = QVBoxLayout()
+        checklist_grid.setSpacing(6)
+        checklist_grid.addWidget(tbl)
+        checklist_grid.addLayout(btn_row)
+        checklist_layout.addLayout(checklist_grid)
+
+        colunas_layout.addWidget(pecas_box, stretch=1)
+        colunas_layout.addWidget(checklist_box, stretch=1)
+        content.addLayout(colunas_layout)
+
+        # ── MOVIMENTAÇÃO (Condicional) ────────────────────────────────────────
         empresas = self.company_service.listar_nomes() if self.company_service else []
 
         cmb_origem = QComboBox()
         cmb_origem.setEditable(True)
         configurar_combo(cmb_origem)
-        cmp = cmb_origem.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if cmb_origem.completer():
+            cmb_origem.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         cmb_origem.addItems(empresas)
         cmb_origem.setInsertPolicy(QComboBox.NoInsert)
         cmb_origem.setCurrentText("")
@@ -1159,21 +1216,19 @@ class OSPage(QWidget):
         cmb_destino = QComboBox()
         cmb_destino.setEditable(True)
         configurar_combo(cmb_destino)
-        cmp = cmb_destino.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        if cmb_destino.completer():
+            cmb_destino.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         cmb_destino.addItems(empresas)
         cmb_destino.setInsertPolicy(QComboBox.NoInsert)
         cmb_destino.setCurrentText("")
 
-        mov_box, mov_layout = group_box("Movimentação")
+        mov_box, mov_layout = group_box("MOVIMENTAÇÃO")
         mov_grid = QGridLayout()
         mov_grid.setSpacing(8)
         mov_grid.setHorizontalSpacing(16)
-        mov_grid.addWidget(input_label("Origem"), 0, 0)
+        mov_grid.addWidget(input_label("ORIGEM"), 0, 0)
         mov_grid.addWidget(cmb_origem, 1, 0)
-        mov_grid.addWidget(input_label("Destino"), 0, 1)
+        mov_grid.addWidget(input_label("DESTINO"), 0, 1)
         mov_grid.addWidget(cmb_destino, 1, 1)
         mov_grid.setColumnStretch(0, 1)
         mov_grid.setColumnStretch(1, 1)
@@ -1208,6 +1263,7 @@ class OSPage(QWidget):
             "destino": cmb_destino,
             "tecnico": cmb_tecnico,
             "status": cmb_status,
+            "urgencia": cmb_urgencia,
             "checklist": tbl,
         }
 
@@ -1216,13 +1272,11 @@ class OSPage(QWidget):
 
         if not atividade:
             btn_layout = QHBoxLayout()
-            btn_layout.setSpacing(10)
+            btn_layout.setContentsMargins(24, 12, 24, 16)
             btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
             btn_box.button(QDialogButtonBox.Save).setText("Salvar")
             btn_box.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
-            btn_box.button(QDialogButtonBox.Save).setToolTip("Salvar alterações da ordem de serviço")
             btn_box.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
-            btn_box.button(QDialogButtonBox.Cancel).setToolTip("Cancelar e fechar")
             btn_box.accepted.connect(dialog.accept)
             btn_box.rejected.connect(dialog.reject)
             btn_layout.addStretch()
@@ -1249,10 +1303,10 @@ class OSPage(QWidget):
             campos["inicio"].setDateTime(QDateTime(atividade.inicio_atendimento))
         if atividade.fim_atendimento:
             campos["fim"].setDateTime(QDateTime(atividade.fim_atendimento))
-        campos["sintoma"].setPlainText(atividade.sintoma_relatado or "")
-        campos["diagnostico"].setPlainText(atividade.diagnostico_tecnico or "")
-        campos["solucao"].setPlainText(atividade.solucao_aplicada or "")
-        campos["descricao"].setPlainText(atividade.notes or "")
+        campos["sintoma"].setText(atividade.sintoma_relatado or "")
+        campos["diagnostico"].setText(atividade.diagnostico_tecnico or "")
+        campos["solucao"].setText(atividade.solucao_aplicada or "")
+        campos["descricao"].setText(atividade.notes or "")
         campos["pecas"].setPlainText(atividade.parts_used or "")
 
         if atividade.from_location:
@@ -1282,6 +1336,12 @@ class OSPage(QWidget):
                                            Qt.MatchFixedString)
         if idx_st >= 0:
             campos["status"].setCurrentIndex(idx_st)
+
+        urgencia = getattr(atividade, 'urgencia', '')
+        if urgencia in URGENCIAS:
+            idx_urg = campos["urgencia"].findText(urgencia)
+            if idx_urg >= 0:
+                campos["urgencia"].setCurrentIndex(idx_urg)
 
         tbl = campos.get("checklist")
         if tbl and atividade.procedimentos:
@@ -1325,3 +1385,24 @@ class OSPage(QWidget):
                 part = self.part_service.buscar_por_nome(nome_peca)
                 if part and part.quantidade_estoque > 0:
                     self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)
+
+    def _criar_alerta_urgencia(self, printer: Any, urgencia: str) -> None:
+        if not self.alert_service or urgencia not in ("Alta", "Crítica"):
+            return
+        from app.models import Alert
+        existente = self.alert_service.session.query(Alert).filter(
+            Alert.printer_id == printer.id,
+            Alert.tipo == "urgencia",
+            Alert.resolvido == False
+        ).first()
+        if existente:
+            return
+        try:
+            self.alert_service.criar(
+                printer_id=printer.id,
+                tipo="urgencia",
+                titulo=f"OS urgente: {printer.patrimonio}",
+                descricao=f"Ordem de serviço com urgência {urgencia} criada para {printer.patrimonio} ({printer.modelo or ''}).",
+            )
+        except Exception as e:
+            log.warning("Erro ao criar alerta de urgência: %s", e)

@@ -1,8 +1,8 @@
 from typing import Any, Optional
 
 COLUMN_LENGTHS: dict[str, dict[str, int]] = {
-    "Printer": {"patrimonio": 80, "modelo": 80, "serial": 80, "status": 30, "local_atual": 120, "marca": 80, "tipo": 20, "ip_rede": 45, "mac_address": 17, "tecnico": 120, "foto_path": 255},
-    "Activity": {"kind": 30, "numero_recibo": 50, "status_atividade": 30, "from_location": 120, "to_location": 120, "responsavel": 120},
+    "Printer": {"patrimonio": 80, "modelo": 80, "serial": 80, "status": 30, "local_atual": 120, "marca": 80, "tipo": 20, "ip_rede": 45, "mac_address": 17, "tecnico": 120, "foto_path": 255, "urgencia_prox_manutencao": 20},
+    "Activity": {"kind": 30, "numero_recibo": 50, "status_atividade": 30, "from_location": 120, "to_location": 120, "responsavel": 120, "urgencia": 20},
     "Company": {"nome": 150, "cnpj": 18, "endereco": 255, "cidade": 100, "uf": 2, "telefone": 20, "email": 120, "tipo": 20},
     "User": {"nome": 120, "email": 120, "username": 50, "perfil": 20},
     "Technician": {"nome_completo": 150, "nome_exibicao": 80, "telefone": 20, "email": 120},

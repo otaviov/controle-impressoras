@@ -250,7 +250,8 @@ class MainWindow(QMainWindow):
         self.pagina_os = OSPage(
             self.session, self.printer_service,
             self.activity_service, self.company_service,
-            self.technician_service
+            self.technician_service,
+            alert_service=self.alert_service,
         )
         self.pagina_clientes = ClientsPage(
             self.session, self.company_service, self.printer_service

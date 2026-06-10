@@ -31,7 +31,9 @@ class Printer(Base, SoftDeleteMixin):
     ip_rede: Mapped[str] = mapped_column(String(45), default="")
     mac_address: Mapped[str] = mapped_column(String(17), default="")
     empresa_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("companies.id"), nullable=True)
+    ultima_revisao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     proxima_revisao: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    urgencia_prox_manutencao: Mapped[str] = mapped_column(String(20), default="Normal")
     tecnico: Mapped[str] = mapped_column(String(120), default="")
 
     foto_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

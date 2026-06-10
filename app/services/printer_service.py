@@ -74,7 +74,9 @@ class PrinterService:
               local_atual: str = "", status: str = "Operacional", ip_rede: str = "",
               mac_address: str = "", tecnico: str = "", observacao: str = "",
               pecas_faltantes: str = "", foto_path: Optional[str] = None,
-              proxima_revisao: Any = None) -> Printer:
+              ultima_revisao: Any = None,
+              proxima_revisao: Any = None,
+              urgencia_prox_manutencao: str = "Normal") -> Printer:
         printer = Printer(
             patrimonio=sanitizar(patrimonio, "Printer", "patrimonio"),
             modelo=sanitizar(modelo, "Printer", "modelo"),
@@ -89,7 +91,9 @@ class PrinterService:
             observacao=sanitizar(observacao, "Printer", "observacao"),
             pecas_faltantes=sanitizar(pecas_faltantes, "Printer", "pecas_faltantes"),
             foto_path=foto_path,
+            ultima_revisao=ultima_revisao,
             proxima_revisao=proxima_revisao,
+            urgencia_prox_manutencao=sanitizar(urgencia_prox_manutencao, "Printer", "urgencia_prox_manutencao") if isinstance(urgencia_prox_manutencao, str) else urgencia_prox_manutencao,
         )
         self.session.add(printer)
         safe_commit(self.session)
