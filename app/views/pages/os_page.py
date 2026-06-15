@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import shutil
 from datetime import datetime as dt
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 log = logging.getLogger(__name__)
 
 from PySide6.QtCore import QDate, QDateTime, Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -17,6 +21,7 @@ from PySide6.QtWidgets import (
     QDateTimeEdit,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
@@ -28,17 +33,21 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
+    QStackedWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
-from app.models import Part
+from app.models import Attachment, Part
 from app.services.part_service import PartService
 from app.utils.ui_helpers import tratar_erro
 from app.utils.helpers import formatar_data_hora
 from db import transacao
+from app.utils.constants import STATUS_ATIVIDADE_OPCOES
 from app.views.styles.theme import (
+    ATIVIDADE_CORES,
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
@@ -52,11 +61,12 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     URGENCIAS,
     URGENCIA_CORES,
+    campo_readonly,
+    campo_rotulo,
     configurar_combo,
+    configurar_combo_colorido,
     group_box,
     input_label,
-    campo_rotulo,
-    campo_readonly,
 )
 from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniClicavel
@@ -64,6 +74,10 @@ from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
+from db import safe_commit as _safe_commit
+
+BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent.parent
+ANEXOS_DIR: Path = BASE_DIR / "anexos"
 
 
 def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
@@ -191,21 +205,21 @@ class OSPage(QWidget):
                                            ao_clicar=lambda: self._filtrar_tipo("TODAS"))
         cards.addWidget(self.card_total)
 
-        self.card_andamento = CardMiniClicavel("\U0001f504", "Em Andamento", "0", "#3b82f6",
-                                                ao_clicar=lambda: self._filtrar_status("Em Andamento"))
+        self.card_andamento = CardMiniClicavel("\U0001f504", "Em Atendimento", "0", "#6366f1",
+                                                ao_clicar=lambda: self._filtrar_status("Em Atendimento"))
         cards.addWidget(self.card_andamento)
 
-        self.card_pendentes = CardMiniClicavel("\u23f3", "Pendentes", "0", "#f59e0b",
-                                                ao_clicar=lambda: self._filtrar_status("Pendente"))
+        self.card_pendentes = CardMiniClicavel("\u23f3", "Aberta", "0", "#94a3b8",
+                                                ao_clicar=lambda: self._filtrar_status("Aberta"))
         cards.addWidget(self.card_pendentes)
 
-        self.card_concluidas = CardMiniClicavel("\u2705", "Concluídas", "0", "#10b981",
-                                                 ao_clicar=lambda: self._filtrar_status("Concluida"))
+        self.card_concluidas = CardMiniClicavel("\u2705", "Concluído", "0", "#10b981",
+                                                 ao_clicar=lambda: self._filtrar_status("Concluido"))
         cards.addWidget(self.card_concluidas)
 
         layout.addLayout(cards)
 
-        self.tabela = TabelaPadrao(["Data/Hora", "Patrimônio", "Tipo", "Descrição", "Peças", "Urgência", "Origem", "Destino", "Técnico"])
+        self.tabela = TabelaPadrao(["Data/Hora", "Patrimônio", "Tipo", "Descrição", "Peças", "Urgência", "Origem", "Destino", "Técnico", "Vínculo"])
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
@@ -292,6 +306,9 @@ class OSPage(QWidget):
             tecnico_item = QTableWidgetItem(nome_tecnico)
             tecnico_item.setTextAlignment(Qt.AlignCenter)
 
+            tem_vinculo = bool(atv.os_vinculada_id) or bool(atv.oses_filhas)
+            self.tabela.definir_badge(row, 9, "🔗" if tem_vinculo else "", "#818cf8" if tem_vinculo else "transparent")
+
             self.tabela.setItem(row, 0, data_item)
             self.tabela.setItem(row, 1, pat_item)
             self.tabela.setItem(row, 3, desc_item)
@@ -317,9 +334,9 @@ class OSPage(QWidget):
 
     def _atualizar_cards(self) -> None:
         total = self.activity_service.contar_total()
-        andamento = self.activity_service.contar_por_status("Em Andamento")
-        pendentes = self.activity_service.contar_por_status("Pendente")
-        concluidas = self.activity_service.contar_por_status("Concluida")
+        andamento = self.activity_service.contar_por_status("Em Atendimento")
+        pendentes = self.activity_service.contar_por_status("Aberta")
+        concluidas = self.activity_service.contar_por_status("Concluido")
         self.card_total.atualizar_valor(total)
         self.card_andamento.atualizar_valor(andamento)
         self.card_pendentes.atualizar_valor(pendentes)
@@ -360,6 +377,7 @@ class OSPage(QWidget):
         inicio_atendimento = inicio_qdt.toPython() if inicio_qdt.isValid() else None
         fim_atendimento = fim_qdt.toPython() if fim_qdt.isValid() else None
         parts_used = campos["pecas"].toPlainText().strip()
+        os_vinculada_id = campos["os_vinculada"].currentData()
 
         tbl = campos.get("checklist")
         procedimentos = ""
@@ -391,6 +409,7 @@ class OSPage(QWidget):
                     tecnico_id=tecnico_id,
                     procedimentos=procedimentos,
                     urgencia=urgencia,
+                    os_vinculada_id=os_vinculada_id,
                 )
                 self._criar_alerta_urgencia(printer, urgencia)
                 self._dar_baixa_estoque(parts_used)
@@ -400,6 +419,32 @@ class OSPage(QWidget):
                     to_company_id=to_company_id,
                 )
             self.recarregar()
+            fotos_pendentes = getattr(dialog, "pending_fotos", [])
+            if fotos_pendentes:
+                for file_path, categoria in fotos_pendentes:
+                    try:
+                        original_name = os.path.basename(file_path)
+                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+                        ext = os.path.splitext(original_name)[1]
+                        stored_name = f"activity_{atividade.id}_{timestamp}_{original_name}"
+                        dest = ANEXOS_DIR / stored_name
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(file_path, str(dest))
+                        anexo = Attachment(
+                            entity_type="activity",
+                            entity_id=atividade.id,
+                            original_name=original_name,
+                            file_path=str(dest),
+                            categoria=categoria,
+                        )
+                        self.session.add(anexo)
+                    except Exception as e:
+                        QMessageBox.warning(dialog, "Aviso", f"Erro ao salvar foto ({original_name}): {e}")
+                try:
+                    self.session.commit()
+                except Exception as e:
+                    self.session.rollback()
+                    QMessageBox.warning(self, "Aviso", f"Erro ao salvar fotos: {e}")
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao criar OS: {e}")
 
@@ -496,12 +541,29 @@ class OSPage(QWidget):
         tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         tbl.verticalHeader().setVisible(False)
+        tbl.verticalHeader().setDefaultSectionSize(32)
         tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         tbl.setSelectionMode(QAbstractItemView.SingleSelection)
         tbl.setStyleSheet("""
             QTableWidget { background: transparent; border: none; }
-            QTableWidget::item { padding: 4px; }
+            QTableWidget::item { padding: 4px; color: #e2e8f0; font-size: 13px; }
             QHeaderView::section { background: transparent; color: #a0a0b0; border: none; font-weight: 600; padding: 4px; }
+            QTableWidget QLineEdit {
+                background-color: #1e1e2f !important;
+                color: #ffffff !important;
+                border: 1px solid #3b82f6 !important;
+                border-radius: 4px;
+                padding: 2px 6px !important;
+                font-size: 13px;
+            }
+            QCheckBox::indicator {
+                width: 18px; height: 18px;
+                border: 2px solid #3b82f6; border-radius: 4px;
+                background-color: #1e1e2f;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3b82f6;
+            }
         """)
         if atividade.procedimentos:
             try:
@@ -546,8 +608,10 @@ class OSPage(QWidget):
             chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
             chk.setCheckState(Qt.Unchecked)
             tbl.setItem(r, 0, chk)
-            tbl.setItem(r, 1, QTableWidgetItem(""))
-            tbl.editItem(tbl.item(r, 1))
+            item_texto = QTableWidgetItem("")
+            tbl.setItem(r, 1, item_texto)
+            tbl.setCurrentCell(r, 1)
+            tbl.editItem(item_texto)
 
         def _rem():
             r = tbl.currentRow()
@@ -595,12 +659,46 @@ class OSPage(QWidget):
         concluir_layout.addLayout(btn_row)
         layout.addWidget(concluir_box)
 
+        # ── FOTOS ────────────────────────────────────────────────────────
+        dialog._fotos_box_concluir, _ = self._criar_grupo_fotos(atividade.id)
+        layout.addWidget(dialog._fotos_box_concluir)
+
+        def _atualizar_galeria_concluir():
+            old = dialog._fotos_box_concluir
+            idx = layout.indexOf(old)
+            if idx >= 0:
+                layout.removeWidget(old)
+                old.deleteLater()
+            dialog._fotos_box_concluir, _ = self._criar_grupo_fotos(atividade.id)
+            layout.insertWidget(idx if idx >= 0 else layout.count(), dialog._fotos_box_concluir)
+
+        dialog.refresh_gallery_cb = _atualizar_galeria_concluir
+
+        fotos_upload_layout = QHBoxLayout()
+        fotos_upload_layout.setSpacing(8)
+        cmb_cat_concluir = QComboBox()
+        configurar_combo(cmb_cat_concluir)
+        cmb_cat_concluir.addItems(["antes", "depois", "peca"])
+        cmb_cat_concluir.setMinimumWidth(140)
+        btn_foto_concluir = QPushButton("📷 Adicionar Foto")
+        btn_foto_concluir.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_foto_concluir.setToolTip("Adicionar foto antes de concluir")
+        btn_foto_concluir.setCursor(Qt.PointingHandCursor)
+        btn_foto_concluir.clicked.connect(
+            lambda: (self._anexar_arquivo(atividade.id, cmb_cat_concluir.currentText(), dialog),
+                     _atualizar_galeria_concluir())
+        )
+        fotos_upload_layout.addWidget(cmb_cat_concluir)
+        fotos_upload_layout.addWidget(btn_foto_concluir)
+        fotos_upload_layout.addStretch()
+        layout.addLayout(fotos_upload_layout)
+
         layout.addStretch()
         scroll.setWidget(container)
         root.addWidget(scroll, stretch=1)
 
         btn_layout = QHBoxLayout()
-        btn_layout.setContentsMargins(24, 12, 24, 16)
+        btn_layout.setContentsMargins(24, 12, 24, 24)
         btn_layout.setSpacing(10)
 
         btn_concluir = QPushButton("✅ Concluir OS")
@@ -630,7 +728,7 @@ class OSPage(QWidget):
                         solucao_aplicada=solucao,
                         fim_atendimento=fim,
                         parts_used=pecas,
-                        status_atividade="Concluida",
+                        status_atividade="Concluido",
                         procedimentos=procedimentos,
                     )
                     self._dar_baixa_estoque(pecas)
@@ -652,6 +750,297 @@ class OSPage(QWidget):
         root.addLayout(btn_layout)
 
         dialog.exec()
+
+    # ── Anexos / Fotos ────────────────────────────────────────────────
+    def _listar_anexos(self, activity_id: int) -> list[Attachment]:
+        return (
+            self.session.query(Attachment)
+            .filter(Attachment.entity_type == "activity", Attachment.entity_id == activity_id)
+            .order_by(Attachment.created_at.desc())
+            .all()
+        )
+
+    def _anexar_arquivo(self, activity_id: int, categoria: str, dialog: QWidget) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            dialog, "Selecionar Arquivo", "", "Imagens (*.png *.jpg *.jpeg *.bmp);;Todos (*.*)"
+        )
+        if not file_path:
+            return
+        try:
+            original_name = os.path.basename(file_path)
+            timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = f"{timestamp}_{original_name}"
+            ANEXOS_DIR.mkdir(parents=True, exist_ok=True)
+            dest_path = str(ANEXOS_DIR / safe_name)
+            shutil.copy2(file_path, dest_path)
+
+            ext = os.path.splitext(original_name)[1].lower()
+            mime_map = {
+                ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".png": "image/png", ".bmp": "image/bmp",
+            }
+            attachment = Attachment(
+                entity_type="activity",
+                entity_id=activity_id,
+                filename=safe_name,
+                original_name=original_name,
+                file_path=dest_path,
+                mime_type=mime_map.get(ext, "application/octet-stream"),
+                size_bytes=os.path.getsize(file_path),
+                categoria=categoria,
+            )
+            self.session.add(attachment)
+            _safe_commit(self.session)
+        except Exception as e:
+            self.session.rollback()
+            QMessageBox.critical(dialog, "Erro", f"Erro ao anexar arquivo:\n{e}")
+
+    def _remover_anexo(self, anexo_id: int, dialog: QWidget) -> None:
+        if not ConfirmacaoDigitarDialog.confirmar(
+            "Remover Anexo", "Deseja realmente remover este anexo?",
+            dialog,
+        ):
+            return
+        try:
+            anexo = self.session.query(Attachment).filter_by(id=anexo_id).first()
+            if anexo:
+                if os.path.exists(anexo.file_path):
+                    os.remove(anexo.file_path)
+                self.session.delete(anexo)
+                _safe_commit(self.session)
+        except Exception as e:
+            self.session.rollback()
+            QMessageBox.critical(dialog, "Erro", f"Erro ao remover anexo:\n{e}")
+
+    def _abrir_anexo(self, file_path: str) -> None:
+        if os.path.exists(file_path):
+            try:
+                os.startfile(file_path)
+            except Exception as e:
+                QMessageBox.warning(self, "Aviso", f"Não foi possível abrir o arquivo:\n{e}")
+        else:
+            QMessageBox.warning(self, "Aviso", "Arquivo não encontrado:\n" + file_path)
+
+    def _criar_grupo_fotos(self, activity_id: int | None = None, *,
+                          pending_fotos: list[tuple[str, str]] | None = None) -> tuple[QWidget, QVBoxLayout]:
+        fotos_box, fotos_layout = group_box("GALERIA DE FOTOS")
+
+        galeria_principal = QHBoxLayout()
+        galeria_principal.setSpacing(16)
+        galeria_principal.setContentsMargins(4, 4, 4, 4)
+
+        galeria_scroll = QScrollArea()
+        galeria_scroll.setWidgetResizable(True)
+        galeria_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        galeria_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        galeria_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        galeria_container = QWidget()
+        galeria_container.setStyleSheet("background: transparent;")
+        galeria_container.setLayout(galeria_principal)
+        galeria_scroll.setWidget(galeria_container)
+
+        categorias = {"antes": "Antes", "depois": "Depois", "peca": "Peça Quebrada"}
+        subtitulos = {"antes": "Antes da manutenção", "depois": "Após a manutenção", "peca": "Peça com defeito"}
+
+        estilo_card = """
+            QWidget {
+                background-color: #11111e;
+                border: 1px solid #2a2a3e;
+                border-radius: 8px;
+            }
+        """
+        estilo_titulo_card = "color: #ffffff; font-size: 16px; font-weight: bold; border: none; background: transparent;"
+        estilo_sub_card = "color: #717182; font-size: 12px; border: none; background: transparent;"
+        estilo_thumb = "border-radius: 6px; border: none; background: #1e1e2f;"
+        estilo_btn_visualizar = """
+            QPushButton {
+                background-color: #3b82f6; color: white; border: none; border-radius: 6px;
+                padding: 10px; font-size: 13px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2563eb; }
+        """
+        estilo_btn_excluir = """
+            QPushButton {
+                background-color: #ef4444; color: white; border: none; border-radius: 6px;
+                padding: 10px; font-size: 13px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #dc2626; }
+        """
+        estilo_seta = """
+            QPushButton {
+                background-color: transparent; color: #818cf8;
+                border: 1px solid #2a2a3e; border-radius: 6px;
+                font-size: 18px; min-width: 36px; min-height: 36px;
+            }
+            QPushButton:hover { background-color: rgba(99,102,241,0.15); border-color: #6366f1; }
+            QPushButton:disabled { color: #3a3a4e; border-color: #1e1e2e; }
+        """
+        estilo_contador = "color: #717182; font-size: 11px; background: transparent;"
+
+        def _criar_card(chave: str, rotulo: str) -> QWidget:
+            card = QWidget()
+            card.setStyleSheet(estilo_card)
+            card.setMinimumWidth(400)
+            layout_card = QVBoxLayout(card)
+            layout_card.setContentsMargins(16, 16, 16, 16)
+            layout_card.setSpacing(12)
+            lbl_cat = QLabel(rotulo.upper())
+            lbl_cat.setStyleSheet(estilo_titulo_card)
+            layout_card.addWidget(lbl_cat)
+            lbl_sub = QLabel(subtitulos.get(chave, ""))
+            lbl_sub.setStyleSheet(estilo_sub_card)
+            layout_card.addWidget(lbl_sub)
+            return card
+
+        def _montar_pagina(arquivo_path: str, btn_remover: QPushButton | None) -> tuple[QWidget, QPushButton, QPushButton | None]:
+            page = QWidget()
+            pl = QVBoxLayout(page)
+            pl.setContentsMargins(0, 0, 0, 0)
+            pl.setSpacing(10)
+            pm = QPixmap(arquivo_path)
+            thumb = QLabel()
+            thumb.setPixmap(pm.scaled(350, 250, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            thumb.setStyleSheet(estilo_thumb)
+            thumb.setAlignment(Qt.AlignCenter)
+            pl.addWidget(thumb)
+            bv = QPushButton("Visualizar Original em Tamanho Completo")
+            bv.setStyleSheet(estilo_btn_visualizar)
+            bv.setCursor(Qt.PointingHandCursor)
+            bv.clicked.connect(lambda checked, f=arquivo_path: self._abrir_anexo(f))
+            pl.addWidget(bv)
+            if btn_remover:
+                pl.addWidget(btn_remover)
+            return page, bv, btn_remover
+
+        def _adicionar_carousel(card_layout: QVBoxLayout, fotos: list) -> None:
+            if not fotos:
+                return
+            stacked = QStackedWidget()
+            for ft in fotos:
+                page, _, _ = _montar_pagina(ft[0] if isinstance(ft, tuple) else ft.file_path, ft[2] if len(ft) > 2 else None)
+                stacked.addWidget(page)
+            card_layout.addWidget(stacked, stretch=1)
+
+            nav = QHBoxLayout()
+            nav.setSpacing(8)
+            btn_prev = QPushButton("◀")
+            btn_prev.setStyleSheet(estilo_seta)
+            btn_prev.setCursor(Qt.PointingHandCursor)
+            btn_next = QPushButton("▶")
+            btn_next.setStyleSheet(estilo_seta)
+            btn_next.setCursor(Qt.PointingHandCursor)
+            contador = QLabel()
+            contador.setStyleSheet(estilo_contador)
+            contador.setAlignment(Qt.AlignCenter)
+
+            def _atualizar_nav():
+                i = stacked.currentIndex()
+                total = stacked.count()
+                contador.setText(f"{i + 1} / {total}")
+                btn_prev.setEnabled(i > 0)
+                btn_next.setEnabled(i < total - 1)
+
+            btn_prev.clicked.connect(lambda: (stacked.setCurrentIndex(stacked.currentIndex() - 1), _atualizar_nav()))
+            btn_next.clicked.connect(lambda: (stacked.setCurrentIndex(stacked.currentIndex() + 1), _atualizar_nav()))
+            _atualizar_nav()
+
+            nav.addWidget(btn_prev)
+            nav.addWidget(contador, 1)
+            nav.addWidget(btn_next)
+            card_layout.addLayout(nav)
+
+        # ── CASO A: Fotos Pendentes (Nova OS) ──────────────────────────────────
+        if pending_fotos and activity_id is None:
+            for chave, rotulo in categorias.items():
+                raw = [(fp, c) for fp, c in pending_fotos if c == chave]
+                items = [(fp, c) for fp, c in raw if os.path.exists(fp) and not QPixmap(fp).isNull()]
+                if not items:
+                    continue
+                card = _criar_card(chave, rotulo)
+                card_layout_v2 = card.layout()
+
+                fotos_com_botao = []
+                for fp, _ in items:
+                    def _make_rem(fp=fp, ch=chave):
+                        def _handler():
+                            dlg = card.window()
+                            if hasattr(dlg, 'pending_fotos'):
+                                try:
+                                    dlg.pending_fotos.remove((fp, ch))
+                                except ValueError:
+                                    pass
+                            cb = getattr(dlg, 'refresh_gallery_cb', None)
+                            if cb:
+                                cb()
+                        return _handler
+                    btn_excluir = QPushButton("🗑️ Excluir Foto")
+                    btn_excluir.setStyleSheet(estilo_btn_excluir)
+                    btn_excluir.setCursor(Qt.PointingHandCursor)
+                    btn_excluir.clicked.connect(_make_rem())
+                    fotos_com_botao.append((fp, chave, btn_excluir))
+
+                _adicionar_carousel(card_layout_v2, fotos_com_botao)
+                galeria_principal.addWidget(card)
+
+            galeria_scroll.setWidget(galeria_container)
+            fotos_layout.addWidget(galeria_scroll)
+            return fotos_box, fotos_layout
+
+        # ── CASO B: OS ainda não foi salva (galeria vazia) ─────────────────────
+        if not activity_id:
+            lbl = QLabel("Adicione fotos da maquina e peças quebradas")
+            lbl.setStyleSheet("color: #717182; font-size: 12px; background: transparent;")
+            fotos_layout.addWidget(lbl)
+            return fotos_box, fotos_layout
+
+        # ── CASO C: Fotos de uma OS Existente ──────────────────────────────────
+        anexos = self._listar_anexos(activity_id)
+        if not anexos:
+            lbl = QLabel("Nenhuma foto anexada.")
+            lbl.setStyleSheet("color: #717182; font-size: 12px; background: transparent;")
+            fotos_layout.addWidget(lbl)
+            return fotos_box, fotos_layout
+
+        for chave, rotulo in categorias.items():
+            raw = [a for a in anexos if a.categoria == chave]
+            items = [a for a in raw if os.path.exists(a.file_path) and not QPixmap(a.file_path).isNull()]
+            if not items:
+                continue
+            card = _criar_card(chave, rotulo)
+            card_layout_v2 = card.layout()
+
+            fotos_com_botao = []
+            for a in items:
+                def _make_rem_existing(aid=a.id):
+                    def _handler():
+                        dlg = card.window()
+                        self._remover_anexo(aid, dlg)
+                        cb = getattr(dlg, 'refresh_gallery_cb', None)
+                        if cb:
+                            cb()
+                    return _handler
+                btn_excluir = QPushButton("🗑️ Excluir Foto")
+                btn_excluir.setStyleSheet(estilo_btn_excluir)
+                btn_excluir.setCursor(Qt.PointingHandCursor)
+                btn_excluir.clicked.connect(_make_rem_existing())
+                fotos_com_botao.append((a.file_path, chave, btn_excluir))
+
+            _adicionar_carousel(card_layout_v2, fotos_com_botao)
+            galeria_principal.addWidget(card)
+
+        fotos_layout.addWidget(galeria_scroll)
+        return fotos_box, fotos_layout
+
+    def _abrir_detalhes_por_id(self, activity_id: int) -> None:
+        """Abre o dialog de detalhes de uma OS pelo ID."""
+        for i, a in enumerate(self._atividades):
+            if a.id == activity_id:
+                self._detalhes(i)
+                return
+        atv = self.activity_service.buscar_por_id(activity_id)
+        if atv:
+            self._atividades.append(atv)
+            self._detalhes(len(self._atividades) - 1)
 
     def _detalhes(self, row: int) -> None:
         if row < 0 or row >= len(self._atividades):
@@ -737,6 +1126,43 @@ class OSPage(QWidget):
         detalhes_layout.addLayout(detalhes_form)
         layout.addWidget(detalhes_box)
 
+        # ── OS VINCULADA ────────────────────────────────────────────────
+        tem_vinculo = bool(atividade.os_vinculada_id)
+        tem_filhas = bool(atividade.oses_filhas)
+        if tem_vinculo or tem_filhas:
+            vinculo_box, vinculo_layout = group_box("Vínculos")
+            vinculo_layout.setSpacing(6)
+            if tem_vinculo:
+                vinc = self.activity_service.buscar_por_id(atividade.os_vinculada_id)
+                if vinc:
+                    btn_ver = QPushButton(f"🔗 OS #{vinc.id} — {formatar_data_hora(vinc.event_at)} — {(vinc.notes or '')[:60]}")
+                    btn_ver.setToolTip("Clique para ver a OS vinculada")
+                    btn_ver.setCursor(Qt.PointingHandCursor)
+                    btn_ver.setStyleSheet(
+                        "QPushButton { background: transparent; color: #818cf8; border: 1px solid #2a2a3e;"
+                        " border-radius: 6px; padding: 6px 12px; text-align: left; font-size: 12px; }"
+                        "QPushButton:hover { background: rgba(99, 102, 241, 0.1); border-color: #6366f1; }"
+                    )
+                    def _ver_pai(checked=False, aid=vinc.id):
+                        self._abrir_detalhes_por_id(aid)
+                    btn_ver.clicked.connect(_ver_pai)
+                    vinculo_layout.addWidget(btn_ver)
+            if tem_filhas:
+                for child in atividade.oses_filhas[:10]:
+                    btn_child = QPushButton(f"📋 OS #{child.id} — {formatar_data_hora(child.event_at)} — {(child.notes or '')[:60]}")
+                    btn_child.setToolTip("Clique para ver esta OS")
+                    btn_child.setCursor(Qt.PointingHandCursor)
+                    btn_child.setStyleSheet(
+                        "QPushButton { background: transparent; color: #a78bfa; border: 1px solid #2a2a3e;"
+                        " border-radius: 6px; padding: 6px 12px; text-align: left; font-size: 12px; }"
+                        "QPushButton:hover { background: rgba(167, 139, 250, 0.1); border-color: #a78bfa; }"
+                    )
+                    def _ver_child(checked=False, cid=child.id):
+                        self._abrir_detalhes_por_id(cid)
+                    btn_child.clicked.connect(_ver_child)
+                    vinculo_layout.addWidget(btn_child)
+            layout.addWidget(vinculo_box)
+
         if atividade.procedimentos:
             try:
                 procedimentos = json.loads(atividade.procedimentos)
@@ -762,12 +1188,15 @@ class OSPage(QWidget):
             mov_layout.addLayout(mov_form)
             layout.addWidget(mov_box)
 
+        fotos_box, _ = self._criar_grupo_fotos(atividade.id)
+        layout.addWidget(fotos_box)
+
         layout.addStretch()
         scroll.setWidget(container)
         root.addWidget(scroll, stretch=1)
 
         btn_layout = QHBoxLayout()
-        btn_layout.setContentsMargins(24, 12, 24, 16)
+        btn_layout.setContentsMargins(24, 12, 24, 24)
         btn_layout.setSpacing(10)
 
         btn_editar = QPushButton("✏️  Editar")
@@ -778,8 +1207,8 @@ class OSPage(QWidget):
         btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
         btn_excluir.setToolTip("Excluir esta ordem de serviço (pode ser desfeito pela Lixeira)")
 
-        pode_concluir = atividade.status_atividade in ("Pendente", "Em Andamento")
-        btn_concluir = QPushButton("✅ Concluir")
+        pode_concluir = atividade.status_atividade not in ("Concluido", "Verificada")
+        btn_concluir = QPushButton("✅ Concluir OS")
         btn_concluir.setStyleSheet(ESTILO_BOTAO_SUCESSO)
         btn_concluir.setToolTip("Finalizar esta ordem de serviço")
         btn_concluir.setVisible(pode_concluir)
@@ -832,19 +1261,22 @@ class OSPage(QWidget):
         dialog, campos = self._criar_form_dialog("Editar OS", atividade)
 
         botoes = QHBoxLayout()
-        botoes.setContentsMargins(24, 12, 24, 16)
+        botoes.setContentsMargins(24, 12, 24, 24)
         botoes.setSpacing(10)
-        btn_salvar = QPushButton("Salvar")
-        btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
-        btn_salvar.setToolTip("Salvar alterações da ordem de serviço")
-        btn_excluir = QPushButton("Excluir")
-        btn_excluir.setStyleSheet(ESTILO_BOTAO_ERRO)
-        btn_excluir.setToolTip("Excluir esta ordem de serviço (pode ser desfeito pela Lixeira)")
-        btn_cancelar = QPushButton("Cancelar")
-        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
-        btn_cancelar.setToolTip("Descartar alterações e fechar")
+
+        def _btn(texto: str, estilo: str, tooltip: str) -> QPushButton:
+            btn = QPushButton(texto)
+            btn.setStyleSheet(estilo)
+            btn.setToolTip(tooltip)
+            btn.setCursor(Qt.PointingHandCursor)
+            return btn
+
+        btn_salvar = _btn("Salvar", ESTILO_BOTAO_SUCESSO, "Salvar alterações da ordem de serviço")
+        btn_excluir = _btn("Excluir", ESTILO_BOTAO_ERRO, "Excluir esta ordem de serviço (pode ser desfeito pela Lixeira)")
+        btn_cancelar = _btn("Cancelar", ESTILO_BOTAO_FECHAR, "Descartar alterações e fechar")
         botoes.addWidget(btn_salvar)
         botoes.addWidget(btn_excluir)
+        botoes.addStretch()
         botoes.addWidget(btn_cancelar)
 
         form_layout = dialog.layout()
@@ -880,6 +1312,7 @@ class OSPage(QWidget):
             fim_qdt = campos["fim"].dateTime()
             inicio_atendimento = inicio_qdt.toPython() if inicio_qdt.isValid() else None
             fim_atendimento = fim_qdt.toPython() if fim_qdt.isValid() else None
+            os_vinculada_id = campos["os_vinculada"].currentData()
 
             tbl = campos.get("checklist")
             procedimentos = ""
@@ -914,6 +1347,7 @@ class OSPage(QWidget):
                         to_company_id=to_company_id,
                         tecnico_id=tecnico_id,
                         procedimentos=procedimentos,
+                        os_vinculada_id=os_vinculada_id,
                     )
                     self._dar_baixa_estoque(parts_used)
                 resultado["acao"] = "salvar"
@@ -954,21 +1388,32 @@ class OSPage(QWidget):
     def _criar_form_dialog(self, titulo: str, atividade: Any = None) -> tuple[QDialog, dict[str, Any]]:
         dialog = QDialog(self)
         dialog.setWindowTitle(titulo)
-        dialog.setMinimumSize(850, 700)
+        dialog.setMinimumSize(800, 690)
         dialog.setStyleSheet(ESTILO_DIALOG)
 
         outer = QVBoxLayout(dialog)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        tabs = QTabWidget()
+        tabs.setStyleSheet("""
+            QTabWidget::pane { border: none; background: transparent; }
+            QTabBar::tab {
+                padding: 10px 24px; color: #a0a0b0; font-size: 13px; font-weight: 600;
+                border: none; border-bottom: 2px solid transparent;
+            }
+            QTabBar::tab:selected { color: #818cf8; border-bottom: 2px solid #818cf8; }
+            QTabBar::tab:hover { color: #e2e8f0; }
+        """)
 
-        container = QWidget()
-        container.setStyleSheet("background: transparent;")
-        content = QVBoxLayout(container)
+        tab1_scroll = QScrollArea()
+        tab1_scroll.setWidgetResizable(True)
+        tab1_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tab1_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        tab1_container = QWidget()
+        tab1_container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(tab1_container)
         content.setContentsMargins(24, 20, 24, 20)
         content.setSpacing(16)
 
@@ -1028,13 +1473,15 @@ class OSPage(QWidget):
         configurar_combo(cmb_status)
         if cmb_status.completer():
             cmb_status.completer().setFilterMode(Qt.MatchFlag.MatchContains)
-        cmb_status.addItems(["Concluida", "Pendente", "Em Andamento"])
+        cmb_status.addItems(STATUS_ATIVIDADE_OPCOES)
+        configurar_combo_colorido(cmb_status, ATIVIDADE_CORES)
 
         cmb_urgencia = QComboBox()
         configurar_combo(cmb_urgencia)
         if cmb_urgencia.completer():
             cmb_urgencia.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         cmb_urgencia.addItems(URGENCIAS)
+        configurar_combo_colorido(cmb_urgencia, URGENCIA_CORES)
 
         edt_inicio = QDateTimeEdit()
         edt_inicio.setCalendarPopup(True)
@@ -1070,22 +1517,22 @@ class OSPage(QWidget):
         # ── DETALHES TÉCNICOS ─────────────────────────────────────────────────
         txt_sintoma = QTextEdit()
         txt_sintoma.setStyleSheet(ESTILO_INPUT)
-        txt_sintoma.setMaximumHeight(56)
+        txt_sintoma.setFixedHeight(72)
         txt_sintoma.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         txt_diagnostico = QTextEdit()
         txt_diagnostico.setStyleSheet(ESTILO_INPUT)
-        txt_diagnostico.setMaximumHeight(56)
+        txt_diagnostico.setFixedHeight(72)
         txt_diagnostico.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         txt_solucao = QTextEdit()
         txt_solucao.setStyleSheet(ESTILO_INPUT)
-        txt_solucao.setMaximumHeight(56)
+        txt_solucao.setFixedHeight(72)
         txt_solucao.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         txt_descricao = QTextEdit()
         txt_descricao.setStyleSheet(ESTILO_INPUT)
-        txt_descricao.setMaximumHeight(56)
+        txt_descricao.setFixedHeight(72)
         txt_descricao.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         atend_box, atend_layout = group_box("DETALHES TÉCNICOS")
@@ -1147,12 +1594,29 @@ class OSPage(QWidget):
         tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         tbl.verticalHeader().setVisible(False)
+        tbl.verticalHeader().setDefaultSectionSize(32)
         tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         tbl.setSelectionMode(QAbstractItemView.SingleSelection)
         tbl.setStyleSheet("""
             QTableWidget { background: transparent; border: none; }
-            QTableWidget::item { padding: 4px; }
+            QTableWidget::item { padding: 4px; color: #e2e8f0; font-size: 13px; }
             QHeaderView::section { background: transparent; color: #a0a0b0; border: none; font-weight: 600; padding: 4px; }
+            QTableWidget QLineEdit {
+                background-color: #1e1e2f !important;
+                color: #ffffff !important;
+                border: 1px solid #3b82f6 !important;
+                border-radius: 4px;
+                padding: 2px 6px !important;
+                font-size: 13px;
+            }
+            QCheckBox::indicator {
+                width: 18px; height: 18px;
+                border: 2px solid #3b82f6; border-radius: 4px;
+                background-color: #1e1e2f;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3b82f6;
+            }
         """)
         itens_padrao = ["Limpeza de laser", "Lubrificação do fusor", "Troca de película", "Troca de rolo de pressão", "Teste de impressão"]
         for nome in itens_padrao:
@@ -1180,8 +1644,10 @@ class OSPage(QWidget):
             chk.setFlags(chk.flags() | Qt.ItemIsUserCheckable)
             chk.setCheckState(Qt.Unchecked)
             tbl.setItem(r, 0, chk)
-            tbl.setItem(r, 1, QTableWidgetItem(""))
-            tbl.editItem(tbl.item(r, 1))
+            item_texto = QTableWidgetItem("")
+            tbl.setItem(r, 1, item_texto)
+            tbl.setCurrentCell(r, 1)
+            tbl.editItem(item_texto)
 
         def _rem_procedimento():
             r = tbl.currentRow()
@@ -1250,9 +1716,117 @@ class OSPage(QWidget):
         cmb_tipo.currentTextChanged.connect(_toggle_origem_destino)
         _toggle_origem_destino(cmb_tipo.currentText())
 
+        # ── OS VINCULADA ──────────────────────────────────────────────────
+        vinculo_box, vinculo_layout = group_box("OS VINCULADA")
+        vinculo_form = QFormLayout()
+        vinculo_form.setSpacing(8)
+        vinculo_form.setLabelAlignment(Qt.AlignRight)
+
+        cmb_os_vinculada = QComboBox()
+        configurar_combo(cmb_os_vinculada)
+        if cmb_os_vinculada.completer():
+            cmb_os_vinculada.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        cmb_os_vinculada.addItem("-- Nenhuma --", None)
+        cmb_os_vinculada.setToolTip("Vincular a uma OS anterior com problema semelhante")
+
+        def _atualizar_vinculo_candidatas(patrimonio: str):
+            prt = self.printer_service.buscar_por_patrimonio(patrimonio)
+            if not prt:
+                cmb_os_vinculada.clear()
+                cmb_os_vinculada.addItem("-- Nenhuma --", None)
+                return
+            excluir_id = atividade.id if atividade else None
+            candidatas = self.activity_service.listar_candidatas_vinculo(prt.id, excluir_id=excluir_id)
+            cmb_os_vinculada.blockSignals(True)
+            cmb_os_vinculada.clear()
+            cmb_os_vinculada.addItem("-- Nenhuma --", None)
+            for c in candidatas:
+                label = f"#{c.id} - {formatar_data_hora(c.event_at)} - {(c.notes or '')[:50]}"
+                cmb_os_vinculada.addItem(label, c.id)
+            cmb_os_vinculada.blockSignals(False)
+
+        cmb_printer.currentTextChanged.connect(_atualizar_vinculo_candidatas)
+
+        vinculo_form.addRow("Vinculada a:", cmb_os_vinculada)
+        vinculo_layout.addLayout(vinculo_form)
+        content.addWidget(vinculo_box)
+
+        # ── FIM ABA 1 ──
         content.addStretch()
-        scroll.setWidget(container)
-        outer.addWidget(scroll, stretch=1)
+        tab1_scroll.setWidget(tab1_container)
+        tabs.addTab(tab1_scroll, "📋 Dados da OS")
+
+        # ── ABA 2: GALERIA / FOTOS ──────────────────────────────────────
+        tab2_scroll = QScrollArea()
+        tab2_scroll.setWidgetResizable(True)
+        tab2_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tab2_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        tab2_container = QWidget()
+        tab2_container.setStyleSheet("background: transparent;")
+        fotos_content = QVBoxLayout(tab2_container)
+        fotos_content.setContentsMargins(24, 20, 24, 20)
+        fotos_content.setSpacing(16)
+
+        # ── Upload fixo no topo ──
+        upload_layout = QHBoxLayout()
+        upload_layout.setSpacing(8)
+        cmb_categoria = QComboBox()
+        configurar_combo(cmb_categoria)
+        cmb_categoria.addItems(["antes", "depois", "peca"])
+        cmb_categoria.setMinimumWidth(140)
+
+        def _do_upload_edit():
+            self._anexar_arquivo(atividade.id, cmb_categoria.currentText(), dialog)
+            _atualizar_galeria()
+
+        btn_upload = QPushButton("📷 Adicionar Foto")
+        btn_upload.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_upload.setToolTip("Selecionar imagem para anexar à OS")
+        btn_upload.setCursor(Qt.PointingHandCursor)
+
+        if atividade:
+            btn_upload.clicked.connect(_do_upload_edit)
+        else:
+            dialog.pending_fotos = []
+            def _abrir_pendente(_categoria):
+                path, _ = QFileDialog.getOpenFileName(
+                    dialog, "Selecionar Arquivo", "", "Imagens (*.png *.jpg *.jpeg *.bmp);;Todos (*.*)"
+                )
+                if path:
+                    dialog.pending_fotos.append((path, _categoria))
+                    _atualizar_galeria()
+            btn_upload.clicked.connect(
+                lambda: _abrir_pendente(cmb_categoria.currentText())
+            )
+
+        upload_layout.addWidget(cmb_categoria)
+        upload_layout.addWidget(btn_upload)
+        upload_layout.addStretch()
+        fotos_content.addLayout(upload_layout)
+
+        # ── Galeria abaixo ──
+        def _atualizar_galeria():
+            old = dialog._fotos_box if hasattr(dialog, '_fotos_box') else None
+            idx = fotos_content.indexOf(old) if old else 0
+            if old:
+                fotos_content.removeWidget(old)
+                old.deleteLater()
+            pending = getattr(dialog, 'pending_fotos', None) if not atividade else None
+            dialog._fotos_box, _ = self._criar_grupo_fotos(
+                atividade.id if atividade else None,
+                pending_fotos=pending,
+            )
+            fotos_content.insertWidget(idx if idx >= 0 else 0, dialog._fotos_box)
+
+        dialog.refresh_gallery_cb = _atualizar_galeria
+        _atualizar_galeria()
+
+        fotos_content.addStretch()
+        tab2_scroll.setWidget(tab2_container)
+        tabs.addTab(tab2_scroll, "📸 Galeria / Fotos")
+
+        outer.addWidget(tabs, stretch=1)
 
         campos = {
             "printer": cmb_printer,
@@ -1271,10 +1845,11 @@ class OSPage(QWidget):
             "status": cmb_status,
             "urgencia": cmb_urgencia,
             "checklist": tbl,
+            "os_vinculada": cmb_os_vinculada,
         }
 
         def _toggle_campos_conclusao(status_text: str) -> None:
-            bloq = status_text in ("Pendente", "Em Andamento")
+            bloq = status_text in ("Aberta", "Aguardando Peça", "Técnico Designado", "Em Deslocamento")
             edt_fim.setEnabled(not bloq)
             txt_solucao.setEnabled(not bloq)
             txt_descricao.setEnabled(not bloq)
@@ -1289,10 +1864,11 @@ class OSPage(QWidget):
 
         if not atividade:
             btn_layout = QHBoxLayout()
-            btn_layout.setContentsMargins(24, 12, 24, 16)
+            btn_layout.setContentsMargins(24, 12, 24, 24)
             btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
             btn_box.button(QDialogButtonBox.Save).setText("Salvar")
             btn_box.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
+            btn_box.button(QDialogButtonBox.Cancel).setText("Cancelar")
             btn_box.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
             btn_box.accepted.connect(dialog.accept)
             btn_box.rejected.connect(dialog.reject)
@@ -1310,6 +1886,13 @@ class OSPage(QWidget):
                 campos["printer"].setCurrentIndex(idx)
             else:
                 campos["printer"].setCurrentText(printer.patrimonio)
+
+        if atividade.os_vinculada_id:
+            vinc = self.activity_service.buscar_por_id(atividade.os_vinculada_id)
+            if vinc:
+                idx = campos["os_vinculada"].findData(vinc.id)
+                if idx >= 0:
+                    campos["os_vinculada"].setCurrentIndex(idx)
 
         idx_tipo = campos["tipo"].findText(atividade.kind)
         if idx_tipo >= 0:
@@ -1349,7 +1932,7 @@ class OSPage(QWidget):
                 else:
                     campos["tecnico"].setCurrentText(tec.nome_exibicao)
 
-        idx_st = campos["status"].findText(atividade.status_atividade or "Concluida",
+        idx_st = campos["status"].findText(atividade.status_atividade or "Aberta",
                                            Qt.MatchFixedString)
         if idx_st >= 0:
             campos["status"].setCurrentIndex(idx_st)

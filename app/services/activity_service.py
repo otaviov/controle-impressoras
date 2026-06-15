@@ -86,13 +86,14 @@ class ActivityService:
 
     def criar(self, printer_id: str, kind: str, notes: str = "",
               parts_used: str = "", from_location: str = "", to_location: str = "",
-              numero_recibo: str = "", status_atividade: str = "Concluida",
+              numero_recibo: str = "", status_atividade: str = "Aberta",
               event_at: Optional[datetime] = None, tecnico_id: Optional[int] = None,
               procedimentos: str = "", sintoma_relatado: str = "",
               diagnostico_tecnico: str = "", solucao_aplicada: str = "",
               inicio_atendimento: Optional[datetime] = None,
               fim_atendimento: Optional[datetime] = None,
-              urgencia: str = "Normal") -> Activity:
+              urgencia: str = "Normal",
+              os_vinculada_id: Optional[int] = None) -> Activity:
         atividade = Activity(
             printer_id=printer_id,
             kind=sanitizar(kind, "Activity", "kind"),
@@ -111,12 +112,42 @@ class ActivityService:
             solucao_aplicada=sanitizar(solucao_aplicada),
             inicio_atendimento=inicio_atendimento,
             fim_atendimento=fim_atendimento,
+            os_vinculada_id=os_vinculada_id,
         )
         self.session.add(atividade)
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="activities", registro_id=atividade.id, dados_depois=atividade)
         return atividade
+
+    def listar_vinculadas(self, activity_id: int, limite: int = 20) -> list[Activity]:
+        """Retorna OSs que estão vinculadas à activity_id (filhas + pai)."""
+        activity = self.buscar_por_id(activity_id)
+        if not activity:
+            return []
+        resultado: list[Activity] = []
+        if activity.os_vinculada_id:
+            pai = self.buscar_por_id(activity.os_vinculada_id)
+            if pai:
+                resultado.append(pai)
+        filhas = (
+            self.session.query(Activity)
+            .filter(Activity.os_vinculada_id == activity_id, Activity.deleted_at == None)
+            .limit(limite)
+            .all()
+        )
+        resultado.extend(filhas)
+        return resultado
+
+    def listar_candidatas_vinculo(self, printer_id: str, excluir_id: Optional[int] = None, limite: int = 30) -> list[Activity]:
+        """Retorna OSs recentes da mesma impressora para vínculo."""
+        q = self.session.query(Activity).filter(
+            Activity.printer_id == printer_id, Activity.deleted_at == None
+        )
+        if excluir_id:
+            q = q.filter(Activity.id != excluir_id)
+        q = q.order_by(Activity.event_at.desc()).limit(limite)
+        return q.all()
 
     def atualizar(self, atividade: Activity, **kwargs: Any) -> None:
         if self.audit_service:
@@ -249,6 +280,78 @@ class ActivityService:
             Activity.tecnico_id == tecnico_id,
             Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
         ).count()
+
+    def listar_por_tecnico_e_data(self, tecnico_id: int, data: datetime, limite: int = 200) -> list[Activity]:
+        inicio = datetime(data.year, data.month, data.day, 0, 0, 0)
+        fim = datetime(data.year, data.month, data.day, 23, 59, 59)
+        return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
+            Activity.tecnico_id == tecnico_id,
+            Activity.event_at >= inicio,
+            Activity.event_at <= fim,
+        ).order_by(Activity.from_location, Activity.event_at).limit(limite).all()
+
+    def contar_por_tecnico_por_data(self, tecnico_id: int, data: datetime) -> int:
+        inicio = datetime(data.year, data.month, data.day, 0, 0, 0)
+        fim = datetime(data.year, data.month, data.day, 23, 59, 59)
+        return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
+            Activity.tecnico_id == tecnico_id,
+            Activity.event_at >= inicio,
+            Activity.event_at <= fim,
+        ).count()
+
+    def listar_concluidas_por_tecnico_no_periodo(
+        self, tecnico_id: int, inicio: datetime, fim: datetime, limite: int = 500
+    ) -> list[Activity]:
+        return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
+            Activity.tecnico_id == tecnico_id,
+            Activity.kind == "MANUTENCAO",
+            Activity.status_atividade.in_(["Concluido", "Concluído", "Verificada"]),
+            Activity.fim_atendimento >= inicio,
+            Activity.fim_atendimento <= fim,
+        ).order_by(Activity.fim_atendimento.desc()).limit(limite).all()
+
+    def listar_pecas_por_tecnico(self, tecnico_id: int, limite: int = 20) -> list[tuple[str, int]]:
+        from collections import Counter
+        pecas = Counter()
+        atividades = self.session.query(Activity).filter(
+            Activity.deleted_at == None,
+            Activity.tecnico_id == tecnico_id,
+            Activity.parts_used != "",
+        ).all()
+        for a in atividades:
+            if a.parts_used:
+                for p in a.parts_used.split(","):
+                    p = p.strip()
+                    if p:
+                        pecas[p] += 1
+        return pecas.most_common(limite)
+
+    def listar_tecnicos_por_peca(self, nome_peca: str, limite: int = 50) -> list[Activity]:
+        filtro = f"%{nome_peca}%"
+        resultados = self.session.query(Activity).options(
+            selectinload(Activity.technician)
+        ).filter(
+            Activity.deleted_at == None,
+            Activity.parts_used.like(filtro),
+        ).order_by(Activity.event_at.desc()).limit(limite * 5).all()
+        nome_peca_lower = nome_peca.strip().lower()
+        return [
+            a for a in resultados
+            if a.technician and any(p.strip().lower() == nome_peca_lower for p in (a.parts_used or "").split(","))
+        ][:limite]
+
+    def listar_os_abertas_por_tecnico(self, tecnico_id: int, limite: int = 100) -> list[Activity]:
+        excluidos = ["Concluido", "Concluído", "Verificada"]
+        return self.session.query(Activity).options(
+            selectinload(Activity.printer)
+        ).filter(
+            Activity.deleted_at == None,
+            Activity.tecnico_id == tecnico_id,
+            ~Activity.status_atividade.in_(excluidos),
+        ).order_by(Activity.event_at.desc()).limit(limite).all()
 
     def contar_por_impressora_e_kind(self, printer_id: str, kind: str) -> int:
         return self.session.query(Activity).filter(

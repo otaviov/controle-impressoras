@@ -28,6 +28,41 @@ STATUS_CORES: dict[str, str] = {
     "Sucata": "#717182",
 }
 
+ATIVIDADE_CORES: dict[str, str] = {
+    "Aberta": "#94a3b8",
+    "Aguardando Peça": "#f59e0b",
+    "Técnico Designado": "#3b82f6",
+    "Em Deslocamento": "#8b5cf6",
+    "Em Manutenção": "#ef4444",
+    "Em Atendimento": "#6366f1",
+    "Aguardando Aprovação": "#f97316",
+    "Concluido": "#10b981",
+    "Verificada": "#34d399",
+}
+
+TIPO_ATIVIDADE_CORES: dict[str, str] = {
+    "Todos": "#717182",
+    "MANUTENCAO": "#f97316",
+    "MOVIMENTACAO": "#3b82f6",
+}
+
+TIPO_CLIENTE_CORES: dict[str, str] = {
+    "Cliente": "#6366f1",
+    "Filial": "#34d399",
+    "Parceiro": "#f59e0b",
+}
+
+PERFIL_CORES: dict[str, str] = {
+    "admin": "#ef4444",
+    "tecnico": "#3b82f6",
+    "visualizador": "#717182",
+}
+
+SIM_NAO_CORES: dict[str, str] = {
+    "Sim": "#10b981",
+    "Não": "#ef4444",
+}
+
 CORES_GRAFICO: list[str] = ["#6366f1", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#3b82f6", "#06b6d4", "#f97316"]
 
 # ── Paletas de cores (Figma shadcn/ui Dark) ─────────────
@@ -166,15 +201,18 @@ ESTILO_BOTAO_FECHAR = """\
 """
 
 ESTILO_INPUT = """\
-    QLineEdit, QTextEdit, QDateEdit, QTimeEdit, QDateTimeEdit {
-        background-color: #1e1e2e; color: #e8e8f0;
-        border: 1px solid #2a2a3e; border-radius: 8px;
-        padding: 8px 12px; font-size: 13px;
-        selection-background-color: rgba(99, 102, 241, 0.25);
+    QLineEdit, QTextEdit, QDateEdit, QTimeEdit, QDateTimeEdit, QComboBox {
+        background-color: #1e1e2f; color: #e2e8f0;
+        border: 2px solid #3b4261; border-radius: 8px;
+        padding: 4px 10px; font-size: 13px;
     }
-    QLineEdit:hover, QTextEdit:hover, QDateEdit:hover, QTimeEdit:hover, QDateTimeEdit:hover { border-color: #3a3a50; }
-    QLineEdit:focus, QTextEdit:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus { border-color: #6366f1; }
-    QLineEdit:disabled, QTextEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled, QDateTimeEdit:disabled { background-color: #14141f; color: #555568; border-color: #1e1e2e; }
+    QLineEdit, QDateEdit, QTimeEdit, QDateTimeEdit, QComboBox { min-height: 26px; }
+    QLineEdit:focus, QTextEdit:focus, QDateEdit:focus, QTimeEdit:focus, QDateTimeEdit:focus, QComboBox:focus {
+        border: 2px solid #3b82f6; background-color: #1a1b26; color: #ffffff;
+    }
+    QLineEdit:disabled, QTextEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled, QDateTimeEdit:disabled, QComboBox:disabled {
+        background-color: #14141f; color: #555568; border: 2px solid #1e1e2e;
+    }
     QDateEdit::drop-down, QTimeEdit::drop-down, QDateTimeEdit::drop-down {
         border: none; width: 30px; background: transparent;
     }
@@ -424,6 +462,34 @@ def group_box(titulo: str) -> tuple[QWidget, QVBoxLayout]:
     )
     outer.addWidget(title_lbl)
     return box, outer
+
+
+def configurar_combo_colorido(combo: QComboBox, mapa_cores: dict[str, str]) -> None:
+    """Conecta currentTextChanged do combo para atualizar borda e cor do texto."""
+    def _atualizar(texto: str):
+        cor = mapa_cores.get(texto, "#e8e8f0")
+        combo.setStyleSheet(
+            "QComboBox { background-color: #1e1e2e; color: #e8e8f0;"
+            f" border: 2px solid {cor}; border-radius: 8px;"
+            " padding: 0px 12px; font-size: 13px; min-height: 36px; }"
+            "QComboBox:hover { border-color: #3a3a50; }"
+            f"QComboBox:focus {{ border-color: {cor}; }}"
+            f"QComboBox:on {{ background-color: #1e1e2e; border-color: {cor}; }}"
+            "QComboBox::drop-down { border: none; width: 30px; background: transparent; }"
+            "QComboBox::down-arrow { image: none; border-left: 5px solid transparent;"
+            " border-right: 5px solid transparent; border-top: 6px solid #717182;"
+            " width: 0; height: 0; }"
+            "QComboBox:hover::down-arrow { border-top-color: #6366f1; }"
+            "QComboBox QAbstractItemView { background-color: #1e1e2e; color: #e8e8f0;"
+            " border: 1px solid #2a2a3e; border-top: none;"
+            " selection-background-color: rgba(99, 102, 241, 0.15);"
+            " selection-color: #818cf8; outline: none; }"
+        )
+        le = combo.lineEdit()
+        if le:
+            le.setStyleSheet(f"background-color: #1e1e2e; color: {cor}; border: none; padding: 0; min-height: 28px;")
+    combo.currentTextChanged.connect(_atualizar)
+    _atualizar(combo.currentText())
 
 
 def campo_rotulo(texto: str) -> QLabel:

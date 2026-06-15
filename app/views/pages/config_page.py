@@ -38,12 +38,15 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_SUCESSO,
     ESTILO_BOTAO_ERRO,
     configurar_combo,
+    configurar_combo_colorido,
     ESTILO_COMBO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
     ESTILO_SUBTITULO,
     ESTILO_TITULO_PAGINA,
+    PERFIL_CORES,
+    SIM_NAO_CORES,
     group_box,
     input_label,
     campo_rotulo,
@@ -779,6 +782,7 @@ class _UserDialog(QDialog):
             cmp.setFilterMode(Qt.MatchFlag.MatchContains)
             cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.combo_perfil.addItems(["admin", "tecnico", "visualizador"])
+        configurar_combo_colorido(self.combo_perfil, PERFIL_CORES)
         if self.usuario:
             idx = self.combo_perfil.findText(self.usuario.perfil)
             if idx >= 0:
@@ -793,6 +797,7 @@ class _UserDialog(QDialog):
                 cmp.setFilterMode(Qt.MatchFlag.MatchContains)
                 cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             self.combo_ativo.addItems(["Sim", "Não"])
+            configurar_combo_colorido(self.combo_ativo, SIM_NAO_CORES)
             if self.usuario and not self.usuario.ativo:
                 self.combo_ativo.setCurrentIndex(1)
             seg_form.addRow("Ativo:", self.combo_ativo)

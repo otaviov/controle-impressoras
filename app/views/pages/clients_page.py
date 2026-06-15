@@ -37,12 +37,14 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_SUCESSO,
     ESTILO_SUBTITULO,
     configurar_combo,
+    configurar_combo_colorido,
     ESTILO_COMBO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_LABEL_CAMPO,
     ESTILO_TABELA_SIMPLES,
     ESTILO_TITULO_PAGINA,
+    TIPO_CLIENTE_CORES,
     group_box,
     input_label,
     campo_rotulo,
@@ -337,6 +339,7 @@ class ClientsPage(QWidget):
             cmp.setFilterMode(Qt.MatchFlag.MatchContains)
             cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         tipo_input.addItems(["Cliente", "Filial", "Parceiro"])
+        configurar_combo_colorido(tipo_input, TIPO_CLIENTE_CORES)
         id_form.addRow("Tipo:", tipo_input)
 
         id_layout.addLayout(id_form)
@@ -496,6 +499,7 @@ class ClientsPage(QWidget):
             cmp.setFilterMode(Qt.MatchFlag.MatchContains)
             cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         tipo_combo.addItems(["Cliente", "Filial", "Parceiro"])
+        configurar_combo_colorido(tipo_combo, TIPO_CLIENTE_CORES)
         tipo_combo.setCurrentText(empresa.tipo or "Cliente")
         id_form.addRow("Tipo:", tipo_combo)
 

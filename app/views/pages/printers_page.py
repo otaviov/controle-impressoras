@@ -45,6 +45,7 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
     configurar_combo,
+    configurar_combo_colorido,
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_INPUT_READONLY,
@@ -60,6 +61,12 @@ from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
+from app.services.maintenance_scheduler import (
+    DIAS_AVISO_OPCOES,
+    PAGINAS_OPCOES,
+    PERIODOS_OPCOES,
+    MaintenanceScheduler,
+)
 
 
 PHOTO_DIR = Path("uploads/printer_photos")
@@ -292,6 +299,7 @@ class _PrinterForm(QWidget):
         self.status = QComboBox()
         configurar_combo(self.status)
         self.status.addItems(["Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
+        configurar_combo_colorido(self.status, STATUS_CORES)
 
         self.tipo = QComboBox()
         configurar_combo(self.tipo)
@@ -370,6 +378,7 @@ class _PrinterForm(QWidget):
         self.urgencia_combo = QComboBox()
         self.urgencia_combo.addItems(URGENCIAS)
         configurar_combo(self.urgencia_combo)
+        configurar_combo_colorido(self.urgencia_combo, URGENCIA_CORES)
 
         tec_grid.addWidget(_input_label("Técnico Responsável"), 0, 0)
         tec_grid.addWidget(self.tec, 1, 0)
@@ -706,6 +715,157 @@ class _PrinterDialog(QDialog):
         return self._dados_salvos
 
 
+# ── Dialog de Programação Recorrente ───────────────────────────────────────────
+
+class _NovaProgramacaoDialog(QDialog):
+    """Dialog para criar programação recorrente de manutenção."""
+
+    def __init__(self, printer: Any, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._printer = printer
+        self._dados: dict[str, Any] = {}
+
+        self.setWindowTitle(f"Programar Manutenção Recorrente — {printer.patrimonio}")
+        self.setMinimumSize(460, 380)
+        self.setStyleSheet(ESTILO_DIALOG)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(16)
+
+        titulo = QLabel("Nova Programação Recorrente")
+        titulo.setStyleSheet("color: #e8e8f0; font-size: 16px; font-weight: 700; background: transparent;")
+        root.addWidget(titulo)
+
+        info = QLabel(f"Impressora: {printer.patrimonio} — {printer.modelo or ''}")
+        info.setStyleSheet("color: #94949f; font-size: 12px; background: transparent;")
+        root.addWidget(info)
+
+        # ── Tipo ──────────────────────────────────────────────
+        lbl_tipo = QLabel("Tipo de programação:")
+        lbl_tipo.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        root.addWidget(lbl_tipo)
+
+        self.cmb_tipo = QComboBox()
+        configurar_combo(self.cmb_tipo)
+        self.cmb_tipo.addItems(["Por Período", "Por Páginas"])
+        self.cmb_tipo.currentIndexChanged.connect(self._toggle_tipo)
+        root.addWidget(self.cmb_tipo)
+
+        # ── Período ───────────────────────────────────────────
+        self.periodo_widget = QWidget()
+        periodo_lay = QVBoxLayout(self.periodo_widget)
+        periodo_lay.setContentsMargins(0, 0, 0, 0)
+        periodo_lay.setSpacing(8)
+
+        lbl_periodo = QLabel("Intervalo:")
+        lbl_periodo.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        periodo_lay.addWidget(lbl_periodo)
+
+        self.cmb_periodo = QComboBox()
+        configurar_combo(self.cmb_periodo)
+        for label, _ in PERIODOS_OPCOES:
+            self.cmb_periodo.addItem(label)
+        periodo_lay.addWidget(self.cmb_periodo)
+        root.addWidget(self.periodo_widget)
+
+        # ── Páginas ───────────────────────────────────────────
+        self.paginas_widget = QWidget()
+        paginas_lay = QVBoxLayout(self.paginas_widget)
+        paginas_lay.setContentsMargins(0, 0, 0, 0)
+        paginas_lay.setSpacing(8)
+
+        lbl_paginas = QLabel("Intervalo de páginas:")
+        lbl_paginas.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        paginas_lay.addWidget(lbl_paginas)
+
+        self.cmb_paginas = QComboBox()
+        configurar_combo(self.cmb_paginas)
+        for p in PAGINAS_OPCOES:
+            self.cmb_paginas.addItem(f"{p:,}")
+        paginas_lay.addWidget(self.cmb_paginas)
+
+        lbl_contador = QLabel("Contador de páginas atual:")
+        lbl_contador.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        paginas_lay.addWidget(lbl_contador)
+
+        self.edt_contador = QLineEdit("0")
+        self.edt_contador.setStyleSheet(ESTILO_INPUT)
+        paginas_lay.addWidget(self.edt_contador)
+        self.paginas_widget.hide()
+        root.addWidget(self.paginas_widget)
+
+        # ── Dias de aviso ─────────────────────────────────────
+        lbl_aviso = QLabel("Alertar X dias antes do vencimento:")
+        lbl_aviso.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        root.addWidget(lbl_aviso)
+
+        self.cmb_aviso = QComboBox()
+        configurar_combo(self.cmb_aviso)
+        for d in DIAS_AVISO_OPCOES:
+            self.cmb_aviso.addItem(f"{d} dia(s)")
+        self.cmb_aviso.setCurrentIndex(3)
+        root.addWidget(self.cmb_aviso)
+
+        # ── Observação ────────────────────────────────────────
+        lbl_obs = QLabel("Observação (opcional):")
+        lbl_obs.setStyleSheet("color: #94949f; font-size: 11px; font-weight: 600; background: transparent;")
+        root.addWidget(lbl_obs)
+
+        self.edt_obs = QLineEdit()
+        self.edt_obs.setStyleSheet(ESTILO_INPUT)
+        self.edt_obs.setPlaceholderText("Ex: Manutenção preventiva trimestral")
+        root.addWidget(self.edt_obs)
+
+        root.addStretch()
+
+        # ── Botões ────────────────────────────────────────────
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_salvar = QPushButton("Salvar")
+        btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar.clicked.connect(self._salvar)
+        btn_layout.addWidget(btn_salvar)
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_cancelar.clicked.connect(self.reject)
+        btn_layout.addWidget(btn_cancelar)
+        root.addLayout(btn_layout)
+
+    def _toggle_tipo(self, idx: int) -> None:
+        self.periodo_widget.setVisible(idx == 0)
+        self.paginas_widget.setVisible(idx == 1)
+
+    def _salvar(self) -> None:
+        if self.cmb_tipo.currentIndex() == 0:
+            idx = self.cmb_periodo.currentIndex()
+            intervalo = PERIODOS_OPCOES[idx][1]
+            self._dados = {
+                "tipo": "periodo",
+                "intervalo_dias": intervalo,
+                "dias_aviso": DIAS_AVISO_OPCOES[self.cmb_aviso.currentIndex()],
+                "observacao": self.edt_obs.text().strip(),
+            }
+        else:
+            try:
+                contador = int(self.edt_contador.text().strip())
+            except ValueError:
+                contador = 0
+            idx = self.cmb_paginas.currentIndex()
+            intervalo = PAGINAS_OPCOES[idx]
+            self._dados = {
+                "tipo": "paginas",
+                "intervalo_paginas": intervalo,
+                "contador_inicial": contador,
+                "dias_aviso": DIAS_AVISO_OPCOES[self.cmb_aviso.currentIndex()],
+                "observacao": self.edt_obs.text().strip(),
+            }
+        self.accept()
+
+    def dados(self) -> dict[str, Any]:
+        return self._dados
+
+
 # ── Dialog de Detalhes ────────────────────────────────────────────────────────
 
 class _AgendarManutencaoDialog(QDialog):
@@ -761,6 +921,7 @@ class _AgendarManutencaoDialog(QDialog):
         self.urgencia_combo = QComboBox()
         self.urgencia_combo.addItems(URGENCIAS)
         configurar_combo(self.urgencia_combo)
+        configurar_combo_colorido(self.urgencia_combo, URGENCIA_CORES)
         if printer.urgencia_prox_manutencao in URGENCIAS:
             self.urgencia_combo.setCurrentText(printer.urgencia_prox_manutencao)
         self.urgencia_combo.currentTextChanged.connect(self._atualizar_sla)
@@ -849,6 +1010,7 @@ class _PrinterDetailDialog(QDialog):
         printer_location_service: Any,
         part_service: Any,
         main_window: Any = None,
+        scheduler: MaintenanceScheduler | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -857,6 +1019,7 @@ class _PrinterDetailDialog(QDialog):
         self._printer_location_service = printer_location_service
         self._part_service = part_service
         self._main_window = main_window
+        self._scheduler = scheduler
 
         self.setWindowTitle(f"Impressora \u2014 {printer.patrimonio}")
         self.setMinimumSize(820, 600)
@@ -1119,6 +1282,61 @@ class _PrinterDetailDialog(QDialog):
         man_lay.addLayout(man_grid)
         layout.addWidget(man_box)
 
+        # ── Bloco 3b: Programação Recorrente ─────────────────
+        if self._scheduler:
+            rec_box, rec_lay = _group_box("Programação Recorrente")
+            rec_inner = QVBoxLayout()
+            rec_inner.setSpacing(8)
+
+            schedules = self._scheduler.listar_por_printer(p.id)
+            if schedules:
+                for sch in schedules:
+                    row_w = QHBoxLayout()
+                    if sch.tipo == "periodo":
+                        info = f"⚠️ A cada {sch.intervalo_dias} dias  |  Aviso: {sch.dias_aviso} dia(s)"
+                    else:
+                        cnt = sch.contador_atual or 0
+                        meta = sch.proxima_meta_paginas or 0
+                        info = f"📄 A cada {sch.intervalo_paginas} páginas  |  Atual: {cnt:,}  |  Meta: {meta:,}  |  Aviso: {sch.dias_aviso} dia(s)"
+                    lbl_info = QLabel(info)
+                    lbl_info.setStyleSheet("color: #cdd6f4; font-size: 13px; background: transparent;")
+                    row_w.addWidget(lbl_info, 1)
+
+                    if sch.ativo:
+                        btn_cancelar = QPushButton("Cancelar")
+                        btn_cancelar.setStyleSheet(ESTILO_BOTAO_ERRO)
+                        btn_cancelar.setCursor(Qt.PointingHandCursor)
+                        btn_cancelar.clicked.connect(
+                            lambda checked, sid=sch.id, rbox=rec_box: self._cancelar_agendamento(sid, rbox)
+                        )
+                        row_w.addWidget(btn_cancelar)
+                    else:
+                        lbl_inativo = QLabel("(cancelado)")
+                        lbl_inativo.setStyleSheet("color: #717182; font-size: 12px; background: transparent;")
+                        row_w.addWidget(lbl_inativo)
+
+                    btn_apagar = QPushButton("🗑️ Apagar")
+                    btn_apagar.setStyleSheet(ESTILO_BOTAO_ERRO)
+                    btn_apagar.setCursor(Qt.PointingHandCursor)
+                    btn_apagar.clicked.connect(
+                        lambda checked, sid=sch.id, rbox=rec_box: self._deletar_agendamento(sid, rbox)
+                    )
+                    row_w.addWidget(btn_apagar)
+                    rec_inner.addLayout(row_w)
+            else:
+                lbl_sem = QLabel("Nenhuma programação recorrente ativa.")
+                lbl_sem.setStyleSheet("color: #717182; font-size: 13px; background: transparent;")
+                rec_inner.addWidget(lbl_sem)
+
+            btn_nova_prog = QPushButton("+ Nova Programação")
+            btn_nova_prog.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+            btn_nova_prog.setCursor(Qt.PointingHandCursor)
+            btn_nova_prog.clicked.connect(lambda: self._nova_programacao(rec_box))
+            rec_inner.addWidget(btn_nova_prog)
+
+            rec_lay.addLayout(rec_inner)
+            layout.addWidget(rec_box)
+
         # ── Bloco 4: Observações ─────────────────────────────
         if p.observacao:
             obs_box, obs_lay = _group_box("Observações")
@@ -1239,6 +1457,106 @@ class _PrinterDetailDialog(QDialog):
             f" background: transparent; padding: 0;"
         )
 
+    def _nova_programacao(self, rec_box: Any) -> None:
+        if not self._scheduler:
+            return
+        dlg = _NovaProgramacaoDialog(self._printer, self)
+        if dlg.exec() == QDialog.Accepted:
+            dados = dlg.dados()
+            if dados["tipo"] == "periodo":
+                self._scheduler.agendar_periodo(
+                    printer_id=self._printer.id,
+                    intervalo_dias=dados["intervalo_dias"],
+                    dias_aviso=dados["dias_aviso"],
+                    observacao=dados["observacao"],
+                )
+            else:
+                self._scheduler.agendar_paginas(
+                    printer_id=self._printer.id,
+                    intervalo_paginas=dados["intervalo_paginas"],
+                    contador_inicial=dados["contador_inicial"],
+                    dias_aviso=dados["dias_aviso"],
+                    observacao=dados["observacao"],
+                )
+            self._recarregar_programacao(rec_box)
+
+    def _cancelar_agendamento(self, schedule_id: int, rec_box: Any) -> None:
+        if not self._scheduler:
+            return
+        self._scheduler.cancelar(schedule_id)
+        self._recarregar_programacao(rec_box)
+
+    def _deletar_agendamento(self, schedule_id: int, rec_box: Any) -> None:
+        if not self._scheduler:
+            return
+        if not ConfirmacaoDigitarDialog.confirmar(
+            "Confirmar", "Excluir permanentemente esta programação recorrente?",
+            self,
+        ):
+            return
+        self._scheduler.deletar(schedule_id)
+        self._recarregar_programacao(rec_box)
+
+    def _recarregar_programacao(self, rec_box: Any) -> None:
+        from app.utils.helpers import formatar_data
+        novas_schedules = self._scheduler.listar_por_printer(self._printer.id) if self._scheduler else []
+        inner = rec_box.findChild(QVBoxLayout)
+        if inner is None:
+            return
+        self._limpar_layout(inner)
+        if not novas_schedules:
+            lbl_sem = QLabel("Nenhuma programação recorrente ativa.")
+            lbl_sem.setStyleSheet("color: #717182; font-size: 13px; background: transparent;")
+            inner.addWidget(lbl_sem)
+        else:
+            for sch in novas_schedules:
+                row_w = QHBoxLayout()
+                if sch.tipo == "periodo":
+                    info = f"⚠️ A cada {sch.intervalo_dias} dias  |  Aviso: {sch.dias_aviso} dia(s)"
+                else:
+                    cnt = sch.contador_atual or 0
+                    meta = sch.proxima_meta_paginas or 0
+                    info = f"📄 A cada {sch.intervalo_paginas} páginas  |  Atual: {cnt:,}  |  Meta: {meta:,}  |  Aviso: {sch.dias_aviso} dia(s)"
+                lbl_info = QLabel(info)
+                lbl_info.setStyleSheet("color: #cdd6f4; font-size: 13px; background: transparent;")
+                row_w.addWidget(lbl_info, 1)
+
+                if sch.ativo:
+                    btn_cancelar = QPushButton("Cancelar")
+                    btn_cancelar.setStyleSheet(ESTILO_BOTAO_ERRO)
+                    btn_cancelar.setCursor(Qt.PointingHandCursor)
+                    btn_cancelar.clicked.connect(
+                        lambda checked, sid=sch.id, rb=rec_box: self._cancelar_agendamento(sid, rb)
+                    )
+                    row_w.addWidget(btn_cancelar)
+                else:
+                    lbl_inativo = QLabel("(cancelado)")
+                    lbl_inativo.setStyleSheet("color: #717182; font-size: 12px; background: transparent;")
+                    row_w.addWidget(lbl_inativo)
+
+                btn_apagar = QPushButton("🗑️ Apagar")
+                btn_apagar.setStyleSheet(ESTILO_BOTAO_ERRO)
+                btn_apagar.setCursor(Qt.PointingHandCursor)
+                btn_apagar.clicked.connect(
+                    lambda checked, sid=sch.id, rb=rec_box: self._deletar_agendamento(sid, rb)
+                )
+                row_w.addWidget(btn_apagar)
+                inner.addLayout(row_w)
+
+        btn_nova_prog = QPushButton("+ Nova Programação")
+        btn_nova_prog.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_nova_prog.setCursor(Qt.PointingHandCursor)
+        btn_nova_prog.clicked.connect(lambda: self._nova_programacao(rec_box))
+        inner.addWidget(btn_nova_prog)
+
+    def _limpar_layout(self, layout: QVBoxLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                self._limpar_layout(item.layout())
+
     def _build_tab_locais(self) -> QWidget:
         tab = QWidget()
         tab.setStyleSheet("background: transparent;")
@@ -1295,6 +1613,7 @@ class PrintersPage(QWidget):
         activity_service: Any,
         part_service: Any,
         printer_location_service: Any = None,
+        scheduler: MaintenanceScheduler | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -1305,6 +1624,7 @@ class PrintersPage(QWidget):
         self.activity_service = activity_service
         self.part_service = part_service
         self.printer_location_service = printer_location_service
+        self.scheduler = scheduler
         self._impressoras_visiveis = []
         self._filtro_atual = None
 
@@ -1425,6 +1745,7 @@ class PrintersPage(QWidget):
             printer_location_service=self.printer_location_service,
             part_service=self.part_service,
             main_window=self.window(),
+            scheduler=self.scheduler,
             parent=self,
         )
 

@@ -37,6 +37,7 @@ from app.utils.helpers import encurtar, formatar_data_hora
 from app.views.widgets.pagination import PaginacaoWidget
 from config import BASE_DIR
 from app.views.styles.theme import (
+    ATIVIDADE_CORES,
     COR,
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
@@ -49,6 +50,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     STATUS_ATIVIDADE_OPCOES,
     configurar_combo,
+    configurar_combo_colorido,
     group_box,
     input_label,
     campo_rotulo,
@@ -84,12 +86,6 @@ def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
             le.setCursorPosition(old_pos + (len(nova) - len(texto)))
     return _mascarar
 
-
-COR_STATUS: dict[str, str] = {
-    "pendente": "#fbbf24",
-    "em_andamento": "#60a5fa",
-    "concluida": "#34d399",
-}
 
 ANEXOS_DIR: Path = BASE_DIR / "anexos"
 
@@ -201,9 +197,9 @@ class TransfersPage(QWidget):
             self.tabela.setItem(i, 3, QTableWidgetItem(m.to_location or "-"))
             self.tabela.setItem(i, 4, QTableWidgetItem(encurtar(m.parts_used, 30)))
             self.tabela.setItem(i, 5, QTableWidgetItem(m.numero_recibo or "-"))
-            status = (m.status_atividade or "concluida").lower()
-            cor_status = COR_STATUS.get(status, "#94949f")
-            self.tabela.definir_badge(i, 6, status.capitalize(), cor_status)
+            status = (m.status_atividade or "Aberta")
+            cor_status = ATIVIDADE_CORES.get(status, "#94949f")
+            self.tabela.definir_badge(i, 6, status, cor_status)
         self.tabela.redimensionar()
         self._atualizar_cards(movimentacoes)
 
@@ -211,7 +207,7 @@ class TransfersPage(QWidget):
         total = len(movimentacoes)
         saidas = sum(1 for m in movimentacoes if m.from_location and not m.to_location)
         entradas = sum(1 for m in movimentacoes if m.to_location and not m.from_location)
-        pendentes = sum(1 for m in movimentacoes if (m.status_atividade or "").lower() == "pendente")
+        pendentes = sum(1 for m in movimentacoes if (m.status_atividade or "").lower() == "aberta")
         self.card_total.atualizar_valor(total)
         self.card_saidas.atualizar_valor(saidas)
         self.card_entradas.atualizar_valor(entradas)
@@ -374,6 +370,7 @@ class TransfersPage(QWidget):
             cmp.setFilterMode(Qt.MatchFlag.MatchContains)
             cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         status_combo.addItems(STATUS_ATIVIDADE_OPCOES)
+        configurar_combo_colorido(status_combo, ATIVIDADE_CORES)
         status_form.addRow("Status:", status_combo)
         status_layout.addLayout(status_form)
         content.addWidget(status_box)
@@ -760,7 +757,8 @@ class TransfersPage(QWidget):
             cmp.setFilterMode(Qt.MatchFlag.MatchContains)
             cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         status_combo.addItems(STATUS_ATIVIDADE_OPCOES)
-        sidx = status_combo.findText(mov.status_atividade or "Concluida", Qt.MatchFixedString)
+        configurar_combo_colorido(status_combo, ATIVIDADE_CORES)
+        sidx = status_combo.findText(mov.status_atividade or "Aberta", Qt.MatchFixedString)
         if sidx >= 0:
             status_combo.setCurrentIndex(sidx)
         status_form.addRow("Status:", status_combo)

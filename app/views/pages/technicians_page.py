@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,6 +23,7 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_AVISO,
     ESTILO_BOTAO_ERRO,
     ESTILO_BOTAO_FECHAR,
+    ESTILO_BOTAO_PRIMARIO,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_DIALOG,
     ESTILO_INPUT,
@@ -169,20 +171,129 @@ class _TechnicianDialog(QDialog):
         return self._excluir_confirmado
 
 
+class _EspecialidadesDialog(QDialog):
+    def __init__(self, tecnico: Any, printer_service: Any, technician_service: Any, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._technician_service = technician_service
+        self._printer_service = printer_service
+        self._tecnico = tecnico
+        self.setWindowTitle(f"Especialidades — {tecnico.nome_exibicao or tecnico.nome_completo}")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(450)
+        self.setStyleSheet(ESTILO_DIALOG)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        lbl = QLabel("Modelos de impressoras que este técnico pode atender:")
+        lbl.setStyleSheet("color: #94949f; font-size: 12px; background: transparent;")
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+
+        # ── Input para novo modelo ──
+        add_frame = QFrame()
+        add_frame.setStyleSheet("QFrame { background: transparent; border: none; }")
+        add_layout = QHBoxLayout(add_frame)
+        add_layout.setContentsMargins(0, 0, 0, 0)
+        add_layout.setSpacing(8)
+
+        self._novo_modelo_input = QLineEdit()
+        self._novo_modelo_input.setStyleSheet(ESTILO_INPUT)
+        self._novo_modelo_input.setPlaceholderText("Digite um novo modelo (ex: HP M425dn)...")
+        add_layout.addWidget(self._novo_modelo_input)
+
+        btn_adicionar = QPushButton("+ Adicionar")
+        btn_adicionar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_adicionar.clicked.connect(self._adicionar_modelo)
+        add_layout.addWidget(btn_adicionar)
+        layout.addWidget(add_frame)
+
+        # ── Lista de modelos disponíveis (do banco) ──
+        lbl_disponiveis = QLabel("Modelos existentes no sistema:")
+        lbl_disponiveis.setStyleSheet("color: #717182; font-size: 11px; background: transparent; font-weight: 600;")
+        layout.addWidget(lbl_disponiveis)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: 1px solid #2a2a3e; border-radius: 8px; background: transparent; }")
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        self._check_layout = QVBoxLayout(container)
+        self._check_layout.setContentsMargins(8, 8, 8, 8)
+        self._check_layout.setSpacing(2)
+        scroll.setWidget(container)
+        layout.addWidget(scroll, 1)
+
+        self._checkboxes: dict[str, QWidget] = {}
+        modelos_tec = set(technician_service.listar_especialidades(tecnico.id))
+
+        from collections import OrderedDict
+        seen = OrderedDict()
+        for p in printer_service.listar_todos():
+            modelo = (p.modelo or p.marca or "Sem modelo").strip()
+            if modelo and modelo not in seen:
+                seen[modelo] = True
+
+        for modelo in seen:
+            self._adicionar_checkbox(modelo, modelo in modelos_tec)
+
+        self._check_layout.addStretch()
+
+        botoes = QHBoxLayout()
+        btn_salvar = QPushButton("💾 Salvar")
+        btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar.clicked.connect(self._salvar)
+        botoes.addWidget(btn_salvar)
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_cancelar.clicked.connect(self.reject)
+        botoes.addWidget(btn_cancelar)
+        layout.addLayout(botoes)
+
+    def _adicionar_checkbox(self, modelo: str, checked: bool = False) -> None:
+        from PySide6.QtWidgets import QCheckBox
+        cb = QCheckBox(modelo)
+        cb.setChecked(checked)
+        cb.setStyleSheet("color: #e8e8f0; font-size: 12px; background: transparent;")
+        self._checkboxes[modelo] = cb
+        self._check_layout.insertWidget(self._check_layout.count() - 1, cb)
+
+    def _adicionar_modelo(self) -> None:
+        modelo = self._novo_modelo_input.text().strip()
+        if not modelo:
+            return
+        if modelo not in self._checkboxes:
+            self._adicionar_checkbox(modelo, True)
+            self._novo_modelo_input.clear()
+
+    def _salvar(self) -> None:
+        selected = [m for m, cb in self._checkboxes.items() if cb.isChecked()]
+        atuais = set(self._technician_service.listar_especialidades(self._tecnico.id))
+        to_add = [m for m in selected if m not in atuais]
+        to_remove = [m for m in atuais if m not in selected]
+        if to_remove:
+            self._technician_service.remover_especialidades(self._tecnico.id, to_remove)
+        if to_add:
+            self._technician_service.adicionar_especialidades(self._tecnico.id, to_add)
+        self.accept()
+
+
 class TechniciansPage(QWidget):
     COLUNAS: list[str] = ["Nome Completo", "Exibição", "Telefone", "Email", "Ativo"]
 
     _session: Any
     _technician_service: Any
+    _printer_service: Any
     _tecnicos_visiveis: list[Any]
     btn_novo: QPushButton
     tabela: TabelaPadrao
     _paginacao: PaginacaoWidget
 
-    def __init__(self, session: Any, technician_service: Any, parent: QWidget | None = None) -> None:
+    def __init__(self, session: Any, technician_service: Any, printer_service: Any | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._session = session
         self._technician_service = technician_service
+        self._printer_service = printer_service
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -293,6 +404,28 @@ class TechniciansPage(QWidget):
         ct_layout.addLayout(ct_form)
         layout.addWidget(ct_box)
 
+        # ── Especialidades ──
+        esp_box, esp_layout = group_box("Especialidades")
+        esp_inner = QVBoxLayout()
+        esp_inner.setSpacing(4)
+        modelos = self._technician_service.listar_especialidades(tecnico.id)
+        if modelos:
+            for m in modelos:
+                lbl = QLabel(f"🖨  {m}")
+                lbl.setStyleSheet("color: #c8c8e0; font-size: 12px; background: transparent; padding: 2px 0;")
+                esp_inner.addWidget(lbl)
+        else:
+            lbl = QLabel("Nenhuma especialidade cadastrada.")
+            lbl.setStyleSheet("color: #717182; font-size: 12px; background: transparent; font-style: italic;")
+            esp_inner.addWidget(lbl)
+        if self._printer_service:
+            btn_gerir_esp = QPushButton("🔧 Gerenciar Especialidades")
+            btn_gerir_esp.setStyleSheet(ESTILO_BOTAO_PRIMARIO)
+            btn_gerir_esp.clicked.connect(lambda: (dialog.accept(), self._gerir_especialidades(tecnico)))
+            esp_inner.addWidget(btn_gerir_esp)
+        esp_layout.addLayout(esp_inner)
+        layout.addWidget(esp_box)
+
         layout.addStretch()
         scroll.setWidget(container)
         root.addWidget(scroll, 1)
@@ -321,6 +454,13 @@ class TechniciansPage(QWidget):
         root.addLayout(botoes)
 
         dialog.exec()
+
+    def _gerir_especialidades(self, tecnico: Any) -> None:
+        if not self._printer_service:
+            return
+        dialog = _EspecialidadesDialog(tecnico, self._printer_service, self._technician_service, self)
+        dialog.exec()
+        self.recarregar()
 
     def _excluir_do_detalhes(self, tecnico: Any, dialog: QDialog) -> None:
         from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog

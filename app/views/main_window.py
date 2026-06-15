@@ -29,6 +29,7 @@ from app.services import (
     CompanyService,
     DashboardService,
     LoginHistoryService,
+    MaintenanceScheduler,
     PartService,
     PrinterLocationService,
     PrinterService,
@@ -39,6 +40,7 @@ from app.services import (
 from app.views.widgets.toast import ToastManager
 from app.views.pages import (
     AlertasPage,
+    CalendarPage,
     ClientsPage,
     ConfigPage,
     DashboardPage,
@@ -46,6 +48,7 @@ from app.views.pages import (
     PartsPage,
     PrintersPage,
     ReportsPage,
+    TechnicianAgendaPage,
     TechnicianHistoryPage,
     TechniciansPage,
     TransfersPage,
@@ -66,6 +69,7 @@ class MainWindow(QMainWindow):
     user_service: UserService
     dashboard_service: DashboardService
     alert_service: AlertService
+    maintenance_scheduler: MaintenanceScheduler
     transfer_service: TransferService
     login_history_service: LoginHistoryService
     printer_location_service: PrinterLocationService
@@ -88,6 +92,8 @@ class MainWindow(QMainWindow):
     pagina_historico: TechnicianHistoryPage
     pagina_relatorios: ReportsPage
     pagina_alertas: AlertasPage
+    pagina_calendario: CalendarPage
+    pagina_agenda: TechnicianAgendaPage
     pagina_config: ConfigPage | None
 
     def __init__(self, session: Any, user: dict[str, Any]) -> None:
@@ -108,6 +114,14 @@ class MainWindow(QMainWindow):
         self.alert_service = AlertService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.transfer_service = TransferService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.login_history_service = LoginHistoryService(session)
+
+        self.maintenance_scheduler = MaintenanceScheduler(
+            session,
+            activity_service=self.activity_service,
+            alert_service=self.alert_service,
+            audit_service=self.audit_service,
+            user_id=self.user.get("id"),
+        )
 
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon.fromTheme("printer"))
@@ -190,8 +204,10 @@ class MainWindow(QMainWindow):
         menus_extra = [
             ("👥", "Empresas/Clientes", 3),
             ("👨‍🔧", "Técnicos", 6),
+            ("🗓️", "Agenda", 11),
             ("📜", "Histórico", 7),
             ("🔔", "Alertas", 9),
+            ("📅", "Calendário", 10),
         ]
         for icon, text, index in menus_extra:
             container = self._criar_botao_menu(icon, text, index)
@@ -200,7 +216,7 @@ class MainWindow(QMainWindow):
         if self.user.get('perfil') == 'admin':
             scroll_layout.addSpacing(8)
             self._adicionar_label_secao(scroll_layout, "Sistema")
-            container = self._criar_botao_menu("⚙️", "Configurações", 10)
+            container = self._criar_botao_menu("⚙️", "Configurações", 12)
             scroll_layout.addWidget(container)
 
         scroll_layout.addStretch()
@@ -245,7 +261,8 @@ class MainWindow(QMainWindow):
             self.session, self.printer_service,
             self.company_service, self.technician_service,
             self.activity_service, self.part_service,
-            self.printer_location_service
+            self.printer_location_service,
+            scheduler=self.maintenance_scheduler,
         )
         self.pagina_os = OSPage(
             self.session, self.printer_service,
@@ -265,7 +282,7 @@ class MainWindow(QMainWindow):
             transfer_service=self.transfer_service
         )
         self.pagina_tecnicos = TechniciansPage(
-            self.session, self.technician_service
+            self.session, self.technician_service, printer_service=self.printer_service
         )
         self.pagina_historico = TechnicianHistoryPage(
             self.session, self.technician_service,
@@ -278,6 +295,13 @@ class MainWindow(QMainWindow):
         self.pagina_alertas = AlertasPage(
             self.session, self.alert_service, self.printer_service, part_service=self.part_service
         )
+        self.pagina_calendario = CalendarPage(
+            scheduler=self.maintenance_scheduler,
+        )
+        self.pagina_agenda = TechnicianAgendaPage(
+            self.session, self.technician_service,
+            self.activity_service, self.printer_service,
+        )
 
         self.content_area.addWidget(self.pagina_dashboard)        # 0
         self.content_area.addWidget(self.pagina_impressoras)      # 1
@@ -289,6 +313,8 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self.pagina_historico)        # 7
         self.content_area.addWidget(self.pagina_relatorios)       # 8
         self.content_area.addWidget(self.pagina_alertas)          # 9
+        self.content_area.addWidget(self.pagina_calendario)       # 10
+        self.content_area.addWidget(self.pagina_agenda)           # 11
 
         if self.user.get('perfil') == 'admin':
             self.pagina_config = ConfigPage(
@@ -303,12 +329,13 @@ class MainWindow(QMainWindow):
                 technician_service=self.technician_service,
                 alert_service=self.alert_service,
             )
-            self.content_area.addWidget(self.pagina_config)       # 10
+            self.content_area.addWidget(self.pagina_config)       # 12
 
         # ── Conexões de sinais ─────────────────────────────────
         self.pagina_dashboard.signal_trocar_pagina.connect(self._trocar_pagina)
         self.pagina_clientes.abrir_impressora.connect(self._abrir_impressora_por_patrimonio)
         self.pagina_pecas.abrir_atividade.connect(self._abrir_atividade_por_id)
+        self.pagina_historico.abrir_os.connect(self._abrir_atividade_por_id)
 
         main_layout.addWidget(sidebar)
         right_layout.addWidget(self.content_area, 1)
@@ -612,7 +639,8 @@ class MainWindow(QMainWindow):
             self.pagina_os, self.pagina_clientes,
             self.pagina_pecas, self.pagina_transferencias,
             self.pagina_tecnicos, self.pagina_historico,
-            self.pagina_relatorios, self.pagina_alertas
+            self.pagina_relatorios, self.pagina_alertas,
+            self.pagina_calendario, self.pagina_agenda,
         ]:
             if hasattr(pagina, 'recarregar'):
                 pagina.recarregar()
@@ -640,6 +668,18 @@ class MainWindow(QMainWindow):
                 log.info(f"Notificados {len(alertas_agendados)} alerta(s) agendados")
         except Exception as e:
             log.warning(f"Erro ao verificar alertas agendados: {e}")
+
+        try:
+            res = self.maintenance_scheduler.verificar_vencimentos()
+            if res["alertas_criados"] or res["os_geradas"]:
+                log.info(
+                    "Manutenção programada: %d alerta(s), %d OS gerada(s)",
+                    res["alertas_criados"], res["os_geradas"],
+                )
+            if res["os_geradas"]:
+                ToastManager.sucesso(f"{res['os_geradas']} OS de manutenção gerada(s) automaticamente")
+        except Exception as e:
+            log.warning(f"Erro ao verificar manutenção programada: {e}")
 
     # ── Exportação ───────────────────────────────────────────────
     def _exportar(self, tipo: str, formato: str):

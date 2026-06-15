@@ -81,6 +81,48 @@ class TechnicianService:
         tecnico.deleted_at = datetime.utcnow()
         safe_commit(self.session)
 
+    def associar_usuario(self, tecnico_id: int, user_id: int | None) -> None:
+        tecnico = self.buscar_por_id(tecnico_id)
+        if not tecnico:
+            return
+        if self.audit_service:
+            dados_antes = {"user_id": tecnico.user_id}
+        tecnico.user_id = user_id
+        safe_commit(self.session)
+        if self.audit_service:
+            self.audit_service.log(self.user_id, "associar_usuario", tabela_alvo="technicians", registro_id=tecnico.id, dados_antes=dados_antes, dados_depois={"user_id": user_id})
+
+    def listar_especialidades(self, tecnico_id: int) -> list[str]:
+        from app.models.technician_specialty import TechnicianSpecialty
+        registros = self.session.query(TechnicianSpecialty).filter(
+            TechnicianSpecialty.technician_id == tecnico_id
+        ).all()
+        return [r.modelo for r in registros]
+
+    def adicionar_especialidades(self, tecnico_id: int, modelos: list[str]) -> None:
+        from app.models.technician_specialty import TechnicianSpecialty
+        existentes = set(self.listar_especialidades(tecnico_id))
+        for modelo in modelos:
+            if modelo and modelo not in existentes:
+                self.session.add(TechnicianSpecialty(technician_id=tecnico_id, modelo=modelo))
+                existentes.add(modelo)
+        safe_commit(self.session)
+
+    def remover_especialidades(self, tecnico_id: int, modelos: list[str]) -> None:
+        from app.models.technician_specialty import TechnicianSpecialty
+        self.session.query(TechnicianSpecialty).filter(
+            TechnicianSpecialty.technician_id == tecnico_id,
+            TechnicianSpecialty.modelo.in_(modelos),
+        ).delete(synchronize_session=False)
+        safe_commit(self.session)
+
+    def limpar_especialidades(self, tecnico_id: int) -> None:
+        from app.models.technician_specialty import TechnicianSpecialty
+        self.session.query(TechnicianSpecialty).filter(
+            TechnicianSpecialty.technician_id == tecnico_id
+        ).delete(synchronize_session=False)
+        safe_commit(self.session)
+
     def nomes_exibicao(self) -> list[str]:
         return [t.nome_exibicao for t in self.listar_ativos()]
 

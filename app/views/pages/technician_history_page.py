@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime as dt
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -21,13 +22,17 @@ from PySide6.QtWidgets import (
 
 from app.models import Activity, Printer, User
 from app.views.styles.theme import (
+    ATIVIDADE_CORES,
     ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
+    ESTILO_INPUT,
     ESTILO_LABEL_VALOR,
     ESTILO_TABELA_SIMPLES,
     ESTILO_TITULO_PAGINA,
     STATUS_ATIVIDADE_OPCOES,
+    TIPO_ATIVIDADE_CORES,
     configurar_combo,
+    configurar_combo_colorido,
 )
 from app.utils.helpers import formatar_data_hora
 
@@ -58,6 +63,7 @@ class _StatsCard(QFrame):
 
 
 class TechnicianHistoryPage(QWidget):
+    abrir_os = Signal(int)
     _session: Any
     _technician_service: Any
     _activity_service: Any
@@ -81,6 +87,15 @@ class TechnicianHistoryPage(QWidget):
     _tabela_andamento: QTableWidget
     _tabela_mov: QTableWidget
     _tabela_login: QTableWidget
+    _assoc_label: QLabel
+    _assoc_combo: QComboBox
+    _assoc_btn: QPushButton
+    _tab_os_abertas: QWidget
+    _tab_pecas: QWidget
+    _tabela_os_abertas: QTableWidget
+    _tabela_pecas: QTableWidget
+    _peca_search_input: QLineEdit
+    _tabela_quem_usou: QTableWidget
 
     def __init__(self, session: Any, technician_service: Any, activity_service: Any, user_service: Any, login_history_service: Any,
                  printer_service: Any, parent: QWidget | None = None) -> None:
@@ -126,6 +141,7 @@ class TechnicianHistoryPage(QWidget):
         self._status_combo = QComboBox()
         configurar_combo(self._status_combo)
         self._status_combo.addItems(["Todos"] + STATUS_ATIVIDADE_OPCOES)
+        configurar_combo_colorido(self._status_combo, ATIVIDADE_CORES)
         self._status_combo.currentIndexChanged.connect(self._aplicar_filtros)
         filtros.addWidget(self._status_combo)
 
@@ -136,6 +152,7 @@ class TechnicianHistoryPage(QWidget):
         self._tipo_combo = QComboBox()
         configurar_combo(self._tipo_combo)
         self._tipo_combo.addItems(["Todos", "MANUTENCAO", "MOVIMENTACAO"])
+        configurar_combo_colorido(self._tipo_combo, TIPO_ATIVIDADE_CORES)
         self._tipo_combo.currentIndexChanged.connect(self._aplicar_filtros)
         filtros.addWidget(self._tipo_combo)
 
@@ -150,7 +167,7 @@ class TechnicianHistoryPage(QWidget):
         cards = QHBoxLayout()
         cards.setSpacing(12)
         self._card_total = _StatsCard("Total de OS", 0, "#6366f1")
-        self._card_andamento = _StatsCard("Em Andamento", 0, "#f97316")
+        self._card_andamento = _StatsCard("Em Atendimento", 0, "#6366f1")
         self._card_concluidas = _StatsCard("Concluídas", 0, "#10b981")
         self._card_mov = _StatsCard("Movimentações", 0, "#3b82f6")
         cards.addWidget(self._card_total)
@@ -173,6 +190,16 @@ class TechnicianHistoryPage(QWidget):
 
         self._tab_login = self._criar_tabela_login()
         self._tabs.addTab(self._tab_login, "\U0001f511 Sessões")
+
+        self._tab_os_abertas = self._criar_tabela_os_abertas()
+        self._tabs.addTab(self._tab_os_abertas, "\U0001f4cc OS Abertas")
+
+        self._tab_pecas = self._criar_tabela_pecas()
+        self._tabs.addTab(self._tab_pecas, "\U0001f527 Peças")
+
+        self._tabela_atividades.cellDoubleClicked.connect(lambda r, c: self._ao_duplo_clicar_os(r, self._tabela_atividades))
+        self._tabela_andamento.cellDoubleClicked.connect(lambda r, c: self._ao_duplo_clicar_os(r, self._tabela_andamento))
+        self._tabela_os_abertas.cellDoubleClicked.connect(lambda r, c: self._ao_duplo_clicar_os(r, self._tabela_os_abertas))
 
     def _criar_tabela_atividades(self) -> QWidget:
         tab = QWidget()
@@ -240,13 +267,39 @@ class TechnicianHistoryPage(QWidget):
     def _criar_tabela_login(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        lbl = QLabel(
-            "Sessões de login dos usuários do sistema. "
-            "Relaciona técnicos a usuários pelo nome."
+
+        assoc_frame = QFrame()
+        assoc_frame.setStyleSheet(
+            "QFrame { background-color: #14141f; border: 1px solid #2a2a3e;"
+            " border-radius: 8px; padding: 8px; }"
         )
-        lbl.setStyleSheet("color: #94949f; font-size: 12px; background: transparent;")
-        lbl.setWordWrap(True)
-        layout.addWidget(lbl)
+        assoc_layout = QHBoxLayout(assoc_frame)
+        assoc_layout.setContentsMargins(12, 8, 12, 8)
+        assoc_layout.setSpacing(8)
+
+        assoc_label = QLabel("Usuário associado:")
+        assoc_label.setStyleSheet("color: #94949f; font-size: 12px; font-weight: 600; background: transparent;")
+        assoc_layout.addWidget(assoc_label)
+
+        self._assoc_label = QLabel("—")
+        self._assoc_label.setStyleSheet("color: #10b981; font-size: 12px; font-weight: 600; background: transparent;")
+        assoc_layout.addWidget(self._assoc_label)
+
+        assoc_layout.addSpacing(12)
+
+        self._assoc_combo = QComboBox()
+        configurar_combo(self._assoc_combo)
+        self._assoc_combo.setMinimumWidth(200)
+        assoc_layout.addWidget(self._assoc_combo)
+
+        self._assoc_btn = QPushButton("Salvar Associação")
+        self._assoc_btn.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        self._assoc_btn.clicked.connect(self._salvar_associacao)
+        assoc_layout.addWidget(self._assoc_btn)
+
+        assoc_layout.addStretch()
+        layout.addWidget(assoc_frame)
+
         self._tabela_login = QTableWidget()
         self._tabela_login.setColumnCount(5)
         self._tabela_login.setHorizontalHeaderLabels(
@@ -262,6 +315,92 @@ class TechnicianHistoryPage(QWidget):
         for i in range(5):
             h.setSectionResizeMode(i, QHeaderView.Stretch)
         layout.addWidget(self._tabela_login)
+        return tab
+
+    def _criar_tabela_os_abertas(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        lbl = QLabel("Ordens de serviço em aberto (não concluídas) para este técnico:")
+        lbl.setStyleSheet("color: #94949f; font-size: 12px; background: transparent;")
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+        self._tabela_os_abertas = QTableWidget()
+        self._tabela_os_abertas.setColumnCount(7)
+        self._tabela_os_abertas.setHorizontalHeaderLabels(
+            ["Data/Hora", "Patrimônio", "Local", "Status", "Descrição", "Urgência", "Recibo"]
+        )
+        self._tabela_os_abertas.setStyleSheet(ESTILO_TABELA_SIMPLES)
+        self._tabela_os_abertas.setSelectionBehavior(QTableWidget.SelectRows)
+        self._tabela_os_abertas.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tabela_os_abertas.verticalHeader().setVisible(False)
+        self._tabela_os_abertas.setAlternatingRowColors(True)
+        self._tabela_os_abertas.verticalHeader().setDefaultSectionSize(40)
+        h = self._tabela_os_abertas.horizontalHeader()
+        for i in range(7):
+            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        layout.addWidget(self._tabela_os_abertas)
+        return tab
+
+    def _criar_tabela_pecas(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        lbl = QLabel("Peças mais usadas por este técnico:")
+        lbl.setStyleSheet("color: #94949f; font-size: 12px; background: transparent;")
+        layout.addWidget(lbl)
+
+        self._tabela_pecas = QTableWidget()
+        self._tabela_pecas.setColumnCount(2)
+        self._tabela_pecas.setHorizontalHeaderLabels(["Peça", "Vezes Usada"])
+        self._tabela_pecas.setStyleSheet(ESTILO_TABELA_SIMPLES)
+        self._tabela_pecas.setSelectionBehavior(QTableWidget.SelectRows)
+        self._tabela_pecas.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tabela_pecas.verticalHeader().setVisible(False)
+        self._tabela_pecas.setAlternatingRowColors(True)
+        self._tabela_pecas.verticalHeader().setDefaultSectionSize(36)
+        h = self._tabela_pecas.horizontalHeader()
+        h.setSectionResizeMode(0, QHeaderView.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        layout.addWidget(self._tabela_pecas)
+
+        layout.addSpacing(12)
+
+        search_frame = QFrame()
+        search_frame.setStyleSheet("QFrame { background: transparent; border: none; }")
+        search_layout = QHBoxLayout(search_frame)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+
+        search_lbl = QLabel("Quem usou esta peça:")
+        search_lbl.setStyleSheet("color: #94949f; font-size: 12px; font-weight: 600; background: transparent;")
+        search_layout.addWidget(search_lbl)
+
+        self._peca_search_input = QLineEdit()
+        self._peca_search_input.setStyleSheet(ESTILO_INPUT)
+        self._peca_search_input.setPlaceholderText("Digite o nome da peça...")
+        search_layout.addWidget(self._peca_search_input)
+
+        btn_search = QPushButton("Buscar")
+        btn_search.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_search.clicked.connect(self._buscar_quem_usou_peca)
+        search_layout.addWidget(btn_search)
+        search_layout.addStretch()
+        layout.addWidget(search_frame)
+
+        self._tabela_quem_usou = QTableWidget()
+        self._tabela_quem_usou.setColumnCount(5)
+        self._tabela_quem_usou.setHorizontalHeaderLabels(
+            ["Técnico", "Data/Hora", "Patrimônio", "Peças", "Descrição"]
+        )
+        self._tabela_quem_usou.setStyleSheet(ESTILO_TABELA_SIMPLES)
+        self._tabela_quem_usou.setSelectionBehavior(QTableWidget.SelectRows)
+        self._tabela_quem_usou.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._tabela_quem_usou.verticalHeader().setVisible(False)
+        self._tabela_quem_usou.setAlternatingRowColors(True)
+        self._tabela_quem_usou.verticalHeader().setDefaultSectionSize(40)
+        h = self._tabela_quem_usou.horizontalHeader()
+        for i in range(5):
+            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        layout.addWidget(self._tabela_quem_usou)
         return tab
 
     def recarregar(self) -> None:
@@ -312,6 +451,8 @@ class TechnicianHistoryPage(QWidget):
         self._preencher_andamento(tech_id)
         self._preencher_movimentacoes(tech_id)
         self._preencher_login(tech_id)
+        self._preencher_os_abertas(tech_id)
+        self._preencher_pecas(tech_id)
 
     def _atualizar_stats(self) -> None:
         tech_id = self._current_tech_id
@@ -321,8 +462,8 @@ class TechnicianHistoryPage(QWidget):
             return
 
         total = self._activity_service.contar_por_tecnico(tech_id)
-        andamento = self._activity_service.contar_por_tecnico_por_status(tech_id, "Em Andamento")
-        concluidas = self._activity_service.contar_por_tecnico_por_status(tech_id, "Concluida")
+        andamento = self._activity_service.contar_por_tecnico_por_status(tech_id, "Em Atendimento")
+        concluidas = self._activity_service.contar_por_tecnico_por_status(tech_id, "Concluido")
         mov = len(self._activity_service.listar_por_tecnico_e_tipo(tech_id, "MOVIMENTACAO"))
 
         self._card_total.set_valor(total)
@@ -336,7 +477,9 @@ class TechnicianHistoryPage(QWidget):
         for i, a in enumerate(atividades):
             printer = self._printer_service.buscar_por_id(a.printer_id)
             pat = printer.patrimonio if printer else a.printer_id
-            self._tabela_atividades.setItem(i, 0, QTableWidgetItem(formatar_data_hora(a.event_at)))
+            item0 = QTableWidgetItem(formatar_data_hora(a.event_at))
+            item0.setData(Qt.UserRole, a.id)
+            self._tabela_atividades.setItem(i, 0, item0)
             self._tabela_atividades.setItem(i, 1, QTableWidgetItem(pat))
             self._tabela_atividades.setItem(i, 2, QTableWidgetItem(a.kind))
             self._tabela_atividades.setItem(i, 3, QTableWidgetItem((a.notes or "")[:60]))
@@ -347,14 +490,16 @@ class TechnicianHistoryPage(QWidget):
             self._tabela_atividades.setItem(i, 7, QTableWidgetItem(a.numero_recibo or ""))
 
     def _preencher_andamento(self, tech_id: int) -> None:
-        atividades = self._activity_service.listar_por_tecnico_e_status(tech_id, "Em Andamento")
+        atividades = self._activity_service.listar_por_tecnico_e_status(tech_id, "Em Atendimento")
         self._tabela_andamento.setRowCount(0)
         self._tabela_andamento.setRowCount(len(atividades))
         for i, a in enumerate(atividades):
             printer = self._printer_service.buscar_por_id(a.printer_id)
             pat = printer.patrimonio if printer else a.printer_id
             modelo = printer.modelo if printer else ""
-            self._tabela_andamento.setItem(i, 0, QTableWidgetItem(formatar_data_hora(a.event_at)))
+            item0 = QTableWidgetItem(formatar_data_hora(a.event_at))
+            item0.setData(Qt.UserRole, a.id)
+            self._tabela_andamento.setItem(i, 0, item0)
             self._tabela_andamento.setItem(i, 1, QTableWidgetItem(pat))
             self._tabela_andamento.setItem(i, 2, QTableWidgetItem(modelo))
             self._tabela_andamento.setItem(i, 3, QTableWidgetItem((a.notes or "")[:60]))
@@ -382,27 +527,57 @@ class TechnicianHistoryPage(QWidget):
         tecnico = self._technician_service.buscar_por_id(tech_id)
         if not tecnico:
             self._tabela_login.setRowCount(0)
+            self._assoc_label.setText("—")
+            self._assoc_combo.clear()
             return
 
         usuarios = self._user_service.listar_todos()
-        user_match = None
+        self._assoc_combo.blockSignals(True)
+        self._assoc_combo.clear()
+        self._assoc_combo.addItem("-- Nenhum --", None)
         for u in usuarios:
-            if tecnico.nome_completo.lower() in u.nome.lower() or \
-               (tecnico.nome_exibicao and tecnico.nome_exibicao.lower() in u.nome.lower()):
-                user_match = u
-                break
+            self._assoc_combo.addItem(f"{u.nome} ({u.perfil})", u.id)
+        self._assoc_combo.blockSignals(False)
 
-        if not user_match:
+        user_match = None
+        if tecnico.user_id is not None:
+            for u in usuarios:
+                if u.id == tecnico.user_id:
+                    user_match = u
+                    break
+            if user_match is None:
+                tecnico.user_id = None
+
+        if user_match is None:
+            for u in usuarios:
+                if tecnico.nome_completo.lower() in u.nome.lower() or \
+                   (tecnico.nome_exibicao and tecnico.nome_exibicao.lower() in u.nome.lower()):
+                    user_match = u
+                    self._technician_service.associar_usuario(tech_id, u.id)
+                    break
+
+        if user_match is None:
             self._tabela_login.setRowCount(0)
-            lbl_empty = QLabel(
-                "Nenhum usuário do sistema corresponde a este técnico. "
-                "Associe pelo nome completo ou nome de exibição."
-            )
-            lbl_empty.setStyleSheet("color: #717182; font-size: 12px; background: transparent;")
             self._tabela_login.setRowCount(1)
             self._tabela_login.setSpan(0, 0, 1, 5)
+            lbl_empty = QLabel(
+                "Nenhuma sessão — associe um usuário do sistema acima."
+            )
+            lbl_empty.setStyleSheet("color: #717182; font-size: 12px; background: transparent;")
+            lbl_empty.setAlignment(Qt.AlignCenter)
             self._tabela_login.setCellWidget(0, 0, lbl_empty)
+            self._assoc_label.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: 600; background: transparent;")
+            self._assoc_label.setText("Nenhum")
+            self._assoc_combo.setCurrentIndex(0)
             return
+
+        for i in range(self._assoc_combo.count()):
+            if self._assoc_combo.itemData(i) == user_match.id:
+                self._assoc_combo.setCurrentIndex(i)
+                break
+
+        self._assoc_label.setStyleSheet("color: #10b981; font-size: 12px; font-weight: 600; background: transparent;")
+        self._assoc_label.setText(user_match.nome)
 
         sessoes = self._login_history_service.listar_por_usuario(user_match.id)
         self._tabela_login.setRowCount(0)
@@ -425,10 +600,73 @@ class TechnicianHistoryPage(QWidget):
                 duracao = f"{horas}h {minutos}min (em andamento)"
             self._tabela_login.setItem(i, 4, QTableWidgetItem(duracao))
 
+    def _preencher_os_abertas(self, tech_id: int) -> None:
+        atividades = self._activity_service.listar_os_abertas_por_tecnico(tech_id)
+        self._tabela_os_abertas.setRowCount(0)
+        self._tabela_os_abertas.setRowCount(len(atividades))
+        for i, a in enumerate(atividades):
+            printer = self._printer_service.buscar_por_id(a.printer_id)
+            pat = printer.patrimonio if printer else a.printer_id
+            item0 = QTableWidgetItem(formatar_data_hora(a.event_at))
+            item0.setData(Qt.UserRole, a.id)
+            self._tabela_os_abertas.setItem(i, 0, item0)
+            self._tabela_os_abertas.setItem(i, 1, QTableWidgetItem(pat))
+            self._tabela_os_abertas.setItem(i, 2, QTableWidgetItem(a.from_location or ""))
+            self._tabela_os_abertas.setItem(i, 3, QTableWidgetItem(a.status_atividade or ""))
+            self._tabela_os_abertas.setItem(i, 4, QTableWidgetItem((a.notes or "")[:60]))
+            self._tabela_os_abertas.setItem(i, 5, QTableWidgetItem(a.urgencia or ""))
+            self._tabela_os_abertas.setItem(i, 6, QTableWidgetItem(a.numero_recibo or ""))
+
+    def _preencher_pecas(self, tech_id: int) -> None:
+        pecas = self._activity_service.listar_pecas_por_tecnico(tech_id)
+        self._tabela_pecas.setRowCount(0)
+        self._tabela_pecas.setRowCount(len(pecas))
+        for i, (nome, qtd) in enumerate(pecas):
+            self._tabela_pecas.setItem(i, 0, QTableWidgetItem(nome))
+            item = QTableWidgetItem(str(qtd))
+            item.setTextAlignment(Qt.AlignCenter)
+            self._tabela_pecas.setItem(i, 1, item)
+
+    def _buscar_quem_usou_peca(self) -> None:
+        nome = self._peca_search_input.text().strip()
+        if not nome:
+            return
+        resultados = self._activity_service.listar_tecnicos_por_peca(nome)
+        self._tabela_quem_usou.setRowCount(0)
+        self._tabela_quem_usou.setRowCount(len(resultados))
+        for i, a in enumerate(resultados):
+            printer = self._printer_service.buscar_por_id(a.printer_id)
+            pat = printer.patrimonio if printer else a.printer_id
+            tech_nome = a.technician.nome_exibicao or a.technician.nome_completo if a.technician else "—"
+            self._tabela_quem_usou.setItem(i, 0, QTableWidgetItem(tech_nome))
+            self._tabela_quem_usou.setItem(i, 1, QTableWidgetItem(formatar_data_hora(a.event_at)))
+            self._tabela_quem_usou.setItem(i, 2, QTableWidgetItem(pat))
+            self._tabela_quem_usou.setItem(i, 3, QTableWidgetItem(a.parts_used or ""))
+            self._tabela_quem_usou.setItem(i, 4, QTableWidgetItem((a.notes or "")[:80]))
+
+    def _salvar_associacao(self) -> None:
+        tech_id = self._current_tech_id
+        if tech_id is None:
+            return
+        user_id = self._assoc_combo.currentData()
+        self._technician_service.associar_usuario(tech_id, user_id)
+        self._preencher_login(tech_id)
+
+    def _ao_duplo_clicar_os(self, row: int, tabela: QTableWidget) -> None:
+        item = tabela.item(row, 0)
+        if item is None:
+            return
+        activity_id = item.data(Qt.UserRole)
+        if activity_id is not None:
+            self.abrir_os.emit(activity_id)
+
     def _limpar_tabelas(self) -> None:
         self._tabela_atividades.setRowCount(0)
         self._tabela_andamento.setRowCount(0)
         self._tabela_mov.setRowCount(0)
         self._tabela_login.setRowCount(0)
+        self._tabela_os_abertas.setRowCount(0)
+        self._tabela_pecas.setRowCount(0)
+        self._tabela_quem_usou.setRowCount(0)
         for card in [self._card_total, self._card_andamento, self._card_concluidas, self._card_mov]:
             card.set_valor(0)

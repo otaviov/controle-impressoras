@@ -4,6 +4,7 @@ from .audit_service import AuditService
 from .company_service import CompanyService
 from .dashboard_service import DashboardService
 from .login_history_service import LoginHistoryService
+from .maintenance_scheduler import MaintenanceScheduler
 from .part_service import PartService
 from .printer_location_service import PrinterLocationService
 from .printer_service import PrinterService

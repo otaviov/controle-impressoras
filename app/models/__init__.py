@@ -5,9 +5,11 @@ from app.models.audit_log import AuditLog
 from app.models.base import Base
 from app.models.company import Company
 from app.models.login_history import LoginHistory
+from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.part import Part
 from app.models.printer import Printer
 from app.models.printer_location import PrinterLocation
 from app.models.technician import Technician
+from app.models.technician_specialty import TechnicianSpecialty
 from app.models.transfer import Transfer
 from app.models.user import User

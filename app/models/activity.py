@@ -31,7 +31,7 @@ class Activity(Base, SoftDeleteMixin):
     responsavel: Mapped[str] = mapped_column(String(120), default="")
     tecnico_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("technicians.id"), nullable=True)
     custo_servico: Mapped[float] = mapped_column(Float, default=0.0)
-    status_atividade: Mapped[str] = mapped_column(String(30), default="Concluida")
+    status_atividade: Mapped[str] = mapped_column(String(30), default="Aberta")
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     event_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -46,10 +46,13 @@ class Activity(Base, SoftDeleteMixin):
     sintoma_relatado: Mapped[str] = mapped_column(Text, default="")
     diagnostico_tecnico: Mapped[str] = mapped_column(Text, default="")
     solucao_aplicada: Mapped[str] = mapped_column(Text, default="")
+    os_vinculada_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("activities.id"), nullable=True, index=True)
 
     printer: Mapped[Printer] = relationship(back_populates="activities")
     from_company: Mapped[Optional[Company]] = relationship(back_populates="activities_from", foreign_keys=[from_company_id])
     to_company: Mapped[Optional[Company]] = relationship(back_populates="activities_to", foreign_keys=[to_company_id])
     technician: Mapped[Optional[Technician]] = relationship(back_populates="activities")
+    os_vinculada: Mapped[Optional[Activity]] = relationship("Activity", remote_side="Activity.id", back_populates="oses_filhas")
+    oses_filhas: Mapped[list[Activity]] = relationship("Activity", back_populates="os_vinculada")
 
 
