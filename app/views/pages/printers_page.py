@@ -1564,27 +1564,39 @@ class _PrinterDetailDialog(QDialog):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
 
-        registros = (
-            self._printer_location_service.listar_por_impressora(self._printer.id)
-            if self._printer_location_service else []
-        )
+        atividades = [
+            a for a in self._activity_service.listar_por_impressora(self._printer.id)
+            if a.kind == "MOVIMENTACAO" and a.to_location
+        ] if self._activity_service else []
 
-        t = TabelaPadrao(["Data", "Local", "Observação", "Registrado em"])
-        t.setRowCount(len(registros))
-        for i, r in enumerate(registros):
-            t.setItem(i, 0, QTableWidgetItem(formatar_data(r.data) if r.data else "—"))
-            t.setItem(i, 1, QTableWidgetItem(r.local or "—"))
-            t.setItem(i, 2, QTableWidgetItem(r.observacao or "—"))
-            t.setItem(i, 3, QTableWidgetItem(formatar_data_hora(r.created_at) if r.created_at else "—"))
-        t.redimensionar()
-        layout.addWidget(t)
-
-        if not registros:
+        if not atividades:
             empty = QLabel("Nenhum registro de localização encontrado.")
             empty.setStyleSheet("color: #717182; font-size: 13px; padding: 20px; background: transparent;")
             empty.setAlignment(Qt.AlignCenter)
             layout.addWidget(empty)
+            return tab
 
+        t = TabelaPadrao(["Data/Hora", "Origem", "Destino", "Observação", "Status"])
+        t.setRowCount(len(atividades))
+        t.verticalHeader().setVisible(False)
+        for i, a in enumerate(atividades):
+            data_fmt = formatar_data_hora(a.event_at) if a.event_at else "—"
+            t.setItem(i, 0, QTableWidgetItem(data_fmt))
+            t.setItem(i, 1, QTableWidgetItem(a.from_location or "—"))
+            t.setItem(i, 2, QTableWidgetItem(a.to_location or "—"))
+            t.setItem(i, 3, QTableWidgetItem(a.notes or "—"))
+            t.setItem(i, 4, QTableWidgetItem(a.status_atividade or "—"))
+        t.redimensionar()
+        layout.addWidget(t)
+
+        def _abrir_transferencia(row: int, col: int) -> None:
+            if row < 0 or row >= len(atividades):
+                return
+            a = atividades[row]
+            if hasattr(self._main_window, 'pagina_transferencias'):
+                self._main_window.pagina_transferencias._abrir_edicao(a, self)
+
+        t.cellDoubleClicked.connect(_abrir_transferencia)
         return tab
 
 

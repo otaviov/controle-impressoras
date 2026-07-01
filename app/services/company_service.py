@@ -33,13 +33,17 @@ class CompanyService:
     def buscar_por_nome(self, nome: str) -> Optional[Company]:
         return self.session.query(Company).filter(Company.deleted_at == None, Company.nome == nome).first()
 
-    def criar(self, nome: str, cnpj: str = "", telefone: str = "", email: str = "", tipo: str = "Cliente") -> Company:
+    def criar(self, nome: str, cnpj: str = "", telefone: str = "", email: str = "", tipo: str = "Cliente", endereco: str = "", cidade: str = "", uf: str = "", observacao: str = "") -> Company:
         empresa = Company(
             nome=sanitizar(nome, "Company", "nome"),
             cnpj=sanitizar(cnpj, "Company", "cnpj"),
             telefone=sanitizar(telefone, "Company", "telefone"),
             email=sanitizar(email, "Company", "email"),
             tipo=sanitizar(tipo, "Company", "tipo"),
+            endereco=sanitizar(endereco, "Company", "endereco"),
+            cidade=sanitizar(cidade, "Company", "cidade"),
+            uf=sanitizar(uf, "Company", "uf"),
+            observacao=sanitizar(observacao, "Company", "observacao"),
         )
         self.session.add(empresa)
         safe_commit(self.session)

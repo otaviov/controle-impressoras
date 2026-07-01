@@ -47,6 +47,7 @@ from app.views.pages import (
     OSPage,
     PartsPage,
     PrintersPage,
+    PurchaseRequisitionsPage,
     ReportsPage,
     TechnicianAgendaPage,
     TechnicianHistoryPage,
@@ -94,6 +95,7 @@ class MainWindow(QMainWindow):
     pagina_alertas: AlertasPage
     pagina_calendario: CalendarPage
     pagina_agenda: TechnicianAgendaPage
+    pagina_requisicoes: PurchaseRequisitionsPage
     pagina_config: ConfigPage | None
 
     def __init__(self, session: Any, user: dict[str, Any]) -> None:
@@ -205,6 +207,7 @@ class MainWindow(QMainWindow):
             ("👥", "Empresas/Clientes", 3),
             ("👨‍🔧", "Técnicos", 6),
             ("🗓️", "Agenda", 11),
+            ("🛒", "Requisições", 12),
             ("📜", "Histórico", 7),
             ("🔔", "Alertas", 9),
             ("📅", "Calendário", 10),
@@ -216,7 +219,7 @@ class MainWindow(QMainWindow):
         if self.user.get('perfil') == 'admin':
             scroll_layout.addSpacing(8)
             self._adicionar_label_secao(scroll_layout, "Sistema")
-            container = self._criar_botao_menu("⚙️", "Configurações", 12)
+            container = self._criar_botao_menu("⚙️", "Configurações", 13)
             scroll_layout.addWidget(container)
 
         scroll_layout.addStretch()
@@ -302,6 +305,9 @@ class MainWindow(QMainWindow):
             self.session, self.technician_service,
             self.activity_service, self.printer_service,
         )
+        self.pagina_requisicoes = PurchaseRequisitionsPage(
+            self.session, self.part_service,
+        )
 
         self.content_area.addWidget(self.pagina_dashboard)        # 0
         self.content_area.addWidget(self.pagina_impressoras)      # 1
@@ -315,6 +321,7 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self.pagina_alertas)          # 9
         self.content_area.addWidget(self.pagina_calendario)       # 10
         self.content_area.addWidget(self.pagina_agenda)           # 11
+        self.content_area.addWidget(self.pagina_requisicoes)      # 12
 
         if self.user.get('perfil') == 'admin':
             self.pagina_config = ConfigPage(
@@ -329,7 +336,7 @@ class MainWindow(QMainWindow):
                 technician_service=self.technician_service,
                 alert_service=self.alert_service,
             )
-            self.content_area.addWidget(self.pagina_config)       # 12
+            self.content_area.addWidget(self.pagina_config)       # 13
 
         # ── Conexões de sinais ─────────────────────────────────
         self.pagina_dashboard.signal_trocar_pagina.connect(self._trocar_pagina)

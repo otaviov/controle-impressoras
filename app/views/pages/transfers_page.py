@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QCompleter,
     QDialog,
     QFileDialog,
     QFormLayout,
@@ -28,6 +29,27 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+class _ComboFixo(QComboBox):
+    """QComboBox não-digitável (editable + completer que sempre mostra todos os itens).
+    Herda o fundo escuro do configurar_combo mas sem filtrar o popup."""
+
+    def __init__(self, items: list[str], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.addItems(items)
+        configurar_combo(self)  # editable + dark styling (cria QCompleter padrão)
+        # Substitui o completer por um que nunca filtra
+        c = _SempreMostraCompleter(self)
+        c.setModel(self.model())
+        c.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setCompleter(c)
+
+
+class _SempreMostraCompleter(QCompleter):
+    """Completer que sempre retorna todos os itens (prefixo vazio)."""
+    def splitPath(self, text: str) -> list[str]:
+        return [""]
 
 from app.models import Activity, Attachment, Part
 from app.services.part_service import PartService
@@ -243,14 +265,11 @@ class TransfersPage(QWidget):
         tipo_form.setLabelAlignment(Qt.AlignRight)
         tipo_form.setSpacing(8)
 
-        tipo_combo = QComboBox()
-        tipo_combo.addItems(["Impressora Completa", "Apenas Peça(s)"])
-        configurar_combo(tipo_combo)
-        cmp = tipo_combo.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        tipo_combo = _ComboFixo(["Impressora", "Peça"])
         tipo_form.addRow("Tipo:", tipo_combo)
+
+        subtipo_combo = _ComboFixo(["Transferir", "Trocar"])
+        tipo_form.addRow("Modalidade:", subtipo_combo)
         tipo_layout.addLayout(tipo_form)
         content.addWidget(tipo_box)
 
@@ -281,16 +300,24 @@ class TransfersPage(QWidget):
         printer_destino_combo.setPlaceholderText("Digite o patrimônio")
         for p in self.printer_service.listar_todos():
             printer_destino_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
-        printer_destino_combo.setVisible(False)
         lbl_dest = QLabel("Impressora Destino:")
-        lbl_dest.setVisible(False)
         equip_form.addRow(lbl_dest, printer_destino_combo)
 
-        def _toggle_printer_destino(tipo: str) -> None:
-            visivel = tipo == "Apenas Peça(s)"
-            lbl_dest.setVisible(visivel)
-            printer_destino_combo.setVisible(visivel)
-        tipo_combo.currentTextChanged.connect(_toggle_printer_destino)
+        def _atualizar_visibilidade():
+            tipo = tipo_combo.currentText()
+            if tipo == "Peça":
+                subtipo_combo.setVisible(False)
+                lbl_dest.setVisible(True)
+                printer_destino_combo.setVisible(True)
+            else:
+                subtipo_combo.setVisible(True)
+                is_troca = subtipo_combo.currentText() == "Trocar"
+                lbl_dest.setVisible(is_troca)
+                printer_destino_combo.setVisible(is_troca)
+
+        tipo_combo.currentTextChanged.connect(lambda _: _atualizar_visibilidade())
+        subtipo_combo.currentTextChanged.connect(lambda _: _atualizar_visibilidade())
+        _atualizar_visibilidade()
 
         equip_layout.addLayout(equip_form)
         content.addWidget(equip_box)
@@ -391,11 +418,16 @@ class TransfersPage(QWidget):
         saved_id = [None]
 
         def salvar_nova_silent() -> int | None:
-            if saved_id[0] is not None:
+            if saved_id[0] is not None and saved_id[0] > 0:
                 return saved_id[0]
             patrimonio_texto = printer_combo.currentText().split(" - ")[0].strip()
             printer = self.printer_service.buscar_por_patrimonio(patrimonio_texto)
-            if not printer:
+            tipo = tipo_combo.currentText()
+            eh_troca = tipo == "Impressora" and subtipo_combo.currentText() == "Trocar"
+            eh_transferencia = tipo == "Impressora" and subtipo_combo.currentText() == "Transferir"
+            eh_pecas = tipo == "Peça"
+
+            if not printer and not eh_pecas:
                 QMessageBox.warning(dialog, "Aviso", "Impressora não encontrada. Verifique o patrimônio.")
                 return None
 
@@ -411,30 +443,46 @@ class TransfersPage(QWidget):
 
             try:
                 desc_clean = desc_text.toPlainText().strip()
-                tipo = tipo_combo.currentText()
+                dest_texto = ""
+                if eh_troca or eh_pecas:
+                    dest_texto = printer_destino_combo.currentText().split(" - ")[0].strip()
 
                 with transacao(self._session):
-                    activity = Activity(
-                        printer_id=printer.id,
-                        kind="MOVIMENTACAO",
-                        event_at=event_at,
-                        parts_used=parts,
-                        from_location=from_loc,
-                        to_location=to_loc,
-                        notes=desc_clean,
-                        numero_recibo=recibo,
-                        responsavel=resp,
-                        status_atividade=status,
-                    )
-                    self._session.add(activity)
+                    saved_activity = None
+                    if printer:
+                        origin_notes = desc_clean
+                        if eh_troca and dest_texto:
+                            origin_notes = f"Troca com {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
+                        elif eh_pecas and dest_texto:
+                            origin_notes = f"Peças para {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
+                        elif eh_transferencia:
+                            origin_notes = f"Transferência" + (f" — {desc_clean}" if desc_clean else "")
+                        activity = Activity(
+                            printer_id=printer.id,
+                            kind="MOVIMENTACAO",
+                            event_at=event_at,
+                            parts_used=parts,
+                            from_location=from_loc,
+                            to_location=to_loc,
+                            notes=origin_notes,
+                            numero_recibo=recibo,
+                            responsavel=resp,
+                            status_atividade=status,
+                        )
+                        self._session.add(activity)
+                        self._session.flush()
+                        saved_activity = activity
+                        if to_loc and not eh_pecas:
+                            printer.local_atual = to_loc
+
                     self._dar_baixa_estoque(parts)
 
-                    if tipo == "Apenas Peça(s)":
-                        dest_texto = printer_destino_combo.currentText().split(" - ")[0].strip()
+                    if eh_pecas or eh_troca:
                         if dest_texto:
                             printer_dest = self.printer_service.buscar_por_patrimonio(dest_texto)
                             if printer_dest:
-                                notes_dest = f"Recebeu peça da {patrimonio_texto}"
+                                src_label = patrimonio_texto if printer else "estoque"
+                                notes_dest = f"Recebeu peça da {src_label}" if eh_pecas else f"Recebeu por troca da {src_label}"
                                 if desc_clean:
                                     notes_dest += f" — {desc_clean}"
                                 activity_dest = Activity(
@@ -446,18 +494,27 @@ class TransfersPage(QWidget):
                                     to_location=to_loc,
                                     notes=notes_dest,
                                     numero_recibo=recibo,
+                                    responsavel=resp,
                                     status_atividade=status,
                                 )
                                 self._session.add(activity_dest)
+                                self._session.flush()
+                                saved_activity = activity_dest
+                            if eh_troca and from_loc:
+                                printer_dest.local_atual = from_loc
 
-                saved_id[0] = activity.id
-                return activity.id
+                    if saved_activity:
+                        saved_id[0] = saved_activity.id
+                        return saved_activity.id
+                    saved_id[0] = 0
+                    return 0
             except Exception as e:
                 QMessageBox.critical(dialog, "Erro", f"Erro ao salvar:\n{e}")
                 return None
 
         def salvar_nova() -> None:
-            if salvar_nova_silent() is not None:
+            result = salvar_nova_silent()
+            if result is not None and result > 0:
                 dialog.accept()
 
         btn_salvar.clicked.connect(salvar_nova)
@@ -475,7 +532,15 @@ class TransfersPage(QWidget):
         printer = self.printer_service.buscar_por_id(mov.printer_id)
         patrimonio = f"{printer.patrimonio} - {printer.modelo}" if printer else mov.printer_id
 
-        tipo = "Apenas Peça(s)" if (mov.notes and "Peças para" in mov.notes) else "Impressora Completa"
+        eh_transferencia = bool(mov.notes and mov.notes.startswith("Transferência"))
+        eh_troca = bool(mov.notes and mov.notes.startswith("Troca com"))
+        eh_pecas = bool(mov.notes and mov.notes.startswith("Peças para"))
+        if eh_pecas:
+            tipo = "Peça"
+        elif eh_troca:
+            tipo = "Troca"
+        else:
+            tipo = "Transferência"
 
         dialog = QDialog(self)
         dialog.setWindowTitle("Transferência")
@@ -499,9 +564,10 @@ class TransfersPage(QWidget):
         equip_form.setLabelAlignment(Qt.AlignRight)
         equip_form.setSpacing(8)
         equip_form.addRow(campo_rotulo("Impressora Origem"), campo_readonly(patrimonio))
-        if tipo == "Apenas Peça(s)":
-            partes = mov.notes.split(" - ", 1) if mov.notes else []
-            destino_pat = partes[0].replace("Peças para ", "").strip() if partes and partes[0].startswith("Peças para") else "—"
+        if eh_pecas or eh_troca:
+            import re
+            m = re.search(r'(Peças para|Troca com) (\S+)', mov.notes or "")
+            destino_pat = m.group(2) if m else "—"
             equip_form.addRow(campo_rotulo("Impressora Destino"), campo_readonly(destino_pat))
         equip_layout.addLayout(equip_form)
         content.addWidget(equip_box)
@@ -510,7 +576,8 @@ class TransfersPage(QWidget):
         det_form = QFormLayout()
         det_form.setLabelAlignment(Qt.AlignRight)
         det_form.setSpacing(8)
-        det_form.addRow(campo_rotulo("Tipo"), campo_readonly(tipo))
+        label_tipo = "Troca" if eh_troca else ("Peça" if eh_pecas else "Transferência")
+        det_form.addRow(campo_rotulo("Tipo"), campo_readonly(label_tipo))
         det_form.addRow(campo_rotulo("Data/Hora"), campo_readonly(formatar_data_hora(mov.event_at)))
         det_form.addRow(campo_rotulo("Peças"), campo_readonly(mov.parts_used or "—"))
         det_form.addRow(campo_rotulo("Origem"), campo_readonly(mov.from_location or "—"))
@@ -573,6 +640,7 @@ class TransfersPage(QWidget):
         layout.addLayout(botoes)
 
         dialog.exec()
+        self.recarregar()
 
     def _abrir_edicao(self, mov: Any, parent_dialog: QDialog | None = None) -> None:
         printer = self.printer_service.buscar_por_id(mov.printer_id)
@@ -625,14 +693,6 @@ class TransfersPage(QWidget):
         printer_destino_edit_combo.setPlaceholderText("Digite o patrimônio")
         for p in self.printer_service.listar_todos():
             printer_destino_edit_combo.addItem(f"{p.patrimonio} - {p.modelo}", p.id)
-        if mov.notes and mov.notes.startswith("Peças para"):
-            partes = mov.notes.split(" - ", 1)
-            destino_pat = partes[0].replace("Peças para ", "").strip()
-            idx = printer_destino_edit_combo.findText(destino_pat)
-            if idx >= 0:
-                printer_destino_edit_combo.setCurrentIndex(idx)
-            else:
-                printer_destino_edit_combo.setCurrentText(destino_pat)
         lbl_dest_edit = QLabel("Impressora Destino:")
         equip_form.addRow(lbl_dest_edit, printer_destino_edit_combo)
         equip_layout.addLayout(equip_form)
@@ -643,28 +703,64 @@ class TransfersPage(QWidget):
         tipo_form.setLabelAlignment(Qt.AlignRight)
         tipo_form.setSpacing(8)
 
-        tipo_edit_combo = QComboBox()
-        configurar_combo(tipo_edit_combo)
-        cmp = tipo_edit_combo.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        tipo_edit_combo.addItems(["Impressora Completa", "Apenas Peça(s)"])
-        if mov.notes and mov.notes.startswith("Peças para"):
-            tipo_edit_combo.setCurrentText("Apenas Peça(s)")
+        tipo_edit_combo = _ComboFixo(["Impressora", "Peça"])
+
+        subtipo_edit_combo = _ComboFixo(["Transferir", "Trocar"])
+        tipo_form.addRow("Modalidade:", subtipo_edit_combo)
+
+        eh_troca_edit = bool(mov.notes and mov.notes.startswith("Troca com"))
+        eh_pecas_edit = bool(mov.notes and mov.notes.startswith("Peças para"))
+        eh_transferencia_edit = bool(mov.notes and mov.notes.startswith("Transferência"))
+        if eh_pecas_edit:
+            tipo_edit_combo.setCurrentText("Peça")
+        elif eh_troca_edit or eh_transferencia_edit:
+            tipo_edit_combo.setCurrentText("Impressora")
+        if eh_troca_edit:
+            subtipo_edit_combo.setCurrentText("Trocar")
+        else:
+            subtipo_edit_combo.setCurrentText("Transferir")
+
+        if eh_pecas_edit:
+            import re
+            m = re.search(r'Peças para (\S+)', mov.notes)
+            if m:
+                dest_pat = m.group(1)
+                idx = printer_destino_edit_combo.findText(dest_pat)
+                if idx >= 0:
+                    printer_destino_edit_combo.setCurrentIndex(idx)
+                else:
+                    printer_destino_edit_combo.setCurrentText(dest_pat)
+
+        if eh_troca_edit:
+            import re
+            m = re.search(r'Troca com (\S+)', mov.notes)
+            if m:
+                dest_pat = m.group(1)
+                idx = printer_destino_edit_combo.findText(dest_pat)
+                if idx >= 0:
+                    printer_destino_edit_combo.setCurrentIndex(idx)
+                else:
+                    printer_destino_edit_combo.setCurrentText(dest_pat)
+
         tipo_form.addRow("Tipo:", tipo_edit_combo)
         tipo_layout.addLayout(tipo_form)
         content.addWidget(tipo_box)
 
-        is_pecas = tipo_edit_combo.currentText() == "Apenas Peça(s)"
-        lbl_dest_edit.setVisible(is_pecas)
-        printer_destino_edit_combo.setVisible(is_pecas)
+        def _atualizar_visibilidade_edit():
+            tipo = tipo_edit_combo.currentText()
+            if tipo == "Peça":
+                subtipo_edit_combo.setVisible(False)
+                lbl_dest_edit.setVisible(True)
+                printer_destino_edit_combo.setVisible(True)
+            else:
+                subtipo_edit_combo.setVisible(True)
+                is_troca = subtipo_edit_combo.currentText() == "Trocar"
+                lbl_dest_edit.setVisible(is_troca)
+                printer_destino_edit_combo.setVisible(is_troca)
 
-        def _toggle_printer_destino_edit(tipo: str) -> None:
-            visivel = tipo == "Apenas Peça(s)"
-            lbl_dest_edit.setVisible(visivel)
-            printer_destino_edit_combo.setVisible(visivel)
-        tipo_edit_combo.currentTextChanged.connect(_toggle_printer_destino_edit)
+        tipo_edit_combo.currentTextChanged.connect(lambda _: _atualizar_visibilidade_edit())
+        subtipo_edit_combo.currentTextChanged.connect(lambda _: _atualizar_visibilidade_edit())
+        _atualizar_visibilidade_edit()
 
         det_box, det_layout = group_box("Detalhes")
         det_form = QFormLayout()
@@ -732,13 +828,9 @@ class TransfersPage(QWidget):
             lambda idx: self._preencher_pecas_do_estoque(estoque_edit_combo, pecas_text, idx)
         )
 
-        def _strip_prefix(txt: str) -> str:
-            import re
-            return re.sub(r'^(Peças para \S+|Recebeu peça da \S+)\s*[—\-]?\s*', '', txt).strip()
-
         desc_text = QTextEdit()
         desc_text.setStyleSheet(ESTILO_INPUT)
-        desc_text.setText(_strip_prefix(mov.notes or ""))
+        desc_text.setText(mov.notes or "")
         desc_text.setMaximumHeight(70)
         det_form.addRow("Descrição:", desc_text)
 
@@ -773,17 +865,35 @@ class TransfersPage(QWidget):
             from app.utils.helpers import parse_data
             data_texto = data_input.text().strip()
             desc_clean = desc_text.toPlainText().strip()
+            import re
+            desc_clean = re.sub(r'^(Transferência|Peças para \S+|Recebeu peça da \S+|Recebeu por troca da \S+|Troca com \S+)\s*[—\-]?\s*', '', desc_clean).strip()
             parts = pecas_text.toPlainText().strip()
             from_loc = origem_combo.currentText().strip()
             to_loc = destino_combo.currentText().strip()
             recibo = recibo_input.text().strip()
             resp = resp_input.text().strip()
             status = status_combo.currentText()
+            tipo = tipo_edit_combo.currentText()
+            eh_troca = tipo == "Impressora" and subtipo_edit_combo.currentText() == "Trocar"
+            eh_transferencia = tipo == "Impressora" and subtipo_edit_combo.currentText() == "Transferir"
+            eh_pecas = tipo == "Peça"
+            dest_texto = ""
+            origin_notes = desc_clean
+            if eh_troca:
+                dest_texto = printer_destino_edit_combo.currentText().split(" - ")[0].strip()
+                if dest_texto:
+                    origin_notes = f"Troca com {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
+            elif eh_pecas:
+                dest_texto = printer_destino_edit_combo.currentText().split(" - ")[0].strip()
+                if dest_texto:
+                    origin_notes = f"Peças para {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
+            elif eh_transferencia:
+                origin_notes = f"Transferência" + (f" — {desc_clean}" if desc_clean else "")
             novos = {
                 "parts_used": parts,
                 "from_location": from_loc,
                 "to_location": to_loc,
-                "notes": desc_clean,
+                "notes": origin_notes,
                 "numero_recibo": recibo,
                 "responsavel": resp,
                 "status_atividade": status,
@@ -800,18 +910,20 @@ class TransfersPage(QWidget):
                         setattr(mov, chave, valor)
                     self._dar_baixa_estoque(parts)
 
-                    if tipo_edit_combo.currentText() == "Apenas Peça(s)":
-                        dest_texto = printer_destino_edit_combo.currentText().split(" - ")[0].strip()
+                    if printer and to_loc and not eh_pecas:
+                        printer.local_atual = to_loc
+
+                    if eh_pecas or eh_troca:
                         if dest_texto:
                             printer_dest = self.printer_service.buscar_por_patrimonio(dest_texto)
                             if printer_dest:
-                                src_pat = printer.patrimonio if printer else str(orig['printer_id'])
+                                src_label = printer.patrimonio if printer else str(orig['printer_id'])
+                                notes_dest = f"Recebeu por troca da {src_label}" if eh_troca else f"Recebeu peça da {src_label}"
                                 existing = self._session.query(Activity).filter(
                                     Activity.printer_id == printer_dest.id,
                                     Activity.kind == "MOVIMENTACAO",
-                                    Activity.notes.like(f"Recebeu peça da {src_pat}%"),
+                                    Activity.notes.like(f"{notes_dest.split(' —')[0]}%"),
                                 ).first()
-                                notes_dest = f"Recebeu peça da {src_pat}"
                                 if desc_clean:
                                     notes_dest += f" — {desc_clean}"
                                 if existing:
@@ -820,6 +932,7 @@ class TransfersPage(QWidget):
                                     existing.from_location = from_loc
                                     existing.to_location = to_loc
                                     existing.numero_recibo = recibo
+                                    existing.responsavel = resp
                                 else:
                                     event_at = parse_data(data_texto) if data_texto else mov.event_at
                                     activity_dest = Activity(
@@ -831,11 +944,13 @@ class TransfersPage(QWidget):
                                         to_location=to_loc,
                                         notes=notes_dest,
                                         numero_recibo=recibo,
+                                        responsavel=resp,
                                         status_atividade=status,
                                     )
                                     self._session.add(activity_dest)
-
-                orig.update(novos)
+                                    self._session.flush()
+                            if eh_troca and from_loc:
+                                printer_dest.local_atual = from_loc
                 QMessageBox.information(dialog, "Sucesso", "Alterações salvas!")
                 dialog.accept()
             except Exception as e:

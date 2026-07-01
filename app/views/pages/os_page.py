@@ -58,6 +58,7 @@ from app.views.styles.theme import (
     ESTILO_DIALOG,
     ESTILO_INPUT,
     ESTILO_SUBTITULO,
+    ESTILO_TABELA_SIMPLES,
     ESTILO_TITULO_PAGINA,
     URGENCIAS,
     URGENCIA_CORES,
@@ -412,7 +413,7 @@ class OSPage(QWidget):
                     os_vinculada_id=os_vinculada_id,
                 )
                 self._criar_alerta_urgencia(printer, urgencia)
-                self._dar_baixa_estoque(parts_used)
+                self._dar_baixa_estoque(parts_used, activity_id=atividade.id)
                 self.activity_service.atualizar(
                     atividade,
                     from_company_id=from_company_id,
@@ -645,8 +646,87 @@ class OSPage(QWidget):
         grid.addWidget(edt_pecas, 5, 0, 1, 2)
         grid.addWidget(input_label("Peça do Estoque"), 6, 0, 1, 2)
         grid.addWidget(estoque_combo, 7, 0, 1, 2)
-        grid.addWidget(chk_agendar, 8, 0, 1, 2)
-        grid.addWidget(edt_prox, 9, 0)
+        btn_reservar = QPushButton("📌 Reservar")
+        btn_reservar.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+        btn_reservar.setToolTip("Reservar esta peça para esta OS (baixa no estoque)")
+        def _reservar():
+            idx = estoque_combo.currentIndex()
+            if idx <= 0:
+                return
+            pid = estoque_combo.currentData()
+            if pid is None:
+                return
+            with tratar_erro("reservar peça"):
+                res = self.part_service.criar_reserva(pid, atividade.id, quantidade=1)
+                if res:
+                    ToastManager.mostrar(f"Peça reservada para OS #{atividade.id}.", "sucesso")
+                    _atualizar_reservas()
+                    estoque_combo.setCurrentIndex(0)
+                    self.recarregar()
+                else:
+                    ToastManager.mostrar("Estoque insuficiente para reservar.", "erro")
+        btn_reservar.clicked.connect(_reservar)
+        grid.addWidget(btn_reservar, 8, 0, 1, 2)
+
+        # ── Reservas existentes ──
+        reservas_box, reservas_layout = group_box("Peças Reservadas")
+        reservas_tabela = QTableWidget()
+        reservas_tabela.setColumnCount(5)
+        reservas_tabela.setHorizontalHeaderLabels(["Peça", "Qtd", "Status", "Data", ""])
+        reservas_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
+        reservas_tabela.setSelectionBehavior(QTableWidget.SelectRows)
+        reservas_tabela.setEditTriggers(QTableWidget.NoEditTriggers)
+        reservas_tabela.verticalHeader().setVisible(False)
+        reservas_tabela.setAlternatingRowColors(True)
+        reservas_tabela.verticalHeader().setDefaultSectionSize(28)
+        h_res = reservas_tabela.horizontalHeader()
+        for i in range(4):
+            h_res.setSectionResizeMode(i, QHeaderView.Stretch)
+        h_res.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        def _cancelar_reserva(res_id: int):
+            with tratar_erro("cancelar reserva"):
+                self.part_service.cancelar_reserva(res_id)
+                ToastManager.mostrar("Reserva cancelada. Estoque restaurado.", "sucesso")
+                _atualizar_reservas()
+                self.recarregar()
+        def _atualizar_reservas():
+            reservas = self.part_service.reservas_por_os(atividade.id)
+            reservas_tabela.setRowCount(len(reservas))
+            for i, r in enumerate(reservas):
+                reservas_tabela.setItem(i, 0, QTableWidgetItem(r.part.nome if r.part else "-"))
+                item_q = QTableWidgetItem(str(r.quantidade))
+                item_q.setTextAlignment(Qt.AlignCenter)
+                reservas_tabela.setItem(i, 1, item_q)
+                reservas_tabela.setItem(i, 2, QTableWidgetItem(r.status))
+                reservas_tabela.setItem(i, 3, QTableWidgetItem(formatar_data_hora(r.created_at)))
+                if r.status == "reservada":
+                    btn_cancel = QPushButton("✕")
+                    btn_cancel.setFixedSize(24, 24)
+                    btn_cancel.setStyleSheet("color: #ef4444; font-size: 12px; background: transparent; border: none;")
+                    btn_cancel.setToolTip("Cancelar reserva")
+                    btn_cancel.clicked.connect(lambda _, rid=r.id: _cancelar_reserva(rid))
+                    reservas_tabela.setCellWidget(i, 4, btn_cancel)
+                else:
+                    reservas_tabela.setItem(i, 4, QTableWidgetItem(""))
+        _atualizar_reservas()
+        reservas_layout.addWidget(reservas_tabela)
+        layout.addWidget(reservas_box)
+
+        chk_agendar = QCheckBox("Agendar próxima manutenção da impressora")
+        chk_agendar.setStyleSheet("color: #e2e8f0; font-size: 12px; spacing: 8px; margin-top: 4px;")
+        chk_agendar.setToolTip("Define a data da próxima manutenção programada para esta impressora")
+        chk_agendar.setChecked(True)
+
+        edt_prox = QDateEdit()
+        edt_prox.setCalendarPopup(True)
+        edt_prox.setDisplayFormat("dd/MM/yyyy")
+        edt_prox.setDate(QDate.currentDate().addMonths(3))
+        edt_prox.setStyleSheet(ESTILO_INPUT)
+        edt_prox.setEnabled(True)
+        chk_agendar.toggled.connect(edt_prox.setEnabled)
+
+        grid.addWidget(chk_agendar, 9, 0, 1, 2)
+        grid.addWidget(edt_prox, 10, 0)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
         concluir_layout.addLayout(grid)
@@ -731,11 +811,15 @@ class OSPage(QWidget):
                         status_atividade="Concluido",
                         procedimentos=procedimentos,
                     )
-                    self._dar_baixa_estoque(pecas)
-                    self.printer_service.atualizar(printer, ultima_revisao=fim)
-                    if chk_agendar.isChecked():
-                        data_prox = edt_prox.date().toPython()
-                        self.printer_service.atualizar(printer, proxima_revisao=data_prox)
+                    self._dar_baixa_estoque(pecas, activity_id=atividade.id)
+                    for res in self.part_service.reservas_por_os(atividade.id):
+                        if res.status == "reservada":
+                            self.part_service.usar_reserva(res.id)
+                    if printer:
+                        self.printer_service.atualizar(printer, ultima_revisao=fim)
+                        if chk_agendar.isChecked():
+                            data_prox = edt_prox.date().toPython()
+                            self.printer_service.atualizar(printer, proxima_revisao=data_prox)
                 dialog.accept()
                 self.recarregar()
             except Exception as e:
@@ -1191,6 +1275,32 @@ class OSPage(QWidget):
         fotos_box, _ = self._criar_grupo_fotos(atividade.id)
         layout.addWidget(fotos_box)
 
+        # ── Peças Reservadas ──
+        reservas = self.part_service.reservas_por_os(atividade.id)
+        if reservas:
+            res_box, res_layout = group_box("Peças Reservadas")
+            res_tabela = QTableWidget()
+            res_tabela.setColumnCount(4)
+            res_tabela.setHorizontalHeaderLabels(["Peça", "Qtd", "Status", "Data"])
+            res_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
+            res_tabela.setSelectionBehavior(QTableWidget.SelectRows)
+            res_tabela.setEditTriggers(QTableWidget.NoEditTriggers)
+            res_tabela.verticalHeader().setVisible(False)
+            res_tabela.setAlternatingRowColors(True)
+            res_tabela.verticalHeader().setDefaultSectionSize(28)
+            h_res = res_tabela.horizontalHeader()
+            for i in range(4):
+                h_res.setSectionResizeMode(i, QHeaderView.Stretch)
+            for i, r in enumerate(reservas):
+                res_tabela.setItem(i, 0, QTableWidgetItem(r.part.nome if r.part else "-"))
+                item_q = QTableWidgetItem(str(r.quantidade))
+                item_q.setTextAlignment(Qt.AlignCenter)
+                res_tabela.setItem(i, 1, item_q)
+                res_tabela.setItem(i, 2, QTableWidgetItem(r.status))
+                res_tabela.setItem(i, 3, QTableWidgetItem(formatar_data_hora(r.created_at)))
+            res_layout.addWidget(res_tabela)
+            layout.addWidget(res_box)
+
         layout.addStretch()
         scroll.setWidget(container)
         root.addWidget(scroll, stretch=1)
@@ -1349,7 +1459,7 @@ class OSPage(QWidget):
                         procedimentos=procedimentos,
                         os_vinculada_id=os_vinculada_id,
                     )
-                    self._dar_baixa_estoque(parts_used)
+                    self._dar_baixa_estoque(parts_used, activity_id=atividade.id)
                 resultado["acao"] = "salvar"
                 dialog.accept()
                 self.recarregar()
@@ -1585,6 +1695,69 @@ class OSPage(QWidget):
         pecas_grid.addWidget(txt_pecas)
         pecas_grid.addWidget(input_label("ADICIONAR DO ESTOQUE"))
         pecas_grid.addWidget(estoque_combo_os)
+
+        if atividade:
+            btn_reservar_edit = QPushButton("📌 Reservar Peça")
+            btn_reservar_edit.setStyleSheet(ESTILO_BOTAO_SECUNDARIO)
+            def _reservar_edit():
+                idx = estoque_combo_os.currentIndex()
+                if idx <= 0:
+                    return
+                pid = estoque_combo_os.currentData()
+                if pid is None:
+                    return
+                with tratar_erro("reservar peça"):
+                    res = self.part_service.criar_reserva(pid, atividade.id, quantidade=1)
+                    if res:
+                        ToastManager.mostrar(f"Peça reservada para OS #{atividade.id}.", "sucesso")
+                        _atualizar_reservas_edit()
+                        estoque_combo_os.setCurrentIndex(0)
+                        self.recarregar()
+                    else:
+                        ToastManager.mostrar("Estoque insuficiente para reservar.", "erro")
+            btn_reservar_edit.clicked.connect(_reservar_edit)
+            pecas_grid.addWidget(btn_reservar_edit)
+
+            # ── Reservas na edição ──
+            reservas_edit_tabela = QTableWidget()
+            reservas_edit_tabela.setColumnCount(4)
+            reservas_edit_tabela.setHorizontalHeaderLabels(["Peça", "Qtd", "Status", ""])
+            reservas_edit_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
+            reservas_edit_tabela.setSelectionBehavior(QTableWidget.SelectRows)
+            reservas_edit_tabela.setEditTriggers(QTableWidget.NoEditTriggers)
+            reservas_edit_tabela.verticalHeader().setVisible(False)
+            reservas_edit_tabela.setAlternatingRowColors(True)
+            reservas_edit_tabela.verticalHeader().setDefaultSectionSize(26)
+            h_re = reservas_edit_tabela.horizontalHeader()
+            h_re.setSectionResizeMode(0, QHeaderView.Stretch)
+            h_re.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            h_re.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            h_re.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            def _cancelar_reserva_edit(res_id: int):
+                with tratar_erro("cancelar reserva"):
+                    self.part_service.cancelar_reserva(res_id)
+                    ToastManager.mostrar("Reserva cancelada. Estoque restaurado.", "sucesso")
+                    _atualizar_reservas_edit()
+                    self.recarregar()
+            def _atualizar_reservas_edit():
+                reservas = self.part_service.reservas_por_os(atividade.id)
+                reservas_edit_tabela.setRowCount(len(reservas))
+                for i, r in enumerate(reservas):
+                    reservas_edit_tabela.setItem(i, 0, QTableWidgetItem(r.part.nome if r.part else "-"))
+                    item_q = QTableWidgetItem(str(r.quantidade))
+                    item_q.setTextAlignment(Qt.AlignCenter)
+                    reservas_edit_tabela.setItem(i, 1, item_q)
+                    reservas_edit_tabela.setItem(i, 2, QTableWidgetItem(r.status))
+                    if r.status == "reservada":
+                        btn_cancel = QPushButton("✕")
+                        btn_cancel.setFixedSize(24, 24)
+                        btn_cancel.setStyleSheet("color: #ef4444; font-size: 12px; background: transparent; border: none;")
+                        btn_cancel.setToolTip("Cancelar reserva")
+                        btn_cancel.clicked.connect(lambda _, rid=r.id: _cancelar_reserva_edit(rid))
+                        reservas_edit_tabela.setCellWidget(i, 3, btn_cancel)
+            _atualizar_reservas_edit()
+            pecas_grid.addWidget(reservas_edit_tabela)
+
         pecas_layout.addLayout(pecas_grid)
 
         checklist_box, checklist_layout = group_box("CHECKLIST")
@@ -1974,7 +2147,7 @@ class OSPage(QWidget):
                 return t.id
         return None
 
-    def _dar_baixa_estoque(self, pecas_texto: str) -> None:
+    def _dar_baixa_estoque(self, pecas_texto: str, activity_id: int | None = None) -> None:
         if not pecas_texto:
             return
         for nome_peca in pecas_texto.split(","):
@@ -1984,7 +2157,7 @@ class OSPage(QWidget):
             with tratar_erro("dar baixa no estoque"):
                 part = self.part_service.buscar_por_nome(nome_peca)
                 if part and part.quantidade_estoque > 0:
-                    self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)
+                    self.part_service.retirar_estoque(part, activity_id=activity_id)
 
     def _criar_alerta_urgencia(self, printer: Any, urgencia: str) -> None:
         if not self.alert_service or urgencia not in ("Alta", "Crítica"):

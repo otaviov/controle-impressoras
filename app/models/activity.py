@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
@@ -10,7 +10,10 @@ from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.company import Company
+    from app.models.part_movement import PartMovement
+    from app.models.part_reservation import PartReservation
     from app.models.printer import Printer
+    from app.models.printer_location import PrinterLocation
     from app.models.technician import Technician
 
 
@@ -49,10 +52,13 @@ class Activity(Base, SoftDeleteMixin):
     os_vinculada_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("activities.id"), nullable=True, index=True)
 
     printer: Mapped[Printer] = relationship(back_populates="activities")
+    part_movements: Mapped[list[PartMovement]] = relationship(back_populates="activity", cascade="all, delete-orphan")
+    part_reservations: Mapped[list[PartReservation]] = relationship(back_populates="activity", cascade="all, delete-orphan")
     from_company: Mapped[Optional[Company]] = relationship(back_populates="activities_from", foreign_keys=[from_company_id])
     to_company: Mapped[Optional[Company]] = relationship(back_populates="activities_to", foreign_keys=[to_company_id])
     technician: Mapped[Optional[Technician]] = relationship(back_populates="activities")
     os_vinculada: Mapped[Optional[Activity]] = relationship("Activity", remote_side="Activity.id", back_populates="oses_filhas")
     oses_filhas: Mapped[list[Activity]] = relationship("Activity", back_populates="os_vinculada")
+    location_records: Mapped[list[PrinterLocation]] = relationship(back_populates="activity", cascade="all, delete-orphan")
 
 

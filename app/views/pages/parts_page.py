@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -33,6 +34,7 @@ from app.views.styles.theme import (
     ESTILO_BOTAO_SECUNDARIO,
     ESTILO_BOTAO_SUCESSO,
     ESTILO_SUBTITULO,
+    ESTILO_TABELA_SIMPLES,
     campo_readonly,
     campo_rotulo,
     configurar_combo,
@@ -450,7 +452,53 @@ class PartsPage(QWidget):
             warn.setStyleSheet("color: #ef4444; font-size: 11px; font-weight: 600; background: transparent; padding: 8px 0 0 0;")
             est_layout.addWidget(warn)
         est_layout.addLayout(est_form)
+        # ── Receber Estoque ──
+        btn_receber = QPushButton("📦 Receber Estoque")
+        btn_receber.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_receber.clicked.connect(lambda: self._receber_estoque(peca, dialog))
+        est_layout.addWidget(btn_receber)
         content.addWidget(est_box)
+
+        # ── Movimentações Recentes ──
+        mov_box, mov_layout = group_box("Movimentações Recentes")
+        mov_tabela = QTableWidget()
+        mov_tabela.setColumnCount(5)
+        mov_tabela.setHorizontalHeaderLabels(["Data/Hora", "Tipo", "Qtd", "Saldo", "Observação"])
+        mov_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
+        mov_tabela.setSelectionBehavior(QTableWidget.SelectRows)
+        mov_tabela.setEditTriggers(QTableWidget.NoEditTriggers)
+        mov_tabela.verticalHeader().setVisible(False)
+        mov_tabela.setAlternatingRowColors(True)
+        mov_tabela.verticalHeader().setDefaultSectionSize(30)
+        h = mov_tabela.horizontalHeader()
+        for i in range(5):
+            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        from app.utils.helpers import formatar_data_hora
+        movimentos = self.part_service.movimentacoes(peca.id, limite=20)
+        mov_tabela.setRowCount(len(movimentos))
+        for i, m in enumerate(movimentos):
+            mov_tabela.setItem(i, 0, QTableWidgetItem(formatar_data_hora(m.created_at)))
+            mov_tabela.setItem(i, 1, QTableWidgetItem(m.tipo))
+            item_qtd = QTableWidgetItem(str(m.quantidade))
+            item_qtd.setTextAlignment(Qt.AlignCenter)
+            mov_tabela.setItem(i, 2, item_qtd)
+            item_saldo = QTableWidgetItem(str(m.saldo_posterior))
+            item_saldo.setTextAlignment(Qt.AlignCenter)
+            mov_tabela.setItem(i, 3, item_saldo)
+            mov_tabela.setItem(i, 4, QTableWidgetItem(m.observacao or ""))
+        mov_layout.addWidget(mov_tabela)
+        content.addWidget(mov_box)
+
+        # ── Requisição de Compra Pendente ──
+        reqs = self.part_service.listar_requisicoes(status="pendente", limite=10)
+        reqs_desta = [r for r in reqs if r.part_id == peca.id]
+        if reqs_desta:
+            req_box, req_layout = group_box("Requisição de Compra Pendente")
+            for r in reqs_desta:
+                lbl_req = QLabel(f"🛒 #{r.id} — {r.quantidade_sugerida} un. ({r.observacao or ''})")
+                lbl_req.setStyleSheet("color: #f59e0b; font-size: 12px; background: transparent; padding: 2px 0;")
+                req_layout.addWidget(lbl_req)
+            content.addWidget(req_box)
 
         content.addStretch()
         scroll.setWidget(container)
@@ -491,6 +539,55 @@ class PartsPage(QWidget):
         layout.addLayout(btn_layout)
 
         dialog.exec()
+
+    def _receber_estoque(self, peca: Any, parent_dialog: QDialog) -> None:
+        dialog = QDialog(parent_dialog)
+        dialog.setWindowTitle(f"Receber Estoque — {peca.nome}")
+        dialog.setStyleSheet(ESTILO_DIALOG)
+        dialog.setMinimumWidth(400)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+
+        lbl = QLabel(f"Estoque atual: <b>{peca.quantidade_estoque}</b> un.  |  Mínimo: <b>{peca.estoque_minimo}</b> un.")
+        lbl.setStyleSheet("color: #c8c8e0; font-size: 13px; background: transparent;")
+        layout.addWidget(lbl)
+
+        qtd_layout = QFormLayout()
+        qtd_spin = QSpinBox()
+        qtd_spin.setRange(1, 99999)
+        qtd_spin.setValue(1)
+        qtd_spin.setStyleSheet(ESTILO_INPUT)
+        qtd_layout.addRow(campo_rotulo("Quantidade a receber:"), qtd_spin)
+        layout.addLayout(qtd_layout)
+
+        obs_input = QLineEdit()
+        obs_input.setStyleSheet(ESTILO_INPUT)
+        obs_input.setPlaceholderText("Observação (opcional)")
+        layout.addWidget(QLabel("Observação:"))
+        layout.addWidget(obs_input)
+
+        botoes = QHBoxLayout()
+        btn_confirmar = QPushButton("📦 Receber")
+        btn_confirmar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_confirmar.clicked.connect(lambda: self._confirmar_recebimento(peca, qtd_spin, obs_input, dialog, parent_dialog))
+        botoes.addWidget(btn_confirmar)
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+        btn_cancelar.clicked.connect(dialog.reject)
+        botoes.addWidget(btn_cancelar)
+        layout.addLayout(botoes)
+
+        dialog.exec()
+
+    def _confirmar_recebimento(self, peca: Any, qtd_spin: QSpinBox, obs_input: QLineEdit, dialog: QDialog, parent_dialog: QDialog) -> None:
+        qtd = qtd_spin.value()
+        obs = obs_input.text().strip()
+        with tratar_erro("receber estoque"):
+            self.part_service.receber_estoque(peca, qtd, observacao=obs)
+            ToastManager.mostrar(f"{qtd} unidade(s) de '{peca.nome}' adicionada(s) ao estoque.", "sucesso")
+            dialog.accept()
+            parent_dialog.accept()
+            self.recarregar()
 
     def _confirmar_exclusao(self, peca, dialog: QDialog) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
@@ -547,13 +644,13 @@ class PartsPage(QWidget):
 
         box_layout.addWidget(QLabel(f"<b style='font-size:14px'>📌 Uso direto — {len(diretas)} registro(s)</b>"))
         tab_diretas = preencher_tabela(diretas)
-        tab_diretas.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(diretas[r].id, dialog))
+        tab_diretas.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(diretas[r].id, dialog) if r < len(diretas) else None)
         box_layout.addWidget(tab_diretas)
 
         if relacionadas:
             box_layout.addWidget(QLabel(f"<b style='font-size:14px'>🔗 Outras atividades nas mesmas impressoras — {len(relacionadas)} registro(s)</b>"))
             tab_rel = preencher_tabela(relacionadas)
-            tab_rel.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(relacionadas[r].id, dialog))
+            tab_rel.cellDoubleClicked.connect(lambda r, c: self._abrir_atividade_historico(relacionadas[r].id, dialog) if r < len(relacionadas) else None)
             box_layout.addWidget(tab_rel)
 
         layout.addWidget(box)

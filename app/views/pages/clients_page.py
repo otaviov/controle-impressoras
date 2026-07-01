@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.utils.ui_helpers import tratar_erro
-from app.utils.validacao import ValidadorCampo, obrigatorio, email
+from app.utils.validacao import ValidadorCampo, email_opcional, obrigatorio
 from app.views.styles.theme import (
     COR,
     ESTILO_BOTAO_AVISO,
@@ -363,7 +363,7 @@ class ClientsPage(QWidget):
         erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_email.hide()
         cont_form.addRow("", erro_email)
-        ValidadorCampo(email_input, email, erro_email)
+        ValidadorCampo(email_input, email_opcional, erro_email)
 
         cont_layout.addLayout(cont_form)
         content.addWidget(cont_box)
@@ -524,7 +524,7 @@ class ClientsPage(QWidget):
         erro_email.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
         erro_email.hide()
         cont_form.addRow("", erro_email)
-        ValidadorCampo(email_input, email, erro_email)
+        ValidadorCampo(email_input, email_opcional, erro_email)
 
         cont_layout.addLayout(cont_form)
         content.addWidget(cont_box)

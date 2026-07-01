@@ -57,6 +57,14 @@ def email(texto: str) -> Optional[str]:
     return None
 
 
+def email_opcional(texto: str) -> Optional[str]:
+    if not texto.strip():
+        return None
+    if not _PADRAO_EMAIL.match(texto.strip()):
+        return "E-mail inválido"
+    return None
+
+
 def minimo(n: int) -> Regra:
     def _regra(texto: str) -> Optional[str]:
         if texto.strip() and len(texto.strip()) < n:

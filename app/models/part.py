@@ -10,6 +10,9 @@ from app.models.base import Base, SoftDeleteMixin, utcnow
 
 if TYPE_CHECKING:
     from app.models.alert import Alert
+    from app.models.part_movement import PartMovement
+    from app.models.part_reservation import PartReservation
+    from app.models.purchase_requisition import PurchaseRequisition
 
 
 class Part(Base, SoftDeleteMixin):
@@ -26,5 +29,8 @@ class Part(Base, SoftDeleteMixin):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     alerts: Mapped[list[Alert]] = relationship(back_populates="part")
+    movements: Mapped[list[PartMovement]] = relationship(back_populates="part", cascade="all, delete-orphan")
+    reservations: Mapped[list[PartReservation]] = relationship(back_populates="part", cascade="all, delete-orphan")
+    purchase_requisitions: Mapped[list[PurchaseRequisition]] = relationship(back_populates="part", cascade="all, delete-orphan")
 
 

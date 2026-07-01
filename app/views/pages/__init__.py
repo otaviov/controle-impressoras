@@ -8,6 +8,7 @@ from .dashboard_page import DashboardPage
 from .os_page import OSPage
 from .parts_page import PartsPage
 from .printers_page import PrintersPage
+from .purchase_requisitions_page import PurchaseRequisitionsPage
 from .reports_page import ReportsPage
 from .technician_history_page import TechnicianHistoryPage
 from .technician_agenda_page import TechnicianAgendaPage

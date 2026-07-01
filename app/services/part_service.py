@@ -11,6 +11,10 @@ from app.models import Part
 from app.utils.sanitize import sanitizar
 
 if TYPE_CHECKING:
+    from app.models.activity import Activity
+    from app.models.part_movement import PartMovement
+    from app.models.part_reservation import PartReservation
+    from app.models.purchase_requisition import PurchaseRequisition
     from app.services.audit_service import AuditService
 
 log = logging.getLogger(__name__)
@@ -59,9 +63,12 @@ class PartService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="parts", registro_id=peca.id, dados_depois=peca)
+        if quantidade > 0:
+            self._log_movimento(peca, "entrada", quantidade, observacao="Estoque inicial")
         return peca
 
     def atualizar(self, peca: Part, **kwargs: Any) -> None:
+        quantidade_antiga = peca.quantidade_estoque
         if self.audit_service:
             dados_antes = {chave: getattr(peca, chave, None) for chave in kwargs}
         for chave, valor in kwargs.items():
@@ -72,6 +79,13 @@ class PartService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "atualizar", tabela_alvo="parts", registro_id=peca.id, dados_antes=dados_antes, dados_depois=peca)
+        if "quantidade_estoque" in kwargs:
+            diff = peca.quantidade_estoque - quantidade_antiga
+            if diff != 0:
+                tipo = "entrada" if diff > 0 else "saida"
+                self._log_movimento(peca, tipo, abs(diff), observacao="Ajuste manual")
+                if peca.quantidade_estoque < peca.estoque_minimo:
+                    self._criar_requisicao_auto(peca)
 
     def excluir(self, peca: Part) -> None:
         if self.audit_service:
@@ -103,3 +117,190 @@ class PartService:
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="parts", registro_id=obj.id)
 
+    # ── Movimentações ──────────────────────────────────────────
+
+    def _log_movimento(self, part: Part, tipo: str, quantidade: int, activity_id: Optional[int] = None, observacao: str = "") -> PartMovement:
+        from app.models.part_movement import PartMovement
+        if part is None:
+            log.warning("_log_movimento chamado com part=None, ignorando")
+            part_id = 0
+            saldo_anterior = 0
+            saldo_posterior = 0
+        else:
+            part_id = part.id
+            saldo_anterior = part.quantidade_estoque
+            if tipo == "entrada":
+                saldo_posterior = saldo_anterior + quantidade
+            elif tipo == "saida":
+                saldo_posterior = saldo_anterior - quantidade
+            else:
+                saldo_posterior = saldo_anterior
+        mov = PartMovement(
+            part_id=part_id,
+            activity_id=activity_id,
+            tipo=tipo,
+            quantidade=quantidade,
+            saldo_anterior=saldo_anterior,
+            saldo_posterior=saldo_posterior,
+            observacao=observacao,
+        )
+        self.session.add(mov)
+        safe_commit(self.session)
+        return mov
+
+    def receber_estoque(self, part: Part, quantidade: int, observacao: str = "") -> PartMovement:
+        part.quantidade_estoque += quantidade
+        safe_commit(self.session)
+        return self._log_movimento(part, "entrada", quantidade, observacao=observacao)
+
+    def retirar_estoque(self, part: Part, quantidade: int = 1, activity_id: Optional[int] = None, observacao: str = "") -> PartMovement:
+        if part.quantidade_estoque < quantidade:
+            quantidade = part.quantidade_estoque
+        part.quantidade_estoque -= quantidade
+        safe_commit(self.session)
+        mov = self._log_movimento(part, "saida", quantidade, activity_id=activity_id, observacao=observacao)
+        if part.quantidade_estoque < part.estoque_minimo:
+            self._criar_requisicao_auto(part)
+        return mov
+
+    def movimentacoes(self, part_id: int, limite: int = 100) -> list[PartMovement]:
+        from app.models.part_movement import PartMovement
+        return self.session.query(PartMovement).filter(
+            PartMovement.part_id == part_id
+        ).order_by(PartMovement.created_at.desc()).limit(limite).all()
+
+    def listar_movimentacoes_por_os(self, activity_id: int) -> list[PartMovement]:
+        from app.models.part_movement import PartMovement
+        return self.session.query(PartMovement).filter(
+            PartMovement.activity_id == activity_id
+        ).order_by(PartMovement.created_at.asc()).all()
+
+    def movimentacoes_geral(self, limite: int = 200) -> list[PartMovement]:
+        from app.models.part_movement import PartMovement
+        return self.session.query(PartMovement).order_by(
+            PartMovement.created_at.desc()
+        ).limit(limite).all()
+
+    # ── Reservas ───────────────────────────────────────────────
+
+    def criar_reserva(self, part_id: int, activity_id: int, quantidade: int = 1) -> Optional[PartReservation]:
+        from app.models.part_reservation import PartReservation
+        part = self.buscar_por_id(part_id)
+        if not part or part.quantidade_estoque < quantidade:
+            return None
+        part.quantidade_estoque -= quantidade
+        self._log_movimento(part, "reserva", quantidade, activity_id=activity_id)
+        res = PartReservation(part_id=part_id, activity_id=activity_id, quantidade=quantidade)
+        self.session.add(res)
+        safe_commit(self.session)
+        return res
+
+    def reservas_por_os(self, activity_id: int) -> list[PartReservation]:
+        from app.models.part_reservation import PartReservation
+        return self.session.query(PartReservation).filter(
+            PartReservation.activity_id == activity_id
+        ).order_by(PartReservation.created_at.asc()).all()
+
+    def usar_reserva(self, reservation_id: int) -> None:
+        from app.models.part_movement import PartMovement
+        from app.models.part_reservation import PartReservation
+        res = self.session.query(PartReservation).filter(PartReservation.id == reservation_id).first()
+        if not res or res.status != "reservada":
+            return
+        res.status = "usada"
+        res.updated_at = datetime.utcnow()
+        part = res.part
+        if part is None:
+            log.warning("usar_reserva #%s: part not found", reservation_id)
+            safe_commit(self.session)
+            return
+        self._log_movimento(part, "saida", res.quantidade, activity_id=res.activity_id, observacao="Reserva consumida")
+        safe_commit(self.session)
+        if part.quantidade_estoque < part.estoque_minimo:
+            self._criar_requisicao_auto(part)
+
+    def cancelar_reserva(self, reservation_id: int) -> None:
+        from app.models.part_reservation import PartReservation
+        res = self.session.query(PartReservation).filter(PartReservation.id == reservation_id).first()
+        if not res or res.status != "reservada":
+            return
+        res.status = "cancelada"
+        res.updated_at = datetime.utcnow()
+        part = res.part
+        if part is None:
+            log.warning("cancelar_reserva #%s: part not found", reservation_id)
+            safe_commit(self.session)
+            return
+        part.quantidade_estoque += res.quantidade
+        self._log_movimento(part, "cancelamento_reserva", res.quantidade, activity_id=res.activity_id, observacao="Reserva cancelada")
+        safe_commit(self.session)
+
+    def listar_reservas_pendentes(self) -> list[PartReservation]:
+        from app.models.part_reservation import PartReservation
+        return self.session.query(PartReservation).filter(
+            PartReservation.status == "reservada"
+        ).order_by(PartReservation.created_at.asc()).all()
+
+    # ── Requisições de Compra ──────────────────────────────────
+
+    def _criar_requisicao_auto(self, part: Part) -> None:
+        from app.models.purchase_requisition import PurchaseRequisition
+        existente = self.session.query(PurchaseRequisition).filter(
+            PurchaseRequisition.part_id == part.id,
+            PurchaseRequisition.status == "pendente",
+        ).first()
+        if existente:
+            return
+        qtd = max(part.estoque_minimo * 2 - part.quantidade_estoque, 1)
+        req = PurchaseRequisition(
+            part_id=part.id,
+            quantidade_sugerida=qtd,
+            observacao=f"Estoque abaixo do mínimo ({part.quantidade_estoque} < {part.estoque_minimo})",
+        )
+        self.session.add(req)
+        safe_commit(self.session)
+
+    def criar_requisicao(self, part_id: int, quantidade: int = 1, observacao: str = "") -> PurchaseRequisition:
+        from app.models.purchase_requisition import PurchaseRequisition
+        req = PurchaseRequisition(
+            part_id=part_id,
+            quantidade_sugerida=quantidade,
+            observacao=observacao,
+        )
+        self.session.add(req)
+        safe_commit(self.session)
+        return req
+
+    def listar_requisicoes(self, status: Optional[str] = None, limite: int = 100) -> list[PurchaseRequisition]:
+        from app.models.purchase_requisition import PurchaseRequisition
+        query = self.session.query(PurchaseRequisition).order_by(PurchaseRequisition.created_at.desc())
+        if status:
+            query = query.filter(PurchaseRequisition.status == status)
+        return query.limit(limite).all()
+
+    def aprovar_requisicao(self, req_id: int) -> None:
+        from app.models.purchase_requisition import PurchaseRequisition
+        req = self.session.query(PurchaseRequisition).filter(PurchaseRequisition.id == req_id).first()
+        if req and req.status == "pendente":
+            req.status = "aprovada"
+            req.updated_at = datetime.utcnow()
+            safe_commit(self.session)
+
+    def receber_requisicao(self, req_id: int) -> None:
+        from app.models.purchase_requisition import PurchaseRequisition
+        req = self.session.query(PurchaseRequisition).filter(PurchaseRequisition.id == req_id).first()
+        if req and req.status in ("pendente", "aprovada"):
+            part = self.buscar_por_id(req.part_id)
+            if part:
+                self.receber_estoque(part, req.quantidade_sugerida, observacao=f"Requisição #{req.id}")
+            req.status = "recebida"
+            req.updated_at = datetime.utcnow()
+            safe_commit(self.session)
+
+    def cancelar_requisicao(self, req_id: int) -> None:
+        from app.models.purchase_requisition import PurchaseRequisition
+        req = self.session.query(PurchaseRequisition).filter(PurchaseRequisition.id == req_id).first()
+        if req and req.status != "recebida":
+            req.status = "cancelada"
+            req.updated_at = datetime.utcnow()
+            safe_commit(self.session)
