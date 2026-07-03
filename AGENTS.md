@@ -1,53 +1,36 @@
 ## Goal
-Implementar gestão de estoque completa: movimentações, reservas para OS, requisições de compra e histórico.
+- Build a PyInstaller .exe for desktop installation while continuing incremental UI/UX improvements.
 
 ## Constraints & Preferences
-- Toda movimentação de estoque deve gerar registro em `part_movements`
-- Reservas de peças para OS diminuem o estoque e são consumidas ao concluir a OS
-- Requisição de compra gerada automaticamente quando estoque < mínimo
-- Botão "Receber Estoque" no detalhe da peça para entrada manual
-- Requisições gerenciáveis via página dedicada
+- Database goes to `%LOCALAPPDATA%\ControleImpressoras\app.db` (separate from exe location)
+- Bundled resources (themes, alembic, logo) found via `sys._MEIPASS` in frozen mode
+- DB sem `alembic_version` é estampada automaticamente no head ao iniciar
+- Mouse wheel must not change QComboBox, QDateEdit, QDateTimeEdit, or QTimeEdit values (global fix)
+- Urgency field disabled when printer status is "Operacional" or "Em uso" (with red border indicator)
+- Observations in printer detail must appear right below Identificação section
+- Transfer cards (Total/Saídas/Entradas/Pendentes) must be clickable filters
+- "Histórico Completo" checkbox in report dialog must be checked by default
+- Observations shown in edit dialog must strip "Transferência —" / "Troca com X —" / "Peças para X —" prefix
+- Pendentes filter filters by status "Aberta"
+- Delete transfer must work without relying on TransferService (use direct soft-delete)
 
 ## Progress
 ### Done
-- **(08) Geração automática de OS recorrentes** — por período e páginas
-- **(09) Status expandido** — 9 estados (Aberta → ... → Verificada)
-- **(10) Galeria de fotos** — upload, carrossel, abas antes/depois/peca
-- **(11) Especialidades por modelo** — técnicos especializados em modelos de impressora (string)
-- **(12) Agenda do técnico** — visão diária, rota por setor, capacidade, produtividade
-- **(13) Histórico do técnico** — OS abertas, peças mais usadas, sessões, associação usuário
-- **(14) Duplo clique abre OS** — nas 3 tabelas do histórico
-- **(15) Migrations aplicadas** — `capacidade_diaria`, `user_id`, refactor specialties, estoque
-- **137 testes passando** (1 falha pré-existente `test_very_long_password`)
-
-### Estoque — Movimentações
-- Modelo `PartMovement`: `(part_id, activity_id?, tipo, quantidade, saldo_anterior, saldo_posterior, observacao)`
-- `PartService._log_movimento()` — registra qualquer alteração de estoque
-- `PartService.receber_estoque()` — adiciona estoque com movimento tipo "entrada"
-- `PartService.retirar_estoque()` — decrementa com movimento tipo "saida"
-- `_dar_baixa_estoque()` atualizado em `os_page.py` e `transfers_page.py` — usa `retirar_estoque()` com `activity_id`
-- `atualizar()` no `PartService` — ao alterar `quantidade_estoque`, registra movimento e cria requisição se necessário
-- PartsPage detalhe: aba "Movimentações Recentes" (tabela com Data/Hora, Tipo, Qtd, Saldo, Observação)
-- PartsPage: botão "📦 Receber Estoque" com diálogo de quantidade + observação
-
-### Estoque — Reservas para OS
-- Modelo `PartReservation`: `(part_id, activity_id, quantidade, status=reservada/usada/cancelada)`
-- `PartService.criar_reserva()` — diminui estoque, cria movimento "reserva" e registro
-- `PartService.usar_reserva()` — marca como "usada", cria movimento "saida"
-- `PartService.cancelar_reserva()` — marca como "cancelada", restaura estoque, movimento "cancelamento_reserva"
-- Diálogo "Concluir OS": botão "📌 Reservar" + tabela de reservas com botão "✕" para cancelar
-- Diálogo "Editar OS": mesmo padrão com botão reservar + tabela
-- Ao concluir OS: todas as reservas "reservada" são consumidas via `usar_reserva()`
-- Detalhe da OS: mostra seção "Peças Reservadas" quando existem
-
-### Estoque — Requisições de Compra
-- Modelo `PurchaseRequisition`: `(part_id, quantidade_sugerida, status=pendente/aprovada/recebida/cancelada, observacao)`
-- `PartService._criar_requisicao_auto()` — gera requisição quando estoque < mínimo (1 por peça, evita duplicatas pendentes)
-- `PartService.aprovar_requisicao()`, `receber_requisicao()`, `cancelar_requisicao()`
-- `receber_requisicao()` — automaticamente dá entrada no estoque
-- `PurchaseRequisitionsPage`: tabela com filtro por status, botões Aprovar/Receber/Cancelar por linha
-- Sidebar: link "🛒 Requisições" na seção Outros
-- Detalhe da peça: mostra requisição pendente se existir
+- **(16) Executável + instalador**: PyInstaller onefile .exe com `install.ps1` que escolhe pasta, cria atalhos e registra em Add/Remove Programs
+- **Global mouse‑wheel blocking**: `_NoWheelFilter` event filter em `main.py`
+- **Histórico de Locais lê de Activity direto** — sincronizado com edições/exclusões
+- **Removida criação de PrinterLocation** de `salvar_nova_silent` / `salvar_edicao` em transfers_page.py
+- **activity_id FK em printer_locations** (migration `8a7b6c5d4e3f`)
+- **Observações no detalhe da impressora** movido para abaixo da Identificação
+- **Urgência bloqueada** quando status Operacional/Em uso
+- **Cards clicáveis** (Total/Saídas/Entradas/Pendentes) com filtro por tipo
+- **Relatório**: Histórico Completo marcado por padrão
+- **Exclusão de transferência**: soft‑delete direto (`mov.deleted_at = dt.utcnow()`)
+- **Campo Descrição** no edit dialog limpa prefixos (Transferência — / Troca com X — / Peças para X —)
+- **Pendentes** filtrado por "Aberta"
+- **`config.py`**: `DATA_DIR` = `%LOCALAPPDATA%\ControleImpressoras` (frozen) ou project root (dev); `BUNDLE_DIR` = `sys._MEIPASS` (frozen) ou project root (dev); `ANEXOS_DIR` e `BACKUP_DIR` usam `DATA_DIR`
+- **`main.py`**: usa `BUNDLE_DIR` pra achar `alembic.ini`, themes e logo; estampa head se DB não tiver `alembic_version`
+- **138 testes passando**
 
 ### In Progress
 - *(none)*
@@ -56,30 +39,30 @@ Implementar gestão de estoque completa: movimentações, reservas para OS, requ
 - *(none)*
 
 ## Key Decisions
-- `PartMovement`, `PartReservation`, `PurchaseRequisition` como tabelas separadas no banco (não text/json)
-- Reserva já decrementa o estoque no momento da criação (estoque "comprometido")
-- Cancelamento de reserva restaura o estoque automaticamente
-- `_criar_requisicao_auto()` só cria se não houver outra pendente para a mesma peça
-- `_dar_baixa_estoque()` nas OS agora usa `retirar_estoque()` que loga movimento + cria requisição
-- Migração `7899a6741eeb` adiciona as 3 tabelas
+- **DATA_DIR separado do exe**: banco, anexos e backups vão pra `%LOCALAPPDATA%\ControleImpressoras` — permite instalar o .exe em Program Files sem precisar de permissão de escrita
+- **BUNDLE_DIR** aponta pra `sys._MEIPASS` (temp dir do PyInstaller) onde ficam themes, alembic.ini e logo.png extraídos do onefile
+- **DB sem alembic_version**: `main.py` detecta e estampa head antes de rodar upgrade — compatível com DBs de versões anteriores ao controle de migração
+- **Instalador PowerShell**: sem dependência externa (Inno Setup/NSIS), funciona em qualquer Windows
 
 ## Next Steps
 - *(nenhum)*
 
 ## Critical Context
-- `PartService` agora gerencia movimentos e requisições de forma integrada
-- `atualizar()` loga movimentos automaticamente ao mudar `quantidade_estoque`
-- Reservas são consumidas automaticamente na conclusão da OS
-- PurchaseRequisitionsPage registrada no sidebar como index 12
-- Página de Requisições acessível por qualquer usuário (não só admin)
+- `config.py` exporta: `DATA_DIR`, `BUNDLE_DIR`, `BASE_DIR` (alias), `DB_PATH`, `BACKUP_DIR`, `ANEXOS_DIR`
+- Em dev (não frozen): tudo aponta pra `Path(__file__).parent` (project root)
+- Em frozen: `DATA_DIR` = `%LOCALAPPDATA%\ControleImpressoras`, `BUNDLE_DIR` = `sys._MEIPASS`
+- Exe final: `dist/ControleImpressoras.exe` (~86 MB)
+- Installer: `install.ps1` — mostra folder browser, copia exe, cria atalhos Desktop + Start Menu, registra em Add/Remove Programs
+- O DB antigo em `%LOCALAPPDATA%\ControleImpressoras\app.db` (sem `alembic_version`) é automaticamente estampado e migrado na primeira execução
+- 138 tests passam; App deve ser reiniciado pra pegar alterações de código
 
 ## Relevant Files
-- `app/models/part_movement.py` — log de movimentações
-- `app/models/part_reservation.py` — reservas para OS
-- `app/models/purchase_requisition.py` — requisições de compra
-- `app/services/part_service.py` — métodos de estoque, movimentos, reservas, requisições
-- `app/views/pages/parts_page.py` — botão Receber Estoque + movimentações no detalhe
-- `app/views/pages/os_page.py` — reservas no concluir/editar/detalhe
-- `app/views/pages/purchase_requisitions_page.py` — página de gerenciamento
-- `app/views/main_window.py` — registro da página e sidebar
-- `alembic/versions/7899a6741eeb_add_part_movements_reservations_requisitions.py`
+- `config.py` — DATA_DIR, BUNDLE_DIR, BASE_DIR, DB_PATH, BACKUP_DIR, ANEXOS_DIR
+- `main.py` — alembic com suporte a DB legado, event filter NoWheelFilter, BUNDLE_DIR pra resources
+- `install.ps1` — instalador com folder browser, shortcuts, Add/Remove Programs
+- `app/views/pages/printers_page.py` — Observações movido, urgência bloqueada por status
+- `app/views/pages/transfers_page.py` — cards clicáveis, exclusão direta, prefixo removido, ANEXOS_DIR do config
+- `app/views/pages/os_page.py` — ANEXOS_DIR do config
+- `app/views/relatorio_dialog.py` — checkbox Histórico Completo marcado por padrão
+- `app/services/activity_service.py` — listar_movimentacoes_por_tipo / contar_por_tipo
+- `dist/ControleImpressoras.exe` — executável único (~86 MB)

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 
@@ -61,6 +61,35 @@ class ActivityService:
         if offset is not None:
             query = query.offset(offset)
         return query.all()
+
+    def listar_movimentacoes_por_tipo(self, tipo: str, limite: int = 100, offset: Optional[int] = None) -> list[Activity]:
+        query = self.session.query(Activity).filter(
+            Activity.deleted_at == None, Activity.kind == "MOVIMENTACAO"
+        )
+        if tipo == "saida":
+            query = query.filter(Activity.from_location != "", Activity.to_location == "")
+        elif tipo == "entrada":
+            query = query.filter(Activity.to_location != "", Activity.from_location == "")
+        elif tipo == "pendente":
+            query = query.filter(Activity.status_atividade == "Aberta")
+        query = query.order_by(Activity.event_at.desc())
+        if limite is not None:
+            query = query.limit(limite)
+        if offset is not None:
+            query = query.offset(offset)
+        return query.all()
+
+    def contar_por_tipo(self, tipo: str) -> int:
+        query = self.session.query(Activity).filter(
+            Activity.deleted_at == None, Activity.kind == "MOVIMENTACAO"
+        )
+        if tipo == "saida":
+            query = query.filter(Activity.from_location != "", Activity.to_location == "")
+        elif tipo == "entrada":
+            query = query.filter(Activity.to_location != "", Activity.from_location == "")
+        elif tipo == "pendente":
+            query = query.filter(Activity.status_atividade == "Aberta")
+        return query.count()
 
     def listar_por_impressora(self, printer_id: str, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Activity]:
         query = self.session.query(Activity).filter(Activity.deleted_at == None).filter(

@@ -388,6 +388,8 @@ class _PrinterForm(QWidget):
         tec_grid.addWidget(self.prox_manutencao, 3, 0)
         tec_grid.addWidget(_input_label("Urgência"), 2, 1)
         tec_grid.addWidget(self.urgencia_combo, 3, 1)
+        self.status.currentTextChanged.connect(self._ajustar_urgencia_por_status)
+        self._ajustar_urgencia_por_status(self.status.currentText())
         tec_grid.setColumnStretch(0, 1)
         tec_grid.setColumnStretch(1, 1)
         tec_layout.addLayout(tec_grid)
@@ -467,6 +469,20 @@ class _PrinterForm(QWidget):
             le.setText(nova)
             le.blockSignals(False)
             le.setCursorPosition(old_pos + (len(nova) - len(texto)))
+
+    def _ajustar_urgencia_por_status(self, status: str) -> None:
+        bloqueado = status in ("Operacional", "Em uso")
+        self.urgencia_combo.setEnabled(not bloqueado)
+        if bloqueado:
+            self.urgencia_combo.setToolTip("Urgência bloqueada para impressoras com status Operacional ou Em uso")
+            self.urgencia_combo.setStyleSheet(
+                self.urgencia_combo.styleSheet()
+                + " QComboBox:disabled { background-color: #1e1e2e; color: #6b7280;"
+                " border: 1px solid #ef4444; }"
+            )
+        else:
+            self.urgencia_combo.setToolTip("")
+            configurar_combo(self.urgencia_combo)
 
     def _preencher(self, p: Any) -> None:
         self.pat.setText(p.patrimonio or "")
@@ -924,6 +940,14 @@ class _AgendarManutencaoDialog(QDialog):
         configurar_combo_colorido(self.urgencia_combo, URGENCIA_CORES)
         if printer.urgencia_prox_manutencao in URGENCIAS:
             self.urgencia_combo.setCurrentText(printer.urgencia_prox_manutencao)
+        if printer.status in ("Operacional", "Em uso"):
+            self.urgencia_combo.setEnabled(False)
+            self.urgencia_combo.setToolTip("Urgência bloqueada para impressoras com status Operacional ou Em uso")
+            self.urgencia_combo.setStyleSheet(
+                self.urgencia_combo.styleSheet()
+                + " QComboBox:disabled { background-color: #1e1e2e; color: #6b7280;"
+                " border: 1px solid #ef4444; }"
+            )
         self.urgencia_combo.currentTextChanged.connect(self._atualizar_sla)
         root.addWidget(self.urgencia_combo)
 
@@ -1175,6 +1199,12 @@ class _PrinterDetailDialog(QDialog):
         id_lay.addLayout(id_grid)
         layout.addWidget(id_box)
 
+        # ── Bloco 1b: Observações ─────────────────────────
+        if p.observacao:
+            obs_box, obs_lay = _group_box("Observações")
+            obs_lay.addWidget(_campo_readonly(p.observacao))
+            layout.addWidget(obs_box)
+
         # ── Bloco 2: Localização e Rede ──────────────────────
         loc_box, loc_lay = _group_box("Localização e Rede")
         loc_grid = QGridLayout()
@@ -1337,13 +1367,7 @@ class _PrinterDetailDialog(QDialog):
             rec_lay.addLayout(rec_inner)
             layout.addWidget(rec_box)
 
-        # ── Bloco 4: Observações ─────────────────────────────
-        if p.observacao:
-            obs_box, obs_lay = _group_box("Observações")
-            obs_lay.addWidget(_campo_readonly(p.observacao))
-            layout.addWidget(obs_box)
-
-        # ── Bloco 5: Peças Faltantes ────────────────────────
+        # ── Bloco 4: Peças Faltantes ────────────────────────
         if p.pecas_faltantes:
             pecas_box, pecas_lay = _group_box("Peças Faltantes")
             pecas_lay.addWidget(_campo_readonly(p.pecas_faltantes))

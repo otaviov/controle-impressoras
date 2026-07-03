@@ -77,8 +77,7 @@ from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
 from db import safe_commit as _safe_commit
 
-BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent.parent
-ANEXOS_DIR: Path = BASE_DIR / "anexos"
+from config import ANEXOS_DIR
 
 
 def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from datetime import datetime as dt
 from pathlib import Path
@@ -57,7 +58,7 @@ from app.utils.ui_helpers import tratar_erro
 from db import safe_commit, transacao
 from app.utils.helpers import encurtar, formatar_data_hora
 from app.views.widgets.pagination import PaginacaoWidget
-from config import BASE_DIR
+from config import ANEXOS_DIR, BASE_DIR
 from app.views.styles.theme import (
     ATIVIDADE_CORES,
     COR,
@@ -79,7 +80,7 @@ from app.views.styles.theme import (
     campo_readonly,
 )
 from app.views.widgets import ToastManager
-from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.card_widget import CardMiniClicavel, CardMiniWidget
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao
@@ -109,7 +110,6 @@ def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
     return _mascarar
 
 
-ANEXOS_DIR: Path = BASE_DIR / "anexos"
 
 
 class TransfersPage(QWidget):
@@ -124,6 +124,7 @@ class TransfersPage(QWidget):
     _mov_cache: list[Any]
     _mapa_cache: dict[Any, str]
     _filtro_transf: str | None
+    _filtro_tipo: str | None
     search: SearchBar
     btn_nova: QPushButton
     card_total: CardMiniWidget
@@ -161,10 +162,10 @@ class TransfersPage(QWidget):
 
         cards = QHBoxLayout()
         cards.setSpacing(12)
-        self.card_total = CardMiniWidget("\U0001f4cb", "Total Transf.", "0", COR["azul"])
-        self.card_saidas = CardMiniWidget("\U0001f4e4", "Saídas", "0", COR["erro"])
-        self.card_entradas = CardMiniWidget("\U0001f4e5", "Entradas", "0", COR["sucesso"])
-        self.card_pendentes = CardMiniWidget("\u23f3", "Pendentes", "0", COR["aviso"])
+        self.card_total = CardMiniClicavel("\U0001f4cb", "Total Transf.", "0", COR["azul"], lambda: self._filtrar_por_tipo(None))
+        self.card_saidas = CardMiniClicavel("\U0001f4e4", "Saídas", "0", COR["erro"], lambda: self._filtrar_por_tipo("saida"))
+        self.card_entradas = CardMiniClicavel("\U0001f4e5", "Entradas", "0", COR["sucesso"], lambda: self._filtrar_por_tipo("entrada"))
+        self.card_pendentes = CardMiniClicavel("\u23f3", "Pendentes", "0", COR["aviso"], lambda: self._filtrar_por_tipo("pendente"))
         cards.addWidget(self.card_total)
         cards.addWidget(self.card_saidas)
         cards.addWidget(self.card_entradas)
@@ -182,16 +183,27 @@ class TransfersPage(QWidget):
         self._mov_cache = []
         self._mapa_cache = {}
         self._filtro_transf = None
+        self._filtro_tipo = None
         self._paginacao = PaginacaoWidget()
         self._paginacao.pagina_alterada.connect(lambda p: self._carregar())
         layout.addWidget(self._paginacao)
 
     def recarregar(self) -> None:
+        self._filtro_tipo = None
         self._filtro_transf = None
         self._carregar()
 
+    def _filtrar_por_tipo(self, tipo: str | None) -> None:
+        self._filtro_tipo = tipo
+        self._carregar()
+
     def _carregar(self) -> None:
-        if self._filtro_transf:
+        if self._filtro_tipo:
+            movimentacoes = self.activity_service.listar_movimentacoes_por_tipo(
+                self._filtro_tipo, limite=self._paginacao.limit, offset=self._paginacao.offset,
+            )
+            total = self.activity_service.contar_por_tipo(self._filtro_tipo)
+        elif self._filtro_transf:
             movimentacoes = self.activity_service.buscar_movimentacoes_por_filtro(
                 self._filtro_transf, limite=self._paginacao.limit, offset=self._paginacao.offset,
             )
@@ -455,8 +467,6 @@ class TransfersPage(QWidget):
                             origin_notes = f"Troca com {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
                         elif eh_pecas and dest_texto:
                             origin_notes = f"Peças para {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
-                        elif eh_transferencia:
-                            origin_notes = f"Transferência" + (f" — {desc_clean}" if desc_clean else "")
                         activity = Activity(
                             printer_id=printer.id,
                             kind="MOVIMENTACAO",
@@ -565,7 +575,6 @@ class TransfersPage(QWidget):
         equip_form.setSpacing(8)
         equip_form.addRow(campo_rotulo("Impressora Origem"), campo_readonly(patrimonio))
         if eh_pecas or eh_troca:
-            import re
             m = re.search(r'(Peças para|Troca com) (\S+)', mov.notes or "")
             destino_pat = m.group(2) if m else "—"
             equip_form.addRow(campo_rotulo("Impressora Destino"), campo_readonly(destino_pat))
@@ -721,7 +730,6 @@ class TransfersPage(QWidget):
             subtipo_edit_combo.setCurrentText("Transferir")
 
         if eh_pecas_edit:
-            import re
             m = re.search(r'Peças para (\S+)', mov.notes)
             if m:
                 dest_pat = m.group(1)
@@ -732,7 +740,6 @@ class TransfersPage(QWidget):
                     printer_destino_edit_combo.setCurrentText(dest_pat)
 
         if eh_troca_edit:
-            import re
             m = re.search(r'Troca com (\S+)', mov.notes)
             if m:
                 dest_pat = m.group(1)
@@ -830,7 +837,9 @@ class TransfersPage(QWidget):
 
         desc_text = QTextEdit()
         desc_text.setStyleSheet(ESTILO_INPUT)
-        desc_text.setText(mov.notes or "")
+        txt = mov.notes or ""
+        txt = re.sub(r'^(Transferência|Peças para \S+|Recebeu peça da \S+|Recebeu por troca da \S+|Troca com \S+)\s*[—\-]?\s*', '', txt).strip()
+        desc_text.setText(txt)
         desc_text.setMaximumHeight(70)
         det_form.addRow("Descrição:", desc_text)
 
@@ -865,7 +874,6 @@ class TransfersPage(QWidget):
             from app.utils.helpers import parse_data
             data_texto = data_input.text().strip()
             desc_clean = desc_text.toPlainText().strip()
-            import re
             desc_clean = re.sub(r'^(Transferência|Peças para \S+|Recebeu peça da \S+|Recebeu por troca da \S+|Troca com \S+)\s*[—\-]?\s*', '', desc_clean).strip()
             parts = pecas_text.toPlainText().strip()
             from_loc = origem_combo.currentText().strip()
@@ -1032,16 +1040,13 @@ class TransfersPage(QWidget):
             dialog,
         ):
             try:
-                if self.transfer_service:
-                    self.transfer_service.excluir(mov)
-                    ToastManager.mostrar(
-                        "Transferência excluída.",
-                        "aviso", duracao=8000,
-                        acao=("Desfazer", lambda o=mov, svc=self.transfer_service, pag=self: (svc.restaurar(o), pag.recarregar())),
-                    )
-                else:
-                    mov.deleted_at = dt.utcnow()
-                    safe_commit(self._session)
+                mov.deleted_at = dt.utcnow()
+                safe_commit(self._session)
+                ToastManager.mostrar(
+                    "Transferência excluída.",
+                    "aviso", duracao=8000,
+                    acao=("Desfazer", lambda o=mov, pag=self: (setattr(o, 'deleted_at', None), safe_commit(pag._session), pag.recarregar())),
+                )
                 dialog.accept()
             except Exception as e:
                 self._session.rollback()

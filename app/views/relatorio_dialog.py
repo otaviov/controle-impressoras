@@ -216,6 +216,7 @@ class RelatorioDialog(QDialog):
         extra_layout = QVBoxLayout(grupo_extra)
         extra_layout.setSpacing(6)
         self.cb_detalhado = QCheckBox("📋 Incluir histórico completo (apenas PDF)")
+        self.cb_detalhado.setChecked(True)
         extra_layout.addWidget(self.cb_detalhado)
         self.cb_abrir = QCheckBox("📂 Abrir arquivo ao gerar")
         self.cb_abrir.setChecked(True)
