@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.models.base import utcnow
 from datetime import datetime as dt
 from typing import Any
 
@@ -594,7 +595,7 @@ class TechnicianHistoryPage(QWidget):
                 minutos = int((diff.total_seconds() % 3600) // 60)
                 duracao = f"{horas}h {minutos}min"
             else:
-                diff = dt.utcnow() - s.login_at
+                diff = utcnow() - s.login_at
                 horas = int(diff.total_seconds() // 3600)
                 minutos = int((diff.total_seconds() % 3600) // 60)
                 duracao = f"{horas}h {minutos}min (em andamento)"

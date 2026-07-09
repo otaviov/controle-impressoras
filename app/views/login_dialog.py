@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.models.base import utcnow
 from datetime import datetime as dt, timedelta
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ _attempts: dict[str, list[dt]] = {}
 
 
 def _limpar_attempts_velhos() -> None:
-    agora: dt = dt.utcnow()
+    agora: dt = utcnow()
     limite: dt = agora - timedelta(minutes=BLOQUEIO_MINUTOS)
     for usuario in list(_attempts.keys()):
         _attempts[usuario] = [t for t in _attempts[usuario] if t > limite]
@@ -33,7 +34,7 @@ def _esta_bloqueado(username: str) -> bool:
 
 
 def _registrar_tentativa(username: str) -> None:
-    _attempts.setdefault(username, []).append(dt.utcnow())
+    _attempts.setdefault(username, []).append(utcnow())
 
 
 def _resetar_tentativas(username: str) -> None:
@@ -104,7 +105,10 @@ class LoginDialog(QDialog):
 
         # Logo
         from PySide6.QtGui import QPixmap
-        logo_path = Path(__file__).parent.parent.parent / "1.PNG"
+        from config import BUNDLE_DIR
+        logo_path = BUNDLE_DIR / "logo.png"
+        if not logo_path.exists():
+            logo_path = Path(__file__).parent.parent.parent / "1.PNG"
         if not logo_path.exists():
             logo_path = Path(__file__).parent.parent.parent / "1.png"
         if logo_path.exists():
@@ -280,8 +284,8 @@ class LoginDialog(QDialog):
                 return
 
             _resetar_tentativas(username)
-            user.ultimo_login = dt.utcnow()
-            login_history = LoginHistory(user_id=user.id, login_at=dt.utcnow())
+            user.ultimo_login = utcnow()
+            login_history = LoginHistory(user_id=user.id, login_at=utcnow())
             session.add(login_history)
             session.commit()
 

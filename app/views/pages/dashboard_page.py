@@ -253,7 +253,7 @@ class DashboardPage(QWidget):
                     if p:
                         printer_info = f" - {p.patrimonio}"
                 except Exception:
-                    pass
+                    log.exception("Erro ao buscar impressora para activity card")
 
             action = QLabel(f"{atv.notes or atv.kind or 'Atividade'}{printer_info}")
             action.setStyleSheet(

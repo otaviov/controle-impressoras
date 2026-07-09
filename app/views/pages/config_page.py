@@ -67,7 +67,6 @@ class ConfigPage(QWidget):
     part_service: Any | None
     company_service: Any | None
     activity_service: Any | None
-    transfer_service: Any | None
     technician_service: Any | None
     alert_service: Any | None
     user: dict[str, Any]
@@ -92,7 +91,7 @@ class ConfigPage(QWidget):
     _tabela_auditoria: TabelaPadrao
     _logs_auditoria: list[Any]
 
-    def __init__(self, session: Any, user_service: Any, user: dict[str, Any], notificador: Any | None = None, audit_service: Any | None = None, printer_service: Any | None = None, part_service: Any | None = None, company_service: Any | None = None, activity_service: Any | None = None, transfer_service: Any | None = None, technician_service: Any | None = None, alert_service: Any | None = None, parent: QWidget | None = None) -> None:
+    def __init__(self, session: Any, user_service: Any, user: dict[str, Any], notificador: Any | None = None, audit_service: Any | None = None, printer_service: Any | None = None, part_service: Any | None = None, company_service: Any | None = None, activity_service: Any | None = None, technician_service: Any | None = None, alert_service: Any | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = session
         self.user_service = user_service
@@ -102,7 +101,6 @@ class ConfigPage(QWidget):
         self.part_service = part_service
         self.company_service = company_service
         self.activity_service = activity_service
-        self.transfer_service = transfer_service
         self.technician_service = technician_service
         self.alert_service = alert_service
         self.user = user
@@ -445,8 +443,6 @@ class ConfigPage(QWidget):
              lambda r: [r.nome or "-", r.cnpj or "-", r.telefone or "-", r.email or "-", r.tipo or "-", formatar_data_hora(r.deleted_at)]),
             ("OS", self.activity_service, ["Tipo", "Impressora", "Data", "Status", "Recibo", "Excluído em"],
              lambda r: [r.kind or "-", r.printer.patrimonio if r.printer else "-", formatar_data_hora(r.event_at), r.status_atividade or "-", r.numero_recibo or "-", formatar_data_hora(r.deleted_at)]),
-            ("Transferências", self.transfer_service, ["Nº OS", "Tipo", "Data Saída", "Responsável", "Excluído em"],
-             lambda r: [r.numero_os or "-", r.tipo or "-", formatar_data_hora(r.data_saida) if r.data_saida else "-", r.responsavel_entrega or "-", formatar_data_hora(r.deleted_at)]),
             ("Técnicos", self.technician_service, ["Nome", "Exibição", "Telefone", "Email", "Excluído em"],
              lambda r: [r.nome_completo or "-", r.nome_exibicao or "-", r.telefone or "-", r.email or "-", formatar_data_hora(r.deleted_at)]),
             ("Alertas", self.alert_service, ["Título", "Tipo", "Descrição", "Data", "Excluído em"],
@@ -667,12 +663,16 @@ class ConfigPage(QWidget):
 
     def _fazer_backup(self) -> None:
         try:
+            from config import ANEXOS_DIR
             backup_dir = DB_PATH.parent / "backups"
             backup_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             nome_arquivo = f"backup_{timestamp}.db"
             destino = backup_dir / nome_arquivo
             shutil.copy2(str(DB_PATH), str(destino))
+            backup_anexos = backup_dir / f"anexos_{timestamp}"
+            if ANEXOS_DIR.exists():
+                shutil.copytree(str(ANEXOS_DIR), str(backup_anexos))
             self.label_backup.setStyleSheet("color: #34d399; font-size: 12px; background: transparent; padding: 6px 0;")
             self.label_backup.setText(f"Backup criado: {nome_arquivo}")
         except Exception as e:

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.models.company import Company
     from app.models.maintenance_schedule import MaintenanceSchedule
     from app.models.printer_location import PrinterLocation
-    from app.models.transfer import Transfer
+
 
 
 class Printer(Base, SoftDeleteMixin):
@@ -45,7 +45,6 @@ class Printer(Base, SoftDeleteMixin):
 
     company: Mapped[Optional[Company]] = relationship(back_populates="printers")
     activities: Mapped[List[Activity]] = relationship(back_populates="printer")
-    transfers: Mapped[List[Transfer]] = relationship(back_populates="printer")
     alerts: Mapped[List[Alert]] = relationship(back_populates="printer")
     location_history: Mapped[List[PrinterLocation]] = relationship(back_populates="printer", order_by="PrinterLocation.data.desc().nullslast(), PrinterLocation.created_at.desc()")
     maintenance_schedules: Mapped[List[MaintenanceSchedule]] = relationship(back_populates="printer")

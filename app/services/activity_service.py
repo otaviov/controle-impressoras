@@ -9,6 +9,7 @@ import calendar
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from app.models.base import utcnow
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Activity, Printer
@@ -126,7 +127,7 @@ class ActivityService:
         atividade = Activity(
             printer_id=printer_id,
             kind=sanitizar(kind, "Activity", "kind"),
-            event_at=event_at or datetime.now(),
+            event_at=event_at or utcnow(),
             notes=sanitizar(notes),
             parts_used=sanitizar(parts_used),
             from_location=sanitizar(from_location, "Activity", "from_location"),
@@ -193,7 +194,7 @@ class ActivityService:
     def excluir(self, atividade: Activity) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="activities", registro_id=atividade.id, dados_antes=atividade)
-        atividade.deleted_at = datetime.utcnow()
+        atividade.deleted_at = utcnow()
         safe_commit(self.session)
 
     def contar_total(self) -> int:
@@ -201,6 +202,7 @@ class ActivityService:
 
     def contar_por_status(self, status: str) -> int:
         return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
             Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
         ).count()
 
@@ -208,6 +210,7 @@ class ActivityService:
         inicio = datetime(ano, mes, 1)
         fim = datetime(ano + 1, 1, 1) if mes == 12 else datetime(ano, mes + 1, 1)
         query = self.session.query(Activity).filter(
+            Activity.deleted_at == None,
             Activity.event_at >= inicio, Activity.event_at < fim
         )
         if kind:
@@ -301,11 +304,13 @@ class ActivityService:
 
     def contar_por_tecnico(self, tecnico_id: int) -> int:
         return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
             Activity.tecnico_id == tecnico_id
         ).count()
 
     def contar_por_tecnico_por_status(self, tecnico_id: int, status: str) -> int:
         return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
             Activity.tecnico_id == tecnico_id,
             Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
         ).count()
@@ -384,6 +389,7 @@ class ActivityService:
 
     def contar_por_impressora_e_kind(self, printer_id: str, kind: str) -> int:
         return self.session.query(Activity).filter(
+            Activity.deleted_at == None,
             Activity.printer_id == printer_id,
             Activity.kind == kind
         ).count()

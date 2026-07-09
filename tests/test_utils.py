@@ -182,3 +182,11 @@ def test_encurtar_long():
 def test_encurtar_custom_max():
     result = encurtar("abcdefghij", max_len=6)
     assert result == "abc..."
+
+def test_sanitizar_truncation_logs_warning(caplog):
+    import logging
+    caplog.set_level(logging.WARNING)
+    from app.utils.sanitize import sanitizar
+    result = sanitizar("a" * 100, model_class="Activity", field="kind")
+    assert len(result) <= 30
+    assert any("Truncando" in rec.message for rec in caplog.records)

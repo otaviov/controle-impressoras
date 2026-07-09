@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+from app.models.base import utcnow
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -119,7 +120,6 @@ class TransfersPage(QWidget):
     printer_service: Any
     activity_service: Any
     company_service: Any
-    transfer_service: Any | None
     part_service: PartService
     _mov_cache: list[Any]
     _mapa_cache: dict[Any, str]
@@ -134,13 +134,12 @@ class TransfersPage(QWidget):
     tabela: TabelaPadrao
     _paginacao: PaginacaoWidget
 
-    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, transfer_service: Any | None = None, parent: QWidget | None = None) -> None:
+    def __init__(self, session: Any, printer_service: Any, activity_service: Any, company_service: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._session = session
         self.printer_service = printer_service
         self.activity_service = activity_service
         self.company_service = company_service
-        self.transfer_service = transfer_service
         self.part_service = PartService(session)
 
         layout = QVBoxLayout(self)
@@ -1040,7 +1039,7 @@ class TransfersPage(QWidget):
             dialog,
         ):
             try:
-                mov.deleted_at = dt.utcnow()
+                mov.deleted_at = utcnow()
                 safe_commit(self._session)
                 ToastManager.mostrar(
                     "Transferência excluída.",
@@ -1269,13 +1268,10 @@ class TransfersPage(QWidget):
                 nova = f"{part.nome}" if not atual else f"{atual}, {part.nome}"
                 pecas_widget.setPlainText(nova)
         except RuntimeError:
-            pass
+            log.exception("Erro ao preencher peças no combo transferência")
 
     def _dar_baixa_estoque(self, pecas_texto: str) -> None:
         if not pecas_texto:
             return
-        nome_peca = pecas_texto.split(",")[0].strip()
         with tratar_erro("dar baixa no estoque"):
-            part = self.part_service.buscar_por_nome(nome_peca)
-            if part and part.quantidade_estoque > 0:
-                self.part_service.atualizar(part, quantidade_estoque=part.quantidade_estoque - 1)
+            self.part_service.retirar_estoque_por_nome(pecas_texto)

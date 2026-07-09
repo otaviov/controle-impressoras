@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from app.models.base import utcnow
 from db import safe_commit
 from sqlalchemy.orm import Session
 
@@ -66,7 +67,7 @@ class CompanyService:
     def excluir(self, empresa: Company) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="companies", registro_id=empresa.id, dados_antes=empresa)
-        empresa.deleted_at = datetime.utcnow()
+        empresa.deleted_at = utcnow()
         safe_commit(self.session)
 
     def listar_nomes(self) -> list[str]:

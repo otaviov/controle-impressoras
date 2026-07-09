@@ -1,4 +1,7 @@
+import logging
 from typing import Any, Optional
+
+log = logging.getLogger(__name__)
 
 COLUMN_LENGTHS: dict[str, dict[str, int]] = {
     "Printer": {"patrimonio": 80, "modelo": 80, "serial": 80, "status": 30, "local_atual": 120, "marca": 80, "tipo": 20, "ip_rede": 45, "mac_address": 17, "tecnico": 120, "foto_path": 255, "urgencia_prox_manutencao": 20},
@@ -25,11 +28,14 @@ def sanitizar(valor: Any, model_class: Optional[str] = None, field: Optional[str
         return None
     if not isinstance(valor, str):
         return valor
+    original = valor
     valor = valor.strip()
     if model_class and field:
         col_len = COLUMN_LENGTHS.get(model_class, {}).get(field)
-        if col_len:
+        if col_len and len(valor) > col_len:
+            log.warning("Truncando %s.%s de %d para %d caracteres", model_class, field, len(valor), col_len)
             valor = valor[:col_len]
-    if max_len:
+    if max_len and len(valor) > max_len:
+        log.warning("Truncando campo de %d para %d caracteres (max_len=%d)", len(original), max_len, max_len)
         valor = valor[:max_len]
     return valor

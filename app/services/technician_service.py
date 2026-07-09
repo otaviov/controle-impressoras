@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from app.models.base import utcnow
 from db import safe_commit
 from sqlalchemy.orm import Session
 
@@ -78,7 +79,7 @@ class TechnicianService:
     def excluir(self, tecnico: Technician) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="technicians", registro_id=tecnico.id, dados_antes=tecnico)
-        tecnico.deleted_at = datetime.utcnow()
+        tecnico.deleted_at = utcnow()
         safe_commit(self.session)
 
     def associar_usuario(self, tecnico_id: int, user_id: int | None) -> None:

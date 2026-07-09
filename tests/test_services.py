@@ -139,16 +139,6 @@ def test_activity_service_listar_por_impressora(db_session):
     assert len(atividades) == 2
 
 
-def test_transfer_service_criar(db_session):
-    from app.services.printer_service import PrinterService
-    from app.services.transfer_service import TransferService
-    p = PrinterService(db_session).criar(patrimonio="TRANSF001", modelo="Brother")
-    svc = TransferService(db_session)
-    t = svc.criar(printer_id=p.id, tipo="saida", responsavel_entrega="João")
-    assert t.id is not None
-    assert t.tipo == "saida"
-
-
 def test_dashboard_service_resumo(db_session):
     from app.services.dashboard_service import DashboardService
     from app.services.printer_service import PrinterService
@@ -544,37 +534,26 @@ def test_activity_excluir_e_restaurar(db_session):
     assert svc.buscar_por_id(a.id) is not None
 
 
-# ═══════════════════════════════════════════════════════════════
-# Edge cases – TransferService
-# ═══════════════════════════════════════════════════════════════
-
-def test_transfer_criar_com_tipo_invalido(db_session):
+def test_activity_contadores_ignoram_soft_deleted(db_session):
+    from app.services.activity_service import ActivityService
     from app.services.printer_service import PrinterService
-    from app.services.transfer_service import TransferService
-    p = PrinterService(db_session).criar(patrimonio="TRFTP", modelo="HP")
-    svc = TransferService(db_session)
-    t = svc.criar(printer_id=p.id, tipo="invalido", responsavel_entrega="João")
-    assert t.id is not None
-    assert t.tipo == "invalido"
+    p = PrinterService(db_session).criar(patrimonio="CTSD01", modelo="HP")
+    svc = ActivityService(db_session)
+    a1 = svc.criar(printer_id=p.id, kind="MANUTENCAO", status_atividade="Aberta")
+    a2 = svc.criar(printer_id=p.id, kind="MANUTENCAO", status_atividade="Aberta")
+    svc.excluir(a1)
+    assert svc.contar_por_status("Aberta") == 1
+    if a2.tecnico_id:
+        assert svc.contar_por_tecnico(a2.tecnico_id) == 1
 
 
-def test_transfer_buscar_por_numero_os_inexistente(db_session):
-    from app.services.transfer_service import TransferService
-    svc = TransferService(db_session)
-    resultado = svc.buscar_por_numero_os("NAO_EXISTE")
-    assert resultado == []
-
-
-def test_transfer_excluir_e_restaurar(db_session):
-    from app.services.printer_service import PrinterService
-    from app.services.transfer_service import TransferService
-    p = PrinterService(db_session).criar(patrimonio="TRFRST", modelo="HP")
-    svc = TransferService(db_session)
-    t = svc.criar(printer_id=p.id, tipo="saida")
-    svc.excluir(t)
-    assert svc.buscar_por_id(t.id) is None
-    svc.restaurar(t)
-    assert svc.buscar_por_id(t.id) is not None
+def test_part_retirar_estoque_por_nome(db_session):
+    from app.services.part_service import PartService
+    svc = PartService(db_session)
+    p = svc.criar(nome="Tonner HP", codigo="T001", quantidade=5)
+    assert p.quantidade_estoque == 5
+    svc.retirar_estoque_por_nome("Tonner HP, Fusor")
+    assert svc.buscar_por_nome("Tonner HP").quantidade_estoque == 4
 
 
 # ═══════════════════════════════════════════════════════════════

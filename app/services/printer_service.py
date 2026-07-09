@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from app.models.base import utcnow
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -117,7 +118,7 @@ class PrinterService:
     def excluir(self, printer: Printer) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="printers", registro_id=printer.id, dados_antes=printer)
-        printer.deleted_at = datetime.utcnow()
+        printer.deleted_at = utcnow()
         safe_commit(self.session)
 
     def contar_todos(self, filtro: Optional[str] = None) -> int:

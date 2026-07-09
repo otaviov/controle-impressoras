@@ -11,7 +11,6 @@ from app.models.base import Base, SoftDeleteMixin, utcnow
 if TYPE_CHECKING:
     from app.models.activity import Activity
     from app.models.printer import Printer
-    from app.models.transfer import Transfer
 
 
 class Company(Base, SoftDeleteMixin):
@@ -32,7 +31,6 @@ class Company(Base, SoftDeleteMixin):
     printers: Mapped[List[Printer]] = relationship(back_populates="company")
     activities_from: Mapped[List[Activity]] = relationship(back_populates="from_company", foreign_keys="Activity.from_company_id")
     activities_to: Mapped[List[Activity]] = relationship(back_populates="to_company", foreign_keys="Activity.to_company_id")
-    transfers_from: Mapped[List[Transfer]] = relationship(back_populates="from_company", foreign_keys="Transfer.from_company_id")
-    transfers_to: Mapped[List[Transfer]] = relationship(back_populates="to_company", foreign_keys="Transfer.to_company_id")
+
 
 

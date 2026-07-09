@@ -418,33 +418,24 @@ class OSPage(QWidget):
                     from_company_id=from_company_id,
                     to_company_id=to_company_id,
                 )
-            self.recarregar()
-            fotos_pendentes = getattr(dialog, "pending_fotos", [])
-            if fotos_pendentes:
+                fotos_pendentes = getattr(dialog, "pending_fotos", [])
                 for file_path, categoria in fotos_pendentes:
-                    try:
-                        original_name = os.path.basename(file_path)
-                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
-                        ext = os.path.splitext(original_name)[1]
-                        stored_name = f"activity_{atividade.id}_{timestamp}_{original_name}"
-                        dest = ANEXOS_DIR / stored_name
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(file_path, str(dest))
-                        anexo = Attachment(
-                            entity_type="activity",
-                            entity_id=atividade.id,
-                            original_name=original_name,
-                            file_path=str(dest),
-                            categoria=categoria,
-                        )
-                        self.session.add(anexo)
-                    except Exception as e:
-                        QMessageBox.warning(dialog, "Aviso", f"Erro ao salvar foto ({original_name}): {e}")
-                try:
-                    self.session.commit()
-                except Exception as e:
-                    self.session.rollback()
-                    QMessageBox.warning(self, "Aviso", f"Erro ao salvar fotos: {e}")
+                    original_name = os.path.basename(file_path)
+                    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+                    ext = os.path.splitext(original_name)[1]
+                    stored_name = f"activity_{atividade.id}_{timestamp}_{original_name}"
+                    dest = ANEXOS_DIR / stored_name
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(file_path, str(dest))
+                    anexo = Attachment(
+                        entity_type="activity",
+                        entity_id=atividade.id,
+                        original_name=original_name,
+                        file_path=str(dest),
+                        categoria=categoria,
+                    )
+                    self.session.add(anexo)
+            self.recarregar()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Erro ao criar OS: {e}")
 
@@ -1051,7 +1042,7 @@ class OSPage(QWidget):
                                 try:
                                     dlg.pending_fotos.remove((fp, ch))
                                 except ValueError:
-                                    pass
+                                    log.exception("Foto %s não estava em pending_fotos", fp)
                             cb = getattr(dlg, 'refresh_gallery_cb', None)
                             if cb:
                                 cb()
@@ -1685,7 +1676,7 @@ class OSPage(QWidget):
                     atual = txt_pecas.toPlainText().strip()
                     txt_pecas.setPlainText(f"{part.nome}" if not atual else f"{atual}, {part.nome}")
             except RuntimeError:
-                pass
+                log.exception("Erro ao preencher peças no combo OS")
         estoque_combo_os.currentIndexChanged.connect(_preencher_pecas_os)
 
         pecas_grid = QVBoxLayout()
@@ -2149,14 +2140,8 @@ class OSPage(QWidget):
     def _dar_baixa_estoque(self, pecas_texto: str, activity_id: int | None = None) -> None:
         if not pecas_texto:
             return
-        for nome_peca in pecas_texto.split(","):
-            nome_peca = nome_peca.strip()
-            if not nome_peca:
-                continue
-            with tratar_erro("dar baixa no estoque"):
-                part = self.part_service.buscar_por_nome(nome_peca)
-                if part and part.quantidade_estoque > 0:
-                    self.part_service.retirar_estoque(part, activity_id=activity_id)
+        with tratar_erro("dar baixa no estoque"):
+            self.part_service.retirar_estoque_por_nome(pecas_texto, activity_id=activity_id)
 
     def _criar_alerta_urgencia(self, printer: Any, urgencia: str) -> None:
         if not self.alert_service or urgencia not in ("Alta", "Crítica"):

@@ -1951,8 +1951,4 @@ class PrintersPage(QWidget):
         if dlg.exec() == ImportDialog.Accepted:
             self.recarregar()
 
-    # ── Atalho para editar atividade ──────────────────────────
 
-    def _editar_atividade(self, row: int, atividades: list[Any], printer: Any, parent_dialog: QDialog) -> None:
-        """Compatibilidade: abre o dialog de edição de atividade."""
-        pass

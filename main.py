@@ -29,14 +29,12 @@ try:
     cursor = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'"
     )
-    precisa_estampar = cursor.fetchone() is None
+    precisa_migrar = cursor.fetchone() is None
     conn.close()
-    if precisa_estampar:
-        log.info("DB sem alembic_version — estampando head")
-        from alembic.command import stamp as alembic_stamp
-        alembic_stamp(_alembic_cfg, "head")
+    if precisa_migrar:
+        log.info("DB sem alembic_version — aplicando migrations completas")
 except Exception:
-    pass
+    log.exception("Falha ao verificar alembic_version")
 
 alembic_upgrade(_alembic_cfg, "head")
 

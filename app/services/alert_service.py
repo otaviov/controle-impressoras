@@ -5,6 +5,7 @@ import logging
 from db import safe_commit
 
 log = logging.getLogger(__name__)
+from app.models.base import utcnow
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -96,7 +97,7 @@ class AlertService:
     def excluir(self, alerta: Alert) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="alerts", registro_id=alerta.id, dados_antes=alerta)
-        alerta.deleted_at = datetime.utcnow()
+        alerta.deleted_at = utcnow()
         safe_commit(self.session)
 
     def contar_todos(self, apenas_pendentes: bool = False, apenas_resolvidos: bool = False, filtro_busca: Optional[str] = None) -> int:

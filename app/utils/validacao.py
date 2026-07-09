@@ -80,26 +80,3 @@ def alfanumerico(texto: str) -> Optional[str]:
         return "Apenas letras e números"
     return None
 
-
-def email(texto):
-    if not texto.strip():
-        return "Campo obrigatório"
-    if not _PADRAO_EMAIL.match(texto.strip()):
-        return "E-mail inválido"
-    return None
-
-
-def minimo(n):
-    def _regra(texto):
-        if texto.strip() and len(texto.strip()) < n:
-            return f"Mínimo de {n} caracteres"
-        return None
-    return _regra
-
-
-def alfanumerico(texto):
-    if not texto.strip():
-        return "Campo obrigatório"
-    if not texto.strip().isalnum():
-        return "Apenas letras e números"
-    return None

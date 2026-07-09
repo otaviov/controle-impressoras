@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
 from app.utils.ui_helpers import tratar_erro
 from app.views.styles.theme import configurar_combo, COR, group_box, input_label, campo_rotulo, campo_readonly
 
+from config import BUNDLE_DIR
+
 BG: str = COR["fundo"]
 CARD: str = COR["fundo_card"]
 BORDA: str = COR["borda"]
@@ -341,7 +343,7 @@ class RelatorioDialog(QDialog):
             TableStyle,
         )
 
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logo.png")
+        logo_path = str(BUNDLE_DIR / "logo.png")
 
         doc = SimpleDocTemplate(filepath, pagesize=A4, leftMargin=28, rightMargin=28, topMargin=28, bottomMargin=45)
         styles = getSampleStyleSheet()

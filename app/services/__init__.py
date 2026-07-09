@@ -9,5 +9,4 @@ from .part_service import PartService
 from .printer_location_service import PrinterLocationService
 from .printer_service import PrinterService
 from .technician_service import TechnicianService
-from .transfer_service import TransferService
 from .user_service import UserService

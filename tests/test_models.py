@@ -141,19 +141,6 @@ def test_alert_defaults(db_session):
     assert a.part_id is None
 
 
-def test_transfer_defaults(db_session):
-    from app.models.printer import Printer
-    from app.models.transfer import Transfer
-    p = Printer(patrimonio="TRFDEF", modelo="HP")
-    db_session.add(p)
-    db_session.commit()
-    t = Transfer(printer_id=p.id, tipo="saida")
-    db_session.add(t)
-    db_session.commit()
-    assert t.data_retorno_real is None
-    assert t.deleted_at is None
-
-
 def test_attachment_defaults(db_session):
     from app.models.attachment import Attachment
     a = Attachment(entity_type="printer", entity_id=1, filename="test.pdf", original_name="test.pdf", mime_type="application/pdf")

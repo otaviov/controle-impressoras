@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from app.models.base import utcnow
 from db import safe_commit
 from sqlalchemy.orm import Session
 
@@ -90,7 +91,7 @@ class PartService:
     def excluir(self, peca: Part) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="parts", registro_id=peca.id, dados_antes=peca)
-        peca.deleted_at = datetime.utcnow()
+        peca.deleted_at = utcnow()
         safe_commit(self.session)
 
     def contar(self, filtro: Optional[str] = None) -> int:
@@ -153,6 +154,15 @@ class PartService:
         safe_commit(self.session)
         return self._log_movimento(part, "entrada", quantidade, observacao=observacao)
 
+    def retirar_estoque_por_nome(self, nomes: str, activity_id: Optional[int] = None) -> None:
+        for nome_peca in nomes.split(","):
+            nome_peca = nome_peca.strip()
+            if not nome_peca:
+                continue
+            part = self.buscar_por_nome(nome_peca)
+            if part and part.quantidade_estoque > 0:
+                self.retirar_estoque(part, activity_id=activity_id)
+
     def retirar_estoque(self, part: Part, quantidade: int = 1, activity_id: Optional[int] = None, observacao: str = "") -> PartMovement:
         if part.quantidade_estoque < quantidade:
             quantidade = part.quantidade_estoque
@@ -208,7 +218,7 @@ class PartService:
         if not res or res.status != "reservada":
             return
         res.status = "usada"
-        res.updated_at = datetime.utcnow()
+        res.updated_at = utcnow()
         part = res.part
         if part is None:
             log.warning("usar_reserva #%s: part not found", reservation_id)
@@ -225,7 +235,7 @@ class PartService:
         if not res or res.status != "reservada":
             return
         res.status = "cancelada"
-        res.updated_at = datetime.utcnow()
+        res.updated_at = utcnow()
         part = res.part
         if part is None:
             log.warning("cancelar_reserva #%s: part not found", reservation_id)

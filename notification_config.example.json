@@ -1,0 +1,10 @@
+{
+  "desktop_ativado": true,
+  "email_ativado": false,
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_usuario": "seuemail@gmail.com",
+  "smtp_senha": "",
+  "email_remetente": "seuemail@gmail.com",
+  "email_destinatario": "destinatario@gmail.com"
+}

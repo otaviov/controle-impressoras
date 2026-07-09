@@ -20,7 +20,7 @@ class DashboardService:
         total = sum(status_counts.values())
         em_manutencao = sum(status_counts.get(s, 0) for s in STATUS_MANUTENCAO)
         operacionais = sum(status_counts.get(s, 0) for s in STATUS_OPERACIONAL)
-        total_atividades = self.session.query(Activity).count()
+        total_atividades = self.session.query(Activity).filter(Activity.deleted_at == None).count()
         return {
             "total_impressoras": total,
             "em_manutencao": em_manutencao,

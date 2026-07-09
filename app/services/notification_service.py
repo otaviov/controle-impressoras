@@ -11,9 +11,11 @@ from pathlib import Path
 from threading import Thread
 from typing import Any
 
+from config import DATA_DIR
+
 log = logging.getLogger(__name__)
 
-NOTIFICACAO_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "notification_config.json"
+NOTIFICACAO_CONFIG_PATH = DATA_DIR / "notification_config.json"
 
 
 @dataclass

@@ -14,5 +14,4 @@ from app.models.purchase_requisition import PurchaseRequisition
 from app.models.printer_location import PrinterLocation
 from app.models.technician import Technician
 from app.models.technician_specialty import TechnicianSpecialty
-from app.models.transfer import Transfer
 from app.models.user import User

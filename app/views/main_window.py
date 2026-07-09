@@ -34,7 +34,6 @@ from app.services import (
     PrinterLocationService,
     PrinterService,
     TechnicianService,
-    TransferService,
     UserService,
 )
 from app.views.widgets.toast import ToastManager
@@ -71,7 +70,6 @@ class MainWindow(QMainWindow):
     dashboard_service: DashboardService
     alert_service: AlertService
     maintenance_scheduler: MaintenanceScheduler
-    transfer_service: TransferService
     login_history_service: LoginHistoryService
     printer_location_service: PrinterLocationService
     tray_icon: QSystemTrayIcon
@@ -114,7 +112,6 @@ class MainWindow(QMainWindow):
         self.user_service = UserService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.dashboard_service = DashboardService(session)
         self.alert_service = AlertService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
-        self.transfer_service = TransferService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.login_history_service = LoginHistoryService(session)
 
         self.maintenance_scheduler = MaintenanceScheduler(
@@ -148,7 +145,7 @@ class MainWindow(QMainWindow):
             try:
                 self.login_history_service.registrar_logout(self.user["id"])
             except Exception:
-                pass
+                log.exception("Erro ao registrar logout")
         super().closeEvent(event)
 
     # ── UI ──────────────────────────────────────────────────────
@@ -282,7 +279,6 @@ class MainWindow(QMainWindow):
         self.pagina_transferencias = TransfersPage(
             self.session, self.printer_service,
             self.activity_service, self.company_service,
-            transfer_service=self.transfer_service
         )
         self.pagina_tecnicos = TechniciansPage(
             self.session, self.technician_service, printer_service=self.printer_service
@@ -332,7 +328,6 @@ class MainWindow(QMainWindow):
                 part_service=self.part_service,
                 company_service=self.company_service,
                 activity_service=self.activity_service,
-                transfer_service=self.transfer_service,
                 technician_service=self.technician_service,
                 alert_service=self.alert_service,
             )
@@ -350,7 +345,10 @@ class MainWindow(QMainWindow):
 
         ToastManager.instalar(self)
 
-        QTimer.singleShot(0, self._verificar_alertas_iniciais)
+        QTimer.singleShot(0, self._verificar_alertas)
+        self._timer_alertas = QTimer(self)
+        self._timer_alertas.timeout.connect(self._verificar_alertas)
+        self._timer_alertas.start(3600000)
 
         self._trocar_pagina(0)
 
@@ -652,7 +650,7 @@ class MainWindow(QMainWindow):
             if hasattr(pagina, 'recarregar'):
                 pagina.recarregar()
 
-    def _verificar_alertas_iniciais(self) -> None:
+    def _verificar_alertas(self) -> None:
         try:
             novos_estoque = self.alert_service.verificar_estoque_baixo()
             if novos_estoque:
@@ -724,7 +722,7 @@ class MainWindow(QMainWindow):
             try:
                 os.startfile(fp)
             except Exception:
-                pass
+                log.exception("Erro ao abrir arquivo exportado")
             QMessageBox.information(self, "Sucesso", f"Relatório salvo em:\n{fp}")
 
         exportar_em_thread(export_fn, data, filepath, on_finish=_ao_finalizar)
