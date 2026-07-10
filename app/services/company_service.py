@@ -9,6 +9,7 @@ from db import safe_commit
 from sqlalchemy.orm import Session
 
 from app.models import Company
+from app.utils.cache import cached, invalidate
 from app.utils.sanitize import sanitizar
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class CompanyService:
         self.audit_service: Optional[AuditService] = audit_service
         self.user_id: Optional[int] = user_id
 
+    @cached(ttl=60, namespace="company")
     def listar_todas(self, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Company]:
         query = self.session.query(Company).filter(Company.deleted_at == None).order_by(Company.nome)
         if limite is not None:
@@ -50,6 +52,7 @@ class CompanyService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="companies", registro_id=empresa.id, dados_depois=empresa)
+        invalidate("company")
         return empresa
 
     def atualizar(self, empresa: Company, **kwargs: Any) -> None:
@@ -63,16 +66,20 @@ class CompanyService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "atualizar", tabela_alvo="companies", registro_id=empresa.id, dados_antes=dados_antes, dados_depois=empresa)
+        invalidate("company")
 
     def excluir(self, empresa: Company) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="companies", registro_id=empresa.id, dados_antes=empresa)
         empresa.deleted_at = utcnow()
         safe_commit(self.session)
+        invalidate("company")
 
+    @cached(ttl=60, namespace="company")
     def listar_nomes(self) -> list[str]:
         return [emp.nome for emp in self.listar_todas()]
 
+    @cached(ttl=60, namespace="company")
     def contar_todas(self) -> int:
         return self.session.query(Company).filter(Company.deleted_at == None).count()
 
@@ -86,4 +93,5 @@ class CompanyService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="companies", registro_id=obj.id)
+        invalidate("company")
 

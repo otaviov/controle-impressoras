@@ -13,6 +13,7 @@ from app.models.base import utcnow
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Activity, Printer
+from app.utils.cache import cached, invalidate
 from app.utils.sanitize import sanitizar
 
 if TYPE_CHECKING:
@@ -148,6 +149,8 @@ class ActivityService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="activities", registro_id=atividade.id, dados_depois=atividade)
+        invalidate("activity")
+        invalidate("dashboard")
         return atividade
 
     def listar_vinculadas(self, activity_id: int, limite: int = 20) -> list[Activity]:
@@ -190,22 +193,29 @@ class ActivityService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "atualizar", tabela_alvo="activities", registro_id=atividade.id, dados_antes=dados_antes, dados_depois=atividade)
+        invalidate("activity")
+        invalidate("dashboard")
 
     def excluir(self, atividade: Activity) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="activities", registro_id=atividade.id, dados_antes=atividade)
         atividade.deleted_at = utcnow()
         safe_commit(self.session)
+        invalidate("activity")
+        invalidate("dashboard")
 
+    @cached(ttl=15, namespace="activity")
     def contar_total(self) -> int:
         return self.session.query(Activity).filter(Activity.deleted_at == None).count()
 
+    @cached(ttl=15, namespace="activity")
     def contar_por_status(self, status: str) -> int:
         return self.session.query(Activity).filter(
             Activity.deleted_at == None,
             Activity.status_atividade.in_([status, status.lower(), status.capitalize()])
         ).count()
 
+    @cached(ttl=60, namespace="activity")
     def contar_por_mes(self, ano: int, mes: int, kind: Optional[str] = None) -> int:
         inicio = datetime(ano, mes, 1)
         fim = datetime(ano + 1, 1, 1) if mes == 12 else datetime(ano, mes + 1, 1)
@@ -217,9 +227,43 @@ class ActivityService:
             query = query.filter(Activity.kind == kind)
         return query.count()
 
+    @cached(ttl=60, namespace="activity")
     def contar_ultimos_6_meses(self) -> dict[str, list]:
         hoje = datetime.now()
         resultado: dict[str, list] = {"manut": [], "mov": [], "labels": []}
+
+        mes_start = hoje.month - 5
+        ano_start = hoje.year
+        while mes_start <= 0:
+            mes_start += 12
+            ano_start -= 1
+        inicio = datetime(ano_start, mes_start, 1)
+
+        rows = (
+            self.session.query(
+                func.strftime("%Y-%m", Activity.event_at),
+                Activity.kind,
+                func.count(Activity.id),
+            )
+            .filter(
+                Activity.deleted_at == None,
+                Activity.event_at >= inicio,
+                Activity.kind.in_(["MANUTENCAO", "MOVIMENTACAO"]),
+            )
+            .group_by(func.strftime("%Y-%m", Activity.event_at), Activity.kind)
+            .order_by(func.strftime("%Y-%m", Activity.event_at))
+            .all()
+        )
+
+        data_map: dict[str, dict[str, int]] = {}
+        for month_str, kind, count in rows:
+            if month_str not in data_map:
+                data_map[month_str] = {"manut": 0, "mov": 0}
+            if kind == "MANUTENCAO":
+                data_map[month_str]["manut"] = count
+            elif kind == "MOVIMENTACAO":
+                data_map[month_str]["mov"] = count
+
         for i in range(5, -1, -1):
             mes_n = hoje.month - i
             ano_n = hoje.year
@@ -227,8 +271,11 @@ class ActivityService:
                 mes_n += 12
                 ano_n -= 1
             resultado["labels"].append(calendar.month_abbr[mes_n])
-            resultado["manut"].append(self.contar_por_mes(ano_n, mes_n, "MANUTENCAO"))
-            resultado["mov"].append(self.contar_por_mes(ano_n, mes_n, "MOVIMENTACAO"))
+            key = f"{ano_n:04d}-{mes_n:02d}"
+            month_data = data_map.get(key, {"manut": 0, "mov": 0})
+            resultado["manut"].append(month_data["manut"])
+            resultado["mov"].append(month_data["mov"])
+
         return resultado
 
     def buscar_por_filtro_busca(self, texto: str, limite: int = 200, offset: Optional[int] = None) -> list[Activity]:
@@ -446,4 +493,6 @@ class ActivityService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="activities", registro_id=obj.id)
+        invalidate("activity")
+        invalidate("dashboard")
 

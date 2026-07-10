@@ -9,6 +9,7 @@ from db import safe_commit
 from sqlalchemy.orm import Session
 
 from app.models import Technician
+from app.utils.cache import cached, invalidate
 from app.utils.sanitize import sanitizar
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class TechnicianService:
         self.audit_service: Optional[AuditService] = audit_service
         self.user_id: Optional[int] = user_id
 
+    @cached(ttl=60, namespace="technician")
     def listar_todos(self, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Technician]:
         query = self.session.query(Technician).filter(Technician.deleted_at == None).order_by(Technician.nome_completo)
         if limite is not None:
@@ -31,6 +33,7 @@ class TechnicianService:
             query = query.offset(offset)
         return query.all()
 
+    @cached(ttl=60, namespace="technician")
     def listar_ativos(self, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Technician]:
         query = self.session.query(Technician).filter(Technician.deleted_at == None).filter(
             Technician.ativo == True
@@ -41,6 +44,7 @@ class TechnicianService:
             query = query.offset(offset)
         return query.all()
 
+    @cached(ttl=30, namespace="technician")
     def buscar_por_id(self, tecnico_id: int) -> Optional[Technician]:
         return self.session.query(Technician).filter(
             Technician.deleted_at == None, Technician.id == tecnico_id
@@ -62,6 +66,7 @@ class TechnicianService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="technicians", registro_id=t.id, dados_depois=t)
+        invalidate("technician")
         return t
 
     def atualizar(self, tecnico: Technician, **kwargs: Any) -> None:
@@ -75,12 +80,14 @@ class TechnicianService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "atualizar", tabela_alvo="technicians", registro_id=tecnico.id, dados_antes=dados_antes, dados_depois=tecnico)
+        invalidate("technician")
 
     def excluir(self, tecnico: Technician) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="technicians", registro_id=tecnico.id, dados_antes=tecnico)
         tecnico.deleted_at = utcnow()
         safe_commit(self.session)
+        invalidate("technician")
 
     def associar_usuario(self, tecnico_id: int, user_id: int | None) -> None:
         tecnico = self.buscar_por_id(tecnico_id)
@@ -92,6 +99,7 @@ class TechnicianService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "associar_usuario", tabela_alvo="technicians", registro_id=tecnico.id, dados_antes=dados_antes, dados_depois={"user_id": user_id})
+        invalidate("technician")
 
     def listar_especialidades(self, tecnico_id: int) -> list[str]:
         from app.models.technician_specialty import TechnicianSpecialty
@@ -127,6 +135,7 @@ class TechnicianService:
     def nomes_exibicao(self) -> list[str]:
         return [t.nome_exibicao for t in self.listar_ativos()]
 
+    @cached(ttl=60, namespace="technician")
     def contar_todos(self) -> int:
         return self.session.query(Technician).filter(Technician.deleted_at == None).count()
 
@@ -140,4 +149,5 @@ class TechnicianService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="technicians", registro_id=obj.id)
+        invalidate("technician")
 

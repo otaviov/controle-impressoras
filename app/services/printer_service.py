@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Activity, Printer
 from app.utils.sanitize import sanitizar
+from app.utils.cache import cached, invalidate
 from db import safe_commit
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ class PrinterService:
         self.audit_service: Optional[AuditService] = audit_service
         self.user_id: Optional[int] = user_id
 
+    @cached(ttl=30, namespace="printer")
     def listar_todos(self, filtro: Optional[str] = None, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Printer]:
         query = self.session.query(Printer).filter(Printer.deleted_at == None)
         if filtro:
@@ -43,9 +45,11 @@ class PrinterService:
     def buscar_por_patrimonio(self, patrimonio: str) -> Optional[Printer]:
         return self.session.query(Printer).filter(Printer.deleted_at == None, Printer.patrimonio == patrimonio).first()
 
+    @cached(ttl=15, namespace="printer")
     def buscar_por_id(self, printer_id: str) -> Optional[Printer]:
         return self.session.query(Printer).filter(Printer.deleted_at == None, Printer.id == printer_id).first()
 
+    @cached(ttl=15, namespace="printer")
     def buscar_por_ids(self, ids: list[str]) -> dict[str, Printer]:
         if not ids:
             return {}
@@ -54,6 +58,7 @@ class PrinterService:
             for p in self.session.query(Printer).filter(Printer.id.in_(ids)).all()
         }
 
+    @cached(ttl=15, namespace="printer")
     def mapa_patrimonio(self, ids: list[str]) -> dict[str, str]:
         if not ids:
             return {}
@@ -100,6 +105,8 @@ class PrinterService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="printers", registro_id=printer.id, dados_depois=printer)
+        invalidate("printer")
+        invalidate("dashboard")
         return printer
 
     def atualizar(self, printer: Printer, **kwargs: Any) -> None:
@@ -114,13 +121,18 @@ class PrinterService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "atualizar", tabela_alvo="printers", registro_id=printer.id, dados_antes=dados_antes, dados_depois=printer)
+        invalidate("printer")
+        invalidate("dashboard")
 
     def excluir(self, printer: Printer) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="printers", registro_id=printer.id, dados_antes=printer)
         printer.deleted_at = utcnow()
         safe_commit(self.session)
+        invalidate("printer")
+        invalidate("dashboard")
 
+    @cached(ttl=30, namespace="printer")
     def contar_todos(self, filtro: Optional[str] = None) -> int:
         query = self.session.query(Printer).filter(Printer.deleted_at == None)
         if filtro:
@@ -145,6 +157,7 @@ class PrinterService:
             )
         }
 
+    @cached(ttl=30, namespace="printer")
     def total_por_status(self) -> dict[str | None, int]:
         dados = (
             self.session.query(Printer.status, func.count(Printer.id))
@@ -152,6 +165,7 @@ class PrinterService:
         )
         return {s: c for s, c in dados}
 
+    @cached(ttl=60, namespace="printer")
     def modelos_distintos(self) -> list[str]:
         return [
             m[0] for m in self.session.query(Printer.modelo).filter(Printer.deleted_at == None)
@@ -159,6 +173,7 @@ class PrinterService:
             if m[0]
         ]
 
+    @cached(ttl=60, namespace="printer")
     def locais_distintos(self) -> list[str]:
         return [
             l[0] for l in self.session.query(Printer.local_atual).filter(Printer.deleted_at == None)
@@ -178,11 +193,32 @@ class PrinterService:
         )
         return [(m[0], m[1]) for m in dados]
 
+    @cached(ttl=30, namespace="printer")
     def contar_por_local(self, nome_local: str) -> int:
         return self.session.query(Printer).filter(
             Printer.local_atual.like(f"%{nome_local}%")
         ).count()
 
+    def contar_por_locais(self, nomes: list[str]) -> dict[str, int]:
+        if not nomes:
+            return {}
+        from sqlalchemy import func
+        results: dict[str, int] = {}
+        rows = (
+            self.session.query(Printer.local_atual, func.count(Printer.id))
+            .filter(Printer.deleted_at == None)
+            .filter(Printer.local_atual.in_(nomes))
+            .group_by(Printer.local_atual)
+            .all()
+        )
+        for local, cnt in rows:
+            results[local] = cnt
+        for nome in nomes:
+            if nome not in results:
+                results[nome] = 0
+        return results
+
+    @cached(ttl=30, namespace="printer")
     def listar_patrimonios(self, status: Optional[str] = None) -> list[str]:
         query = self.session.query(Printer.patrimonio)
         if status and status != "Todos":
@@ -209,6 +245,7 @@ class PrinterService:
         for p in impressoraS:
             p.local_atual = nome_novo
         safe_commit(self.session)
+        invalidate("printer")
 
     def listar_por_filtros(self, status: Optional[str] = None, patrimonio: Optional[str] = None, modelo: Optional[str] = None, local: Optional[str] = None) -> list[Printer]:
         query = self.session.query(Printer).filter(Printer.deleted_at == None)
@@ -232,3 +269,5 @@ class PrinterService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="printers", registro_id=obj.id)
+        invalidate("printer")
+        invalidate("dashboard")

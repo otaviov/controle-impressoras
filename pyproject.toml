@@ -19,6 +19,7 @@ dependencies = [
     "reportlab>=4.0",
     "openpyxl>=3.1",
     "matplotlib>=3.8",
+    "alembic>=1.13",
     "python-dotenv>=1.0",
 ]
 

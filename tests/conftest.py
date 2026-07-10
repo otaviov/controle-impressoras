@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.base import Base
 from app.models.user import User
+from app.utils.cache import invalidate_all
 from app.utils.security import hash_password
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache() -> None:
+    invalidate_all()
 
 
 @pytest.fixture

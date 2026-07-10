@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Alert, Printer
+from app.utils.cache import cached, invalidate
 from app.utils.sanitize import sanitizar
 
 if TYPE_CHECKING:
@@ -74,6 +75,8 @@ class AlertService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="alerts", registro_id=alerta.id, dados_depois=alerta)
+        invalidate("alert")
+        invalidate("dashboard")
 
         if not data_agendada and self.notificador:
             try:
@@ -93,12 +96,14 @@ class AlertService:
         alerta.resolvido_em = datetime.now()
         alerta.resolvido_por = user_id
         safe_commit(self.session)
+        invalidate("alert")
 
     def excluir(self, alerta: Alert) -> None:
         if self.audit_service:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="alerts", registro_id=alerta.id, dados_antes=alerta)
         alerta.deleted_at = utcnow()
         safe_commit(self.session)
+        invalidate("alert")
 
     def contar_todos(self, apenas_pendentes: bool = False, apenas_resolvidos: bool = False, filtro_busca: Optional[str] = None) -> int:
         query = self.session.query(Alert).filter(Alert.deleted_at == None)
@@ -113,6 +118,7 @@ class AlertService:
             )
         return query.count()
 
+    @cached(ttl=15, namespace="alert")
     def contar_pendentes(self) -> int:
         return self.session.query(Alert).filter(
             Alert.deleted_at == None, Alert.resolvido == False
@@ -156,6 +162,7 @@ class AlertService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="alerts", registro_id=obj.id)
+        invalidate("alert")
 
     def verificar_estoque_baixo(self) -> int:
         from app.models import Part

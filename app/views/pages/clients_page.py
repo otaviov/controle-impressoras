@@ -128,6 +128,9 @@ class ClientsPage(QWidget):
                                    itens_por_pagina=self._paginacao.limit)
         self._empresas_visiveis = empresas
         self.tabela.setRowCount(len(empresas))
+        nomes_locais = [emp.nome for emp in empresas]
+        contagem = self.printer_service.contar_por_locais(nomes_locais)
+
         for i, emp in enumerate(empresas):
             self.tabela.setItem(i, 0, QTableWidgetItem(emp.nome))
             self.tabela.setItem(i, 1, QTableWidgetItem(emp.cnpj or "-"))
@@ -135,8 +138,7 @@ class ClientsPage(QWidget):
             self.tabela.setItem(i, 2, QTableWidgetItem(cidade_uf if cidade_uf else "-"))
             self.tabela.setItem(i, 3, QTableWidgetItem(emp.telefone or "-"))
             self.tabela.setItem(i, 4, QTableWidgetItem(emp.email or "-"))
-            num = self.printer_service.contar_por_local(emp.nome)
-            self.tabela.setItem(i, 5, QTableWidgetItem(str(num)))
+            self.tabela.setItem(i, 5, QTableWidgetItem(str(contagem.get(emp.nome, 0))))
         self.tabela.redimensionar()
 
     def _detalhes(self, row: int) -> None:

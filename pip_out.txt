@@ -1,0 +1,90 @@
+Obtaining file:///E:/controle-impressoras
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Collecting PySide6>=6.8 (from controle-impressoras==2.0.0)
+  Using cached pyside6-6.11.1-cp310-abi3-win_amd64.whl.metadata (5.5 kB)
+Collecting SQLAlchemy>=2.0 (from controle-impressoras==2.0.0)
+  Using cached sqlalchemy-2.0.51-cp314-cp314-win_amd64.whl.metadata (9.8 kB)
+Collecting bcrypt<6.0,>=4.0 (from controle-impressoras==2.0.0)
+  Using cached bcrypt-5.0.0-cp39-abi3-win_amd64.whl.metadata (10 kB)
+Collecting reportlab>=4.0 (from controle-impressoras==2.0.0)
+  Using cached reportlab-5.0.0-py3-none-any.whl.metadata (1.6 kB)
+Collecting openpyxl>=3.1 (from controle-impressoras==2.0.0)
+  Using cached openpyxl-3.1.5-py2.py3-none-any.whl.metadata (2.5 kB)
+Collecting matplotlib>=3.8 (from controle-impressoras==2.0.0)
+  Using cached matplotlib-3.11.0-cp314-cp314-win_amd64.whl.metadata (80 kB)
+Collecting python-dotenv>=1.0 (from controle-impressoras==2.0.0)
+  Using cached python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+Collecting contourpy>=1.0.1 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached contourpy-1.3.3-cp314-cp314-win_amd64.whl.metadata (5.5 kB)
+Collecting cycler>=0.10 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+Collecting fonttools>=4.22.0 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached fonttools-4.63.0-cp314-cp314-win_amd64.whl.metadata (121 kB)
+Collecting kiwisolver>=1.3.1 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached kiwisolver-1.5.0-cp314-cp314-win_amd64.whl.metadata (5.2 kB)
+Collecting numpy>=1.25 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached numpy-2.5.1-cp314-cp314-win_amd64.whl.metadata (6.6 kB)
+Collecting packaging>=20.0 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+Collecting pillow>=9 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached pillow-12.3.0-cp314-cp314-win_amd64.whl.metadata (9.3 kB)
+Collecting pyparsing>=3 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached pyparsing-3.3.2-py3-none-any.whl.metadata (5.8 kB)
+Collecting python-dateutil>=2.7 (from matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting et-xmlfile (from openpyxl>=3.1->controle-impressoras==2.0.0)
+  Using cached et_xmlfile-2.0.0-py3-none-any.whl.metadata (2.7 kB)
+Collecting shiboken6==6.11.1 (from PySide6>=6.8->controle-impressoras==2.0.0)
+  Using cached shiboken6-6.11.1-cp310-abi3-win_amd64.whl.metadata (2.5 kB)
+Collecting PySide6_Essentials==6.11.1 (from PySide6>=6.8->controle-impressoras==2.0.0)
+  Using cached pyside6_essentials-6.11.1-cp310-abi3-win_amd64.whl.metadata (3.8 kB)
+Collecting PySide6_Addons==6.11.1 (from PySide6>=6.8->controle-impressoras==2.0.0)
+  Using cached pyside6_addons-6.11.1-cp310-abi3-win_amd64.whl.metadata (4.2 kB)
+Collecting six>=1.5 (from python-dateutil>=2.7->matplotlib>=3.8->controle-impressoras==2.0.0)
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting charset-normalizer (from reportlab>=4.0->controle-impressoras==2.0.0)
+  Using cached charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl.metadata (42 kB)
+Collecting greenlet>=1 (from SQLAlchemy>=2.0->controle-impressoras==2.0.0)
+  Using cached greenlet-3.5.3-cp314-cp314-win_amd64.whl.metadata (3.9 kB)
+Collecting typing-extensions>=4.6.0 (from SQLAlchemy>=2.0->controle-impressoras==2.0.0)
+  Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Using cached bcrypt-5.0.0-cp39-abi3-win_amd64.whl (150 kB)
+Using cached matplotlib-3.11.0-cp314-cp314-win_amd64.whl (9.5 MB)
+Using cached contourpy-1.3.3-cp314-cp314-win_amd64.whl (232 kB)
+Using cached cycler-0.12.1-py3-none-any.whl (8.3 kB)
+Using cached fonttools-4.63.0-cp314-cp314-win_amd64.whl (2.3 MB)
+Using cached kiwisolver-1.5.0-cp314-cp314-win_amd64.whl (75 kB)
+Using cached numpy-2.5.1-cp314-cp314-win_amd64.whl (12.6 MB)
+Using cached openpyxl-3.1.5-py2.py3-none-any.whl (250 kB)
+Using cached packaging-26.2-py3-none-any.whl (100 kB)
+Using cached pillow-12.3.0-cp314-cp314-win_amd64.whl (7.2 MB)
+Using cached pyparsing-3.3.2-py3-none-any.whl (122 kB)
+Using cached pyside6-6.11.1-cp310-abi3-win_amd64.whl (578 kB)
+Using cached pyside6_addons-6.11.1-cp310-abi3-win_amd64.whl (168.8 MB)
+Using cached pyside6_essentials-6.11.1-cp310-abi3-win_amd64.whl (77.5 MB)
+Using cached shiboken6-6.11.1-cp310-abi3-win_amd64.whl (1.2 MB)
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Using cached python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+Using cached reportlab-5.0.0-py3-none-any.whl (2.0 MB)
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Using cached sqlalchemy-2.0.51-cp314-cp314-win_amd64.whl (2.1 MB)
+Using cached greenlet-3.5.3-cp314-cp314-win_amd64.whl (240 kB)
+Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Using cached charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl (162 kB)
+Using cached et_xmlfile-2.0.0-py3-none-any.whl (18 kB)
+Building wheels for collected packages: controle-impressoras
+  Building editable for controle-impressoras (pyproject.toml): started
+  Building editable for controle-impressoras (pyproject.toml): finished with status 'done'
+  Created wheel for controle-impressoras: filename=controle_impressoras-2.0.0-0.editable-py3-none-any.whl size=3251 sha256=12a80affa00ac2bb6082602f74f9be7c131c069a92b58f8f5e070c8d50256e7b
+  Stored in directory: C:\Users\Suporte Tecnico\AppData\Local\Temp\pip-ephem-wheel-cache-4z8y4908\wheels\a7\95\ea\6833a3215d8b2ebcc3929362d36cf6e29a4f638748ccf16433
+Successfully built controle-impressoras
+Installing collected packages: typing-extensions, six, shiboken6, python-dotenv, pyparsing, pillow, packaging, numpy, kiwisolver, greenlet, fonttools, et-xmlfile, cycler, charset-normalizer, bcrypt, SQLAlchemy, reportlab, python-dateutil, PySide6_Essentials, openpyxl, contourpy, PySide6_Addons, matplotlib, PySide6, controle-impressoras
+
+Successfully installed PySide6-6.11.1 PySide6_Addons-6.11.1 PySide6_Essentials-6.11.1 SQLAlchemy-2.0.51 bcrypt-5.0.0 charset-normalizer-3.4.9 contourpy-1.3.3 controle-impressoras-2.0.0 cycler-0.12.1 et-xmlfile-2.0.0 fonttools-4.63.0 greenlet-3.5.3 kiwisolver-1.5.0 matplotlib-3.11.0 numpy-2.5.1 openpyxl-3.1.5 packaging-26.2 pillow-12.3.0 pyparsing-3.3.2 python-dateutil-2.9.0.post0 python-dotenv-1.2.2 reportlab-5.0.0 shiboken6-6.11.1 six-1.17.0 typing-extensions-4.16.0

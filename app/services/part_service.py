@@ -9,6 +9,7 @@ from db import safe_commit
 from sqlalchemy.orm import Session
 
 from app.models import Part
+from app.utils.cache import cached, invalidate
 from app.utils.sanitize import sanitizar
 
 if TYPE_CHECKING:
@@ -27,6 +28,7 @@ class PartService:
         self.audit_service: Optional[AuditService] = audit_service
         self.user_id: Optional[int] = user_id
 
+    @cached(ttl=15, namespace="part")
     def listar_todas(self, filtro: Optional[str] = None, limite: Optional[int] = None, offset: Optional[int] = None) -> list[Part]:
         query = self.session.query(Part).filter(Part.deleted_at == None)
         if filtro:
@@ -47,6 +49,7 @@ class PartService:
     def buscar_por_nome(self, nome: str) -> Optional[Part]:
         return self.session.query(Part).filter(Part.nome == nome).first()
 
+    @cached(ttl=15, namespace="part")
     def buscar_por_id(self, part_id: int) -> Optional[Part]:
         return self.session.query(Part).filter(Part.deleted_at == None, Part.id == part_id).first()
 
@@ -64,6 +67,7 @@ class PartService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "criar", tabela_alvo="parts", registro_id=peca.id, dados_depois=peca)
+        invalidate("part")
         if quantidade > 0:
             self._log_movimento(peca, "entrada", quantidade, observacao="Estoque inicial")
         return peca
@@ -80,6 +84,7 @@ class PartService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "atualizar", tabela_alvo="parts", registro_id=peca.id, dados_antes=dados_antes, dados_depois=peca)
+        invalidate("part")
         if "quantidade_estoque" in kwargs:
             diff = peca.quantidade_estoque - quantidade_antiga
             if diff != 0:
@@ -93,7 +98,9 @@ class PartService:
             self.audit_service.log(self.user_id, "excluir", tabela_alvo="parts", registro_id=peca.id, dados_antes=peca)
         peca.deleted_at = utcnow()
         safe_commit(self.session)
+        invalidate("part")
 
+    @cached(ttl=15, namespace="part")
     def contar(self, filtro: Optional[str] = None) -> int:
         query = self.session.query(Part).filter(Part.deleted_at == None)
         if filtro:
@@ -117,6 +124,7 @@ class PartService:
         safe_commit(self.session)
         if self.audit_service:
             self.audit_service.log(self.user_id, "restaurar", tabela_alvo="parts", registro_id=obj.id)
+        invalidate("part")
 
     # ── Movimentações ──────────────────────────────────────────
 

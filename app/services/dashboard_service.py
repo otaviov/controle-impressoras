@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import Activity, Alert, Printer
+from app.utils.cache import cached
 from app.utils.constants import STATUS_MANUTENCAO, STATUS_OPERACIONAL
 
 
@@ -14,6 +15,7 @@ class DashboardService:
     def __init__(self, session: Session) -> None:
         self.session: Session = session
 
+    @cached(ttl=30, namespace="dashboard")
     def resumo(self) -> dict[str, int]:
         status_counts_raw = self.session.query(Printer.status, func.count(Printer.id)).group_by(Printer.status).all()
         status_counts = dict(status_counts_raw)
@@ -28,12 +30,14 @@ class DashboardService:
             "total_atividades": total_atividades,
         }
 
+    @cached(ttl=30, namespace="dashboard")
     def dados_grafico_pizza(self) -> tuple[list[str], list[int]]:
         rows = self.session.query(Printer.status, func.count(Printer.id)).group_by(Printer.status).all()
         labels = [r[0] or "Sem status" for r in rows]
         valores = [r[1] for r in rows]
         return labels, valores
 
+    @cached(ttl=60, namespace="dashboard")
     def dados_grafico_atividades(self, meses: int = 6) -> tuple[list[str], list[int]]:
         hoje = datetime.now()
         inicio = hoje.replace(day=1) - timedelta(days=meses * 30)
@@ -54,6 +58,7 @@ class DashboardService:
             valores.append(r[1])
         return meses_labels, valores
 
+    @cached(ttl=60, namespace="dashboard")
     def dados_grafico_alertas(self, dias: int = 30) -> tuple[list[str], list[int]]:
         inicio = datetime.now() - timedelta(days=dias)
         rows = (
