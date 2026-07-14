@@ -15,7 +15,7 @@ from alembic.command import upgrade as alembic_upgrade
 from alembic.config import Config as AlembicConfig
 from app.utils.logger import setup_logging
 from config import BUNDLE_DIR, DB_PATH
-from db import ENGINE, close_session, get_session
+from db import ENGINE, SessionFactory, close_session, get_session
 
 setup_logging()
 log: logging.Logger = logging.getLogger(__name__)
@@ -37,6 +37,35 @@ except Exception:
     log.exception("Falha ao verificar alembic_version")
 
 alembic_upgrade(_alembic_cfg, "head")
+
+from app.utils.security import hash_password
+
+
+def _criar_admin_padrao() -> None:
+    try:
+        from app.models.user import User
+        session = SessionFactory()
+        existe = session.query(User).first()
+        if existe:
+            session.close()
+            return
+        admin = User(
+            nome="Administrador",
+            email="admin@controleimpressoras.local",
+            username="admin",
+            senha_hash=hash_password("admin123"),
+            perfil="admin",
+            ativo=True,
+        )
+        session.add(admin)
+        session.commit()
+        log.info("Usuário admin padrão criado (admin / admin123)")
+        session.close()
+    except Exception:
+        log.exception("Falha ao criar admin padrão")
+
+
+_criar_admin_padrao()
 
 def _excepthook(tipo: type, valor: BaseException, tb: types.TracebackType | None) -> None:
     msg = "".join(traceback.format_exception(tipo, valor, tb))

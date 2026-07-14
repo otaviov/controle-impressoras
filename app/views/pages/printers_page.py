@@ -67,6 +67,7 @@ from app.services.maintenance_scheduler import (
     PERIODOS_OPCOES,
     MaintenanceScheduler,
 )
+from app.services.snmp_service import SnmpMonitorService
 
 
 PHOTO_DIR = Path("uploads/printer_photos")
@@ -1661,6 +1662,7 @@ class PrintersPage(QWidget):
         self.part_service = part_service
         self.printer_location_service = printer_location_service
         self.scheduler = scheduler
+        self.monitor_service = monitor_service
         self._impressoras_visiveis = []
         self._filtro_atual = None
 
@@ -1711,7 +1713,7 @@ class PrintersPage(QWidget):
         layout.addLayout(header)
 
         # ── Tabela ───────────────────────────────────────────
-        colunas = ["Patrimônio", "Serial", "Modelo", "Marca", "Status", "Local Atual", "Atividades"]
+        colunas = ["Patrimônio", "Serial", "Modelo", "Marca", "Status", "Rede", "Local Atual", "Atividades"]
         self.tabela = TabelaPadrao(colunas)
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
@@ -1755,12 +1757,28 @@ class PrintersPage(QWidget):
             cor = STATUS_CORES.get(p.status, "#94949f")
             self.tabela.definir_badge(i, 4, p.status, cor)
 
-            self.tabela.setItem(i, 5, QTableWidgetItem(p.local_atual or "—"))
+            # Health indicator
+            health_txt = "—"
+            health_cor = "#717182"
+            if self.monitor_service:
+                status_health = self.monitor_service.ultima_leitura(p.id)
+                if status_health:
+                    if status_health.is_online:
+                        health_txt = "🟢 Online"
+                        health_cor = "#a6e3a1"
+                    else:
+                        health_txt = "🔴 Offline"
+                        health_cor = "#f38ba8"
+            health_item = QTableWidgetItem(health_txt)
+            health_item.setForeground(QColor(health_cor))
+            self.tabela.setItem(i, 5, health_item)
+
+            self.tabela.setItem(i, 6, QTableWidgetItem(p.local_atual or "—"))
 
             cnt = QTableWidgetItem(str(counts.get(p.id, 0)))
             cnt.setTextAlignment(Qt.AlignCenter)
             cnt.setForeground(QColor(COR["texto_sec"]))
-            self.tabela.setItem(i, 6, cnt)
+            self.tabela.setItem(i, 7, cnt)
 
         self.tabela.redimensionar()
 

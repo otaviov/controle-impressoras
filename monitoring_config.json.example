@@ -1,0 +1,13 @@
+{
+  "enabled": false,
+  "interval_seconds": 300,
+  "ping_timeout_ms": 2000,
+  "ping_retries": 2,
+  "snmp_community": "public",
+  "snmp_port": 161,
+  "snmp_timeout_s": 3,
+  "offline_threshold": 3,
+  "toner_warn_percent": 15,
+  "auto_alert_offline": true,
+  "auto_alert_toner": true
+}

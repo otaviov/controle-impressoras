@@ -11,6 +11,7 @@ from .printers_page import PrintersPage
 from .purchase_requisitions_page import PurchaseRequisitionsPage
 from .reports_page import ReportsPage
 from .technician_history_page import TechnicianHistoryPage
+from .monitoring_page import MonitoringPage
 from .technician_agenda_page import TechnicianAgendaPage
 from .technicians_page import TechniciansPage
 from .transfers_page import TransfersPage

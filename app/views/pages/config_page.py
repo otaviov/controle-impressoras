@@ -429,7 +429,7 @@ class ConfigPage(QWidget):
         if linha >= len(usuarios):
             return
         usuario = usuarios[linha]
-        dialog = _UserDialog(self, self.user_service, modo="editar", usuario=usuario)
+        dialog = _UserDialog(self, self.user_service, modo="editar", usuario=usuario, current_user_perfil=self.user.get("perfil", "admin"))
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
 
@@ -691,11 +691,12 @@ class _UserDialog(QDialog):
     combo_perfil: QComboBox
     combo_ativo: QComboBox | None
 
-    def __init__(self, parent: QWidget | None, user_service: Any, modo: str = "novo", usuario: Any | None = None) -> None:
+    def __init__(self, parent: QWidget | None, user_service: Any, modo: str = "novo", usuario: Any | None = None, current_user_perfil: str = "admin") -> None:
         super().__init__(parent)
         self.user_service = user_service
         self.modo = modo
         self.usuario = usuario
+        self._current_user_perfil = current_user_perfil
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -734,7 +735,7 @@ class _UserDialog(QDialog):
         self.input_username.setPlaceholderText("Nome de usuário")
         if self.usuario:
             self.input_username.setText(self.usuario.username)
-        if self.modo == "editar":
+        if self.modo == "editar" and self._current_user_perfil != "admin":
             self.input_username.setReadOnly(True)
             self.input_username.setStyleSheet(ESTILO_INPUT_READONLY)
         id_form.addRow("Usuário:", self.input_username)

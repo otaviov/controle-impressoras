@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib>=3.8",
     "alembic>=1.13",
     "python-dotenv>=1.0",
+    "pysnmp>=4.2,<5.0",
 ]
 
 [tool.setuptools.packages.find]

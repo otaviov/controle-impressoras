@@ -33,6 +33,7 @@ from app.services import (
     PartService,
     PrinterLocationService,
     PrinterService,
+    SnmpMonitorService,
     TechnicianService,
     UserService,
 )
@@ -43,6 +44,7 @@ from app.views.pages import (
     ClientsPage,
     ConfigPage,
     DashboardPage,
+    MonitoringPage,
     OSPage,
     PartsPage,
     PrintersPage,
@@ -71,6 +73,7 @@ class MainWindow(QMainWindow):
     alert_service: AlertService
     maintenance_scheduler: MaintenanceScheduler
     login_history_service: LoginHistoryService
+    snmp_monitor_service: SnmpMonitorService  # type: ignore[name-defined]
     printer_location_service: PrinterLocationService
     tray_icon: QSystemTrayIcon
     notificador: NotificadorService
@@ -95,6 +98,7 @@ class MainWindow(QMainWindow):
     pagina_agenda: TechnicianAgendaPage
     pagina_requisicoes: PurchaseRequisitionsPage
     pagina_config: ConfigPage | None
+    pagina_monitoramento: MonitoringPage
 
     def __init__(self, session: Any, user: dict[str, Any]) -> None:
         super().__init__()
@@ -113,6 +117,11 @@ class MainWindow(QMainWindow):
         self.dashboard_service = DashboardService(session)
         self.alert_service = AlertService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.login_history_service = LoginHistoryService(session)
+        self.snmp_monitor_service = SnmpMonitorService(
+            session,
+            alert_service=self.alert_service,
+            notificador=self.notificador,
+        )
 
         self.maintenance_scheduler = MaintenanceScheduler(
             session,
@@ -208,6 +217,7 @@ class MainWindow(QMainWindow):
             ("📜", "Histórico", 7),
             ("🔔", "Alertas", 9),
             ("📅", "Calendário", 10),
+            ("📡", "Monitoramento", 13),
         ]
         for icon, text, index in menus_extra:
             container = self._criar_botao_menu(icon, text, index)
@@ -216,7 +226,7 @@ class MainWindow(QMainWindow):
         if self.user.get('perfil') == 'admin':
             scroll_layout.addSpacing(8)
             self._adicionar_label_secao(scroll_layout, "Sistema")
-            container = self._criar_botao_menu("⚙️", "Configurações", 13)
+            container = self._criar_botao_menu("⚙️", "Configurações", 14)
             scroll_layout.addWidget(container)
 
         scroll_layout.addStretch()
@@ -263,6 +273,7 @@ class MainWindow(QMainWindow):
             self.activity_service, self.part_service,
             self.printer_location_service,
             scheduler=self.maintenance_scheduler,
+            monitor_service=self.snmp_monitor_service,
         )
         self.pagina_os = OSPage(
             self.session, self.printer_service,
@@ -319,6 +330,12 @@ class MainWindow(QMainWindow):
         self.content_area.addWidget(self.pagina_agenda)           # 11
         self.content_area.addWidget(self.pagina_requisicoes)      # 12
 
+        self.pagina_monitoramento = MonitoringPage(
+            self.session,
+            monitor_service=self.snmp_monitor_service,
+        )
+        self.content_area.addWidget(self.pagina_monitoramento)    # 13
+
         if self.user.get('perfil') == 'admin':
             self.pagina_config = ConfigPage(
                 self.session, self.user_service, self.user,
@@ -331,7 +348,7 @@ class MainWindow(QMainWindow):
                 technician_service=self.technician_service,
                 alert_service=self.alert_service,
             )
-            self.content_area.addWidget(self.pagina_config)       # 13
+            self.content_area.addWidget(self.pagina_config)       # 14
 
         # ── Conexões de sinais ─────────────────────────────────
         self.pagina_dashboard.signal_trocar_pagina.connect(self._trocar_pagina)
@@ -646,6 +663,7 @@ class MainWindow(QMainWindow):
             self.pagina_tecnicos, self.pagina_historico,
             self.pagina_relatorios, self.pagina_alertas,
             self.pagina_calendario, self.pagina_agenda,
+            self.pagina_monitoramento,
         ]:
             if hasattr(pagina, 'recarregar'):
                 pagina.recarregar()

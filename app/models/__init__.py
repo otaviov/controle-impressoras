@@ -12,6 +12,28 @@ from app.models.part_reservation import PartReservation
 from app.models.printer import Printer
 from app.models.purchase_requisition import PurchaseRequisition
 from app.models.printer_location import PrinterLocation
+from app.models.printer_health import PrinterHealth
 from app.models.technician import Technician
 from app.models.technician_specialty import TechnicianSpecialty
 from app.models.user import User
+
+__all__ = [
+    "Activity",
+    "Alert",
+    "Attachment",
+    "AuditLog",
+    "Base",
+    "Company",
+    "LoginHistory",
+    "MaintenanceSchedule",
+    "Part",
+    "PartMovement",
+    "PartReservation",
+    "Printer",
+    "PurchaseRequisition",
+    "PrinterLocation",
+    "PrinterHealth",
+    "Technician",
+    "TechnicianSpecialty",
+    "User",
+]

@@ -8,5 +8,6 @@ from .maintenance_scheduler import MaintenanceScheduler
 from .part_service import PartService
 from .printer_location_service import PrinterLocationService
 from .printer_service import PrinterService
+from .snmp_service import SnmpMonitorService
 from .technician_service import TechnicianService
 from .user_service import UserService
