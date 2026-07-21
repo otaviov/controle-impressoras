@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Activity, MaintenanceSchedule, Printer
+from app.models import Activity, Alert, MaintenanceSchedule, Printer
 from app.utils.sanitize import sanitizar
 from db import safe_commit
 
@@ -332,13 +332,15 @@ class MaintenanceScheduler:
     def listar_eventos(
         self, inicio: datetime, fim: datetime
     ) -> list[dict[str, Any]]:
+        eventos: list[dict[str, Any]] = []
+
+        # Eventos de MaintenanceSchedule
         schedules = (
             self.session.query(MaintenanceSchedule)
             .filter(MaintenanceSchedule.ativo == True)
             .options(selectinload(MaintenanceSchedule.printer))
             .all()
         )
-        eventos: list[dict[str, any]] = []
         for sch in schedules:
             printer = sch.printer
             if not printer or not sch.proxima_geracao:
@@ -359,6 +361,38 @@ class MaintenanceScheduler:
                         "schedule_id": sch.id,
                     }
                 )
+
+        # Eventos de Alertas não resolvidos com data_agendada
+        alerts = (
+            self.session.query(Alert)
+            .filter(
+                Alert.deleted_at == None,
+                Alert.resolvido == False,
+                Alert.data_agendada != None,
+                Alert.data_agendada >= inicio,
+                Alert.data_agendada <= fim,
+            )
+            .options(selectinload(Alert.printer))
+            .all()
+        )
+        for al in alerts:
+            printer = al.printer
+            eventos.append(
+                {
+                    "data": al.data_agendada,
+                    "printer_id": printer.id if printer else None,
+                    "printer_patrimonio": printer.patrimonio if printer else "—",
+                    "printer_modelo": printer.modelo if printer else "",
+                    "tipo": "revisao",
+                    "intervalo_dias": None,
+                    "intervalo_paginas": None,
+                    "dias_aviso": None,
+                    "ultima_geracao": None,
+                    "observacao": al.titulo,
+                    "schedule_id": None,
+                }
+            )
+
         return eventos
 
     # ── Atualização do contador de páginas ────────────────────────

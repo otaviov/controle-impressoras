@@ -307,6 +307,9 @@ class MainWindow(QMainWindow):
         )
         self.pagina_calendario = CalendarPage(
             scheduler=self.maintenance_scheduler,
+            activity_service=self.activity_service,
+            technician_service=self.technician_service,
+            alert_service=self.alert_service,
         )
         self.pagina_agenda = TechnicianAgendaPage(
             self.session, self.technician_service,
@@ -355,6 +358,8 @@ class MainWindow(QMainWindow):
         self.pagina_clientes.abrir_impressora.connect(self._abrir_impressora_por_patrimonio)
         self.pagina_pecas.abrir_atividade.connect(self._abrir_atividade_por_id)
         self.pagina_historico.abrir_os.connect(self._abrir_atividade_por_id)
+        self.pagina_calendario.abrir_atividade.connect(self._abrir_atividade_por_id)
+        self.pagina_calendario.abrir_impressora.connect(self._abrir_impressora_por_patrimonio)
 
         main_layout.addWidget(sidebar)
         right_layout.addWidget(self.content_area, 1)
