@@ -184,20 +184,43 @@ class PartService:
     def movimentacoes(self, part_id: int, limite: int = 100) -> list[PartMovement]:
         from app.models.part_movement import PartMovement
         return self.session.query(PartMovement).filter(
-            PartMovement.part_id == part_id
+            PartMovement.part_id == part_id,
+            PartMovement.deleted_at == None,
         ).order_by(PartMovement.created_at.desc()).limit(limite).all()
 
     def listar_movimentacoes_por_os(self, activity_id: int) -> list[PartMovement]:
         from app.models.part_movement import PartMovement
         return self.session.query(PartMovement).filter(
-            PartMovement.activity_id == activity_id
+            PartMovement.activity_id == activity_id,
+            PartMovement.deleted_at == None,
         ).order_by(PartMovement.created_at.asc()).all()
 
     def movimentacoes_geral(self, limite: int = 200) -> list[PartMovement]:
         from app.models.part_movement import PartMovement
-        return self.session.query(PartMovement).order_by(
-            PartMovement.created_at.desc()
-        ).limit(limite).all()
+        return self.session.query(PartMovement).filter(
+            PartMovement.deleted_at == None,
+        ).order_by(PartMovement.created_at.desc()).limit(limite).all()
+
+    def estornar_movimento(self, movimento_id: int) -> None:
+        from app.models.part_movement import PartMovement
+        mov = self.session.query(PartMovement).filter(
+            PartMovement.id == movimento_id,
+            PartMovement.deleted_at == None,
+        ).first()
+        if not mov:
+            log.warning("estornar_movimento #%s: não encontrado ou já estornado", movimento_id)
+            return
+        part = self.session.query(Part).filter(Part.id == mov.part_id).first()
+        if part is None:
+            log.warning("estornar_movimento #%s: peça não encontrada", movimento_id)
+            return
+        if mov.tipo == "entrada":
+            part.quantidade_estoque -= mov.quantidade
+        elif mov.tipo in ("saida", "reserva", "cancelamento_reserva"):
+            part.quantidade_estoque += mov.quantidade
+        mov.deleted_at = utcnow()
+        safe_commit(self.session)
+        log.info("Movimento #%s estornado (tipo=%s, qtd=%s)", movimento_id, mov.tipo, mov.quantidade)
 
     # ── Reservas ───────────────────────────────────────────────
 

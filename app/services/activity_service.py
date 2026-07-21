@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 from app.models.base import utcnow
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Activity, Printer

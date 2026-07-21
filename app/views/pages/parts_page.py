@@ -462,8 +462,8 @@ class PartsPage(QWidget):
         # ── Movimentações Recentes ──
         mov_box, mov_layout = group_box("Movimentações Recentes")
         mov_tabela = QTableWidget()
-        mov_tabela.setColumnCount(5)
-        mov_tabela.setHorizontalHeaderLabels(["Data/Hora", "Tipo", "Qtd", "Saldo", "Observação"])
+        mov_tabela.setColumnCount(6)
+        mov_tabela.setHorizontalHeaderLabels(["Data/Hora", "Tipo", "Qtd", "Saldo", "Observação", ""])
         mov_tabela.setStyleSheet(ESTILO_TABELA_SIMPLES)
         mov_tabela.setSelectionBehavior(QTableWidget.SelectRows)
         mov_tabela.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -473,6 +473,7 @@ class PartsPage(QWidget):
         h = mov_tabela.horizontalHeader()
         for i in range(5):
             h.setSectionResizeMode(i, QHeaderView.Stretch)
+        h.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         from app.utils.helpers import formatar_data_hora
         movimentos = self.part_service.movimentacoes(peca.id, limite=20)
         mov_tabela.setRowCount(len(movimentos))
@@ -486,6 +487,24 @@ class PartsPage(QWidget):
             item_saldo.setTextAlignment(Qt.AlignCenter)
             mov_tabela.setItem(i, 3, item_saldo)
             mov_tabela.setItem(i, 4, QTableWidgetItem(m.observacao or ""))
+            btn_lixeira = QPushButton("🗑")
+            btn_lixeira.setFixedSize(28, 28)
+            btn_lixeira.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    font-size: 14px;
+                    color: #ef4444;
+                }
+                QPushButton:hover {
+                    background: rgba(239, 68, 68, 0.15);
+                    border-radius: 4px;
+                }
+            """)
+            btn_lixeira.setToolTip("Estornar esta movimentação")
+            mov_id = m.id
+            btn_lixeira.clicked.connect(lambda checked, mid=mov_id: self._estornar_movimento(mid, peca, dialog))
+            mov_tabela.setCellWidget(i, 5, btn_lixeira)
         mov_layout.addWidget(mov_tabela)
         content.addWidget(mov_box)
 
@@ -539,6 +558,22 @@ class PartsPage(QWidget):
         layout.addLayout(btn_layout)
 
         dialog.exec()
+
+    def _estornar_movimento(self, movimento_id: int, peca: Any, parent_dialog: QDialog) -> None:
+        from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
+        resp = ConfirmacaoDigitarDialog.confirmar(
+            "Estornar Movimentação",
+            f"Tem certeza que deseja estornar esta movimentação?\n\nO estoque da peça \"{peca.nome}\" será ajustado automaticamente.",
+            parent=parent_dialog,
+            palavra_chave="ESTORNAR",
+        )
+        if not resp:
+            return
+        with tratar_erro("estornar movimentação"):
+            self.part_service.estornar_movimento(movimento_id)
+            ToastManager.mostrar("Movimentação estornada com sucesso!", tipo="sucesso")
+            parent_dialog.accept()
+            self._detalhes(self._partes_visiveis.index(peca) if peca in self._partes_visiveis else 0)
 
     def _receber_estoque(self, peca: Any, parent_dialog: QDialog) -> None:
         dialog = QDialog(parent_dialog)

@@ -1318,6 +1318,7 @@ class _PrinterDetailDialog(QDialog):
             rec_box, rec_lay = _group_box("Programação Recorrente")
             rec_inner = QVBoxLayout()
             rec_inner.setSpacing(8)
+            self._rec_inner = rec_inner
 
             schedules = self._scheduler.listar_por_printer(p.id)
             if schedules:
@@ -1523,9 +1524,8 @@ class _PrinterDetailDialog(QDialog):
         self._recarregar_programacao(rec_box)
 
     def _recarregar_programacao(self, rec_box: Any) -> None:
-        from app.utils.helpers import formatar_data
         novas_schedules = self._scheduler.listar_por_printer(self._printer.id) if self._scheduler else []
-        inner = rec_box.findChild(QVBoxLayout)
+        inner = getattr(self, "_rec_inner", None)
         if inner is None:
             return
         self._limpar_layout(inner)
@@ -1651,6 +1651,7 @@ class PrintersPage(QWidget):
         part_service: Any,
         printer_location_service: Any = None,
         scheduler: MaintenanceScheduler | None = None,
+        monitor_service: Any = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)

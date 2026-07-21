@@ -150,14 +150,16 @@ class MonitoringPage(QWidget):
         c_layout.addWidget(lbl_valor)
         return card
 
-    def _config_field(self, label: str, widget: QWidget) -> QVBoxLayout:
-        lay = QVBoxLayout()
+    def _config_field(self, label: str, widget: QWidget) -> QFrame:
+        frame = QFrame()
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
         lbl = QLabel(label)
         lbl.setStyleSheet("color: #94949f; font-size: 10px; font-weight: 600; background: transparent;")
         lay.addWidget(lbl)
         lay.addWidget(widget)
-        return lay
+        return frame
 
     def _criar_spinner(self, valor: int, minimo: int, maximo: int, callback) -> QSpinBox:
         sp = QSpinBox()
@@ -252,7 +254,7 @@ class MonitoringPage(QWidget):
 
             self.tabela.setItem(i, 0, QTableWidgetItem(p.patrimonio or "—"))
             self.tabela.setItem(i, 1, QTableWidgetItem(p.modelo or "—"))
-            host = p.ip or p.hostname or "—"
+            host = p.ip_rede or "—"
             self.tabela.setItem(i, 2, QTableWidgetItem(host))
 
             if status:

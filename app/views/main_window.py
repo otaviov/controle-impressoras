@@ -117,6 +117,13 @@ class MainWindow(QMainWindow):
         self.dashboard_service = DashboardService(session)
         self.alert_service = AlertService(session, audit_service=self.audit_service, user_id=self.user.get("id"))
         self.login_history_service = LoginHistoryService(session)
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon.fromTheme("printer"))
+        self.tray_icon.setToolTip("Controle de Impressoras Pro")
+        self.tray_icon.show()
+
+        self.notificador = NotificadorService(tray_icon=self.tray_icon)
+
         self.snmp_monitor_service = SnmpMonitorService(
             session,
             alert_service=self.alert_service,
@@ -130,13 +137,6 @@ class MainWindow(QMainWindow):
             audit_service=self.audit_service,
             user_id=self.user.get("id"),
         )
-
-        self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon.fromTheme("printer"))
-        self.tray_icon.setToolTip("Controle de Impressoras Pro")
-        self.tray_icon.show()
-
-        self.notificador = NotificadorService(tray_icon=self.tray_icon)
 
         for svc in [self.alert_service]:
             if hasattr(svc, "notificador"):
@@ -493,7 +493,7 @@ class MainWindow(QMainWindow):
         if sidebar:
             visible = sidebar.isVisible()
             sidebar.setVisible(not visible)
-            self.btn_toggle_sidebar.setText("☰" if visible else "☰")
+            self.btn_toggle_sidebar.setText("✕" if visible else "☰")
 
     def _adicionar_label_secao(self, layout: QVBoxLayout, texto: str) -> None:
         lbl = QLabel(texto.upper())

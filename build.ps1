@@ -62,6 +62,8 @@ $CommonArgs = @(
     "--hidden-import", "alembic.runtime.environment"
     "--hidden-import", "dotenv"
     "--hidden-import", "logging.config"
+    "--hidden-import", "matplotlib.backends.backend_qtagg"
+    "--hidden-import", "matplotlib.backends.backend_agg"
     "--name", "ControleImpressoras"
     "main.py"
 )
