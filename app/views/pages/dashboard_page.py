@@ -28,6 +28,7 @@ from app.views.styles.theme import (
     _cor_rgba,
 )
 from app.views.widgets.card_widget import CardWidget
+from app.views.widgets.table_widget import tornar_interativa
 from app.views.widgets.chart_widget import BarChart, LineChart, PizzaChart
 
 
@@ -355,8 +356,7 @@ class DashboardPage(QWidget):
         tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tabela.verticalHeader().setVisible(False)
         tabela.verticalHeader().setDefaultSectionSize(44)
-        for i in range(tabela.columnCount()):
-            tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(tabela)
 
         def ao_duplo_clique(row, col):
             self.signal_trocar_pagina.emit(1)

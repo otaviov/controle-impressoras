@@ -20,8 +20,9 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
-from app.models import Activity, Alert
+from app.models import Activity, Alert, Printer
 from app.services.maintenance_scheduler import MaintenanceScheduler
+from app.views.widgets.table_widget import tornar_interativa
 
 log = logging.getLogger(__name__)
 
@@ -119,6 +120,7 @@ class CalendarPage(QWidget):
         activity_service: Any = None,
         technician_service: Any = None,
         alert_service: Any = None,
+        printer_service: Any = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -126,6 +128,7 @@ class CalendarPage(QWidget):
         self.activity_service = activity_service
         self.technician_service = technician_service
         self.alert_service = alert_service
+        self.printer_service = printer_service
 
         hoje = datetime.now()
         self._mes_atual = QDate(hoje.year, hoje.month, 1)
@@ -136,7 +139,7 @@ class CalendarPage(QWidget):
         self._inicializar_ui()
         self._recarregar_tudo()
 
-    # ── UI ──────────────────────────────────────────────────────
+    # UI 
     def _inicializar_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -270,9 +273,7 @@ class CalendarPage(QWidget):
         # Ajusta a política de tamanho para expandir totalmente na horizontal
         self._tabela_eventos.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        h = self._tabela_eventos.horizontalHeader()
-        for i in range(5):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_eventos)
 
         self._tabela_eventos.doubleClicked.connect(self._ao_duplo_clique)
         detalhes_layout.addWidget(self._tabela_eventos, 1)
@@ -313,6 +314,39 @@ class CalendarPage(QWidget):
         fim = datetime(ultimo_dia_grid.year(), ultimo_dia_grid.month(), ultimo_dia_grid.day(), 23, 59, 59)
 
         self._eventos_por_data = {}
+
+        # ── Agendamentos avulsos (Printer.proxima_revisao) ──
+        if self.printer_service:
+            try:
+                printers = (
+                    self.printer_service.session.query(Printer)
+                    .filter(
+                        Printer.deleted_at.is_(None),
+                        Printer.proxima_revisao >= inicio,
+                        Printer.proxima_revisao <= fim,
+                    )
+                    .all()
+                )
+                for p in printers:
+                    if not p.proxima_revisao:
+                        continue
+                    chave = p.proxima_revisao.strftime("%Y-%m-%d")
+                    atrasado = p.proxima_revisao < datetime.now()
+                    status = _STATUS_ATRASADO if atrasado else _STATUS_AGENDADO
+                    self._eventos_por_data.setdefault(chave, []).append({
+                        "impressora": p.patrimonio,
+                        "tipo": "Agendamento",
+                        "previsao": p.proxima_revisao,
+                        "status_label": status[0],
+                        "status_cor": status[1],
+                        "status_icone": status[2],
+                        "observacao": p.urgencia_prox_manutencao or "-",
+                        "activity_id": None,
+                        "alert_id": None,
+                        "printer_patrimonio": p.patrimonio,
+                    })
+            except Exception:
+                log.warning("Erro ao buscar agendamentos avulsos para calendário", exc_info=True)
 
         # ── Agendamentos recorrentes ──
         for ev in self.scheduler.listar_eventos(inicio, fim):

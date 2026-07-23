@@ -28,6 +28,7 @@ from app.views.styles.theme import (
     ESTILO_TITULO_PAGINA,
     configurar_combo,
 )
+from app.views.widgets.table_widget import tornar_interativa
 
 
 class _StatsCard(QFrame):
@@ -165,9 +166,7 @@ class TechnicianAgendaPage(QWidget):
         self._tabela_agenda.verticalHeader().setVisible(False)
         self._tabela_agenda.setAlternatingRowColors(True)
         self._tabela_agenda.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_agenda.horizontalHeader()
-        for i in range(8):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_agenda)
         layout.addWidget(self._tabela_agenda)
         return tab
 
@@ -228,9 +227,7 @@ class TechnicianAgendaPage(QWidget):
         self._tabela_produtividade.verticalHeader().setVisible(False)
         self._tabela_produtividade.setAlternatingRowColors(True)
         self._tabela_produtividade.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_produtividade.horizontalHeader()
-        for i in range(7):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_produtividade)
         layout.addWidget(self._tabela_produtividade, 1)
         return tab
 

@@ -36,6 +36,7 @@ from app.views.styles.theme import (
     configurar_combo_colorido,
 )
 from app.utils.helpers import formatar_data_hora
+from app.views.widgets.table_widget import tornar_interativa
 
 
 class _StatsCard(QFrame):
@@ -216,9 +217,7 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_atividades.verticalHeader().setVisible(False)
         self._tabela_atividades.setAlternatingRowColors(True)
         self._tabela_atividades.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_atividades.horizontalHeader()
-        for i in range(8):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_atividades)
         layout.addWidget(self._tabela_atividades)
         return tab
 
@@ -239,9 +238,7 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_andamento.verticalHeader().setVisible(False)
         self._tabela_andamento.setAlternatingRowColors(True)
         self._tabela_andamento.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_andamento.horizontalHeader()
-        for i in range(7):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_andamento)
         layout.addWidget(self._tabela_andamento)
         return tab
 
@@ -259,9 +256,7 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_mov.verticalHeader().setVisible(False)
         self._tabela_mov.setAlternatingRowColors(True)
         self._tabela_mov.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_mov.horizontalHeader()
-        for i in range(7):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_mov)
         layout.addWidget(self._tabela_mov)
         return tab
 
@@ -312,9 +307,7 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_login.verticalHeader().setVisible(False)
         self._tabela_login.setAlternatingRowColors(True)
         self._tabela_login.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_login.horizontalHeader()
-        for i in range(5):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_login)
         layout.addWidget(self._tabela_login)
         return tab
 
@@ -336,9 +329,7 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_os_abertas.verticalHeader().setVisible(False)
         self._tabela_os_abertas.setAlternatingRowColors(True)
         self._tabela_os_abertas.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_os_abertas.horizontalHeader()
-        for i in range(7):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_os_abertas)
         layout.addWidget(self._tabela_os_abertas)
         return tab
 
@@ -359,9 +350,8 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_pecas.verticalHeader().setVisible(False)
         self._tabela_pecas.setAlternatingRowColors(True)
         self._tabela_pecas.verticalHeader().setDefaultSectionSize(36)
-        h = self._tabela_pecas.horizontalHeader()
-        h.setSectionResizeMode(0, QHeaderView.Stretch)
-        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        tornar_interativa(self._tabela_pecas)
+        self._tabela_pecas.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         layout.addWidget(self._tabela_pecas)
 
         layout.addSpacing(12)
@@ -398,9 +388,7 @@ class TechnicianHistoryPage(QWidget):
         self._tabela_quem_usou.verticalHeader().setVisible(False)
         self._tabela_quem_usou.setAlternatingRowColors(True)
         self._tabela_quem_usou.verticalHeader().setDefaultSectionSize(40)
-        h = self._tabela_quem_usou.horizontalHeader()
-        for i in range(5):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(self._tabela_quem_usou)
         layout.addWidget(self._tabela_quem_usou)
         return tab
 

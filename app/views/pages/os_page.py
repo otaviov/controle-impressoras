@@ -74,7 +74,7 @@ from app.views.widgets.card_widget import CardMiniClicavel
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
-from app.views.widgets.table_widget import TabelaPadrao
+from app.views.widgets.table_widget import TabelaPadrao, tornar_interativa
 from db import safe_commit as _safe_commit
 
 from config import ANEXOS_DIR
@@ -529,8 +529,8 @@ class OSPage(QWidget):
         tbl = QTableWidget()
         tbl.setColumnCount(2)
         tbl.setHorizontalHeaderLabels(["Feito", "Procedimento"])
+        tornar_interativa(tbl)
         tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         tbl.verticalHeader().setVisible(False)
         tbl.verticalHeader().setDefaultSectionSize(32)
         tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -669,10 +669,8 @@ class OSPage(QWidget):
         reservas_tabela.verticalHeader().setVisible(False)
         reservas_tabela.setAlternatingRowColors(True)
         reservas_tabela.verticalHeader().setDefaultSectionSize(28)
-        h_res = reservas_tabela.horizontalHeader()
-        for i in range(4):
-            h_res.setSectionResizeMode(i, QHeaderView.Stretch)
-        h_res.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        tornar_interativa(reservas_tabela)
+        reservas_tabela.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         def _cancelar_reserva(res_id: int):
             with tratar_erro("cancelar reserva"):
                 self.part_service.cancelar_reserva(res_id)
@@ -1278,9 +1276,7 @@ class OSPage(QWidget):
             res_tabela.verticalHeader().setVisible(False)
             res_tabela.setAlternatingRowColors(True)
             res_tabela.verticalHeader().setDefaultSectionSize(28)
-            h_res = res_tabela.horizontalHeader()
-            for i in range(4):
-                h_res.setSectionResizeMode(i, QHeaderView.Stretch)
+            tornar_interativa(res_tabela)
             for i, r in enumerate(reservas):
                 res_tabela.setItem(i, 0, QTableWidgetItem(r.part.nome if r.part else "-"))
                 item_q = QTableWidgetItem(str(r.quantidade))
@@ -1718,11 +1714,10 @@ class OSPage(QWidget):
             reservas_edit_tabela.verticalHeader().setVisible(False)
             reservas_edit_tabela.setAlternatingRowColors(True)
             reservas_edit_tabela.verticalHeader().setDefaultSectionSize(26)
-            h_re = reservas_edit_tabela.horizontalHeader()
-            h_re.setSectionResizeMode(0, QHeaderView.Stretch)
-            h_re.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-            h_re.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-            h_re.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            tornar_interativa(reservas_edit_tabela)
+            reservas_edit_tabela.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            reservas_edit_tabela.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            reservas_edit_tabela.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
             def _cancelar_reserva_edit(res_id: int):
                 with tratar_erro("cancelar reserva"):
                     self.part_service.cancelar_reserva(res_id)
@@ -1754,8 +1749,8 @@ class OSPage(QWidget):
         tbl = QTableWidget()
         tbl.setColumnCount(2)
         tbl.setHorizontalHeaderLabels(["Feito", "Procedimento"])
+        tornar_interativa(tbl)
         tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         tbl.verticalHeader().setVisible(False)
         tbl.verticalHeader().setDefaultSectionSize(32)
         tbl.setSelectionBehavior(QAbstractItemView.SelectRows)

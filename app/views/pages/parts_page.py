@@ -46,12 +46,12 @@ from app.views.styles.theme import (
     input_label,
 )
 from app.views.widgets import ToastManager
-from app.views.widgets.card_widget import CardMiniWidget
+from app.views.widgets.card_widget import CardMiniClicavel
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
-from app.views.widgets.table_widget import TabelaPadrao
+from app.views.widgets.table_widget import TabelaPadrao, tornar_interativa
 
 
 class PartsPage(QWidget):
@@ -62,12 +62,13 @@ class PartsPage(QWidget):
     printer_service: Any
     activity_service: Any | None
     _filtro_atual: str | None
+    _card_filtro: str | None
     _partes_visiveis: list[Any]
     search: SearchBar
     btn_nova: QPushButton
-    card_total: CardMiniWidget
-    card_em_estoque: CardMiniWidget
-    card_sem_estoque: CardMiniWidget
+    card_total: CardMiniClicavel
+    card_em_estoque: CardMiniClicavel
+    card_sem_estoque: CardMiniClicavel
     tabela: TabelaPadrao
     _paginacao: PaginacaoWidget
 
@@ -117,15 +118,16 @@ class PartsPage(QWidget):
 
         cards = QHBoxLayout()
         cards.setSpacing(12)
-        self.card_total = CardMiniWidget("\U0001f4e6", "Total Peças", "0", COR["roxo"])
+        self.card_total = CardMiniClicavel("\U0001f4e6", "Total Peças", "0", COR["roxo"], ao_clicar=lambda: self._clicar_card(None))
         cards.addWidget(self.card_total)
-        self.card_em_estoque = CardMiniWidget("\u2705", "Em Estoque", "0", COR["sucesso"])
+        self.card_em_estoque = CardMiniClicavel("\u2705", "Em Estoque", "0", COR["sucesso"], ao_clicar=lambda: self._clicar_card("em_estoque"))
         cards.addWidget(self.card_em_estoque)
-        self.card_sem_estoque = CardMiniWidget("\u274c", "Sem Estoque", "0", COR["erro"])
+        self.card_sem_estoque = CardMiniClicavel("\u274c", "Sem Estoque", "0", COR["erro"], ao_clicar=lambda: self._clicar_card("sem_estoque"))
         cards.addWidget(self.card_sem_estoque)
         layout.addLayout(cards)
 
         self._filtro_atual = None
+        self._card_filtro = None
         self._partes_visiveis = []
         self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque", "Mín."])
         self.tabela.cellDoubleClicked.connect(self._detalhes)
@@ -138,22 +140,60 @@ class PartsPage(QWidget):
         self._carregar()
 
     def recarregar(self) -> None:
-        self._filtro_atual = None
+        texto = self.search.texto().strip() if hasattr(self, 'search') else ""
+        self._filtro_atual = texto if texto else None
+        self._card_filtro = None
         self._carregar()
+
+    def _clicar_card(self, card: str | None) -> None:
+        if self._card_filtro == card:
+            self._card_filtro = None
+        else:
+            self._card_filtro = card
+        self._carregar()
+
+    def _atualizar_estado_cards(self) -> None:
+        for card, filtro in [
+            (self.card_total, None),
+            (self.card_em_estoque, "em_estoque"),
+            (self.card_sem_estoque, "sem_estoque"),
+        ]:
+            ativo = self._card_filtro == filtro
+            card.setStyleSheet(
+                f"QFrame#miniCard {{ background-color: {'rgba(99,102,241,0.15)' if ativo else 'rgba(20,20,31,0.5)'}; "
+                f"border: 1px solid {'#6366f1' if ativo else 'rgba(42,42,62,0.5)'}; border-radius: 12px; padding: 16px; }}"
+                f"QFrame#miniCard:hover {{ background-color: {'rgba(99,102,241,0.25)' if ativo else 'rgba(30,30,46,0.6)'}; "
+                f"border: 1px solid {'#6366f1' if ativo else 'rgba(42,42,62,0.8)'}; border-radius: 12px; padding: 16px; }}"
+            )
 
     def _carregar(self) -> None:
         filtro = self._filtro_atual
-        pecas = self.part_service.listar_todas(filtro=filtro, limite=self._paginacao.limit, offset=self._paginacao.offset)
-        total = self.part_service.contar(filtro=filtro)
-        self._paginacao.configurar(total, pagina_atual=self._paginacao.pagina,
+        todas = self.part_service.listar_todas(filtro=filtro)
+
+        total = len(todas)
+        em_estoque = sum(1 for p in todas if p.quantidade_estoque > 0)
+        sem_estoque = sum(1 for p in todas if p.quantidade_estoque <= 0)
+        soma_estoque = sum(p.quantidade_estoque for p in todas)
+
+        self.card_total.atualizar_valor(total)
+        self.card_em_estoque.atualizar_valor(soma_estoque)
+        self.card_sem_estoque.atualizar_valor(sem_estoque)
+        self._atualizar_estado_cards()
+
+        if self._card_filtro == "em_estoque":
+            todas = [p for p in todas if p.quantidade_estoque > 0]
+        elif self._card_filtro == "sem_estoque":
+            todas = [p for p in todas if p.quantidade_estoque <= 0]
+
+        total_filtrado = len(todas)
+        self._paginacao.configurar(total_filtrado, pagina_atual=self._paginacao.pagina,
                                    itens_por_pagina=self._paginacao.limit)
+        inicio = self._paginacao.offset
+        pecas = todas[inicio:inicio + self._paginacao.limit]
 
         self._partes_visiveis = pecas
         self.tabela.limpar()
         self.tabela.setRowCount(len(pecas))
-
-        soma_estoque = 0
-        sem_estoque = 0
 
         for i, p in enumerate(pecas):
             items = [
@@ -170,9 +210,6 @@ class PartsPage(QWidget):
                 self.tabela.setItem(i, j, item)
 
             qtd = p.quantidade_estoque
-            soma_estoque += qtd
-            if qtd <= 0:
-                sem_estoque += 1
 
             if qtd >= p.estoque_minimo:
                 cor = COR["status_ok"]
@@ -188,9 +225,6 @@ class PartsPage(QWidget):
                 self.tabela.item(i, 5).setForeground(QColor("#fb923c"))
 
         self.tabela.redimensionar()
-        self.card_total.atualizar_valor(total)
-        self.card_em_estoque.atualizar_valor(soma_estoque)
-        self.card_sem_estoque.atualizar_valor(sem_estoque)
 
     def _filtrar(self, texto: str) -> None:
         self._filtro_atual = texto if texto else None
@@ -470,10 +504,8 @@ class PartsPage(QWidget):
         mov_tabela.verticalHeader().setVisible(False)
         mov_tabela.setAlternatingRowColors(True)
         mov_tabela.verticalHeader().setDefaultSectionSize(30)
-        h = mov_tabela.horizontalHeader()
-        for i in range(5):
-            h.setSectionResizeMode(i, QHeaderView.Stretch)
-        h.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        tornar_interativa(mov_tabela)
+        mov_tabela.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         from app.utils.helpers import formatar_data_hora
         movimentos = self.part_service.movimentacoes(peca.id, limite=20)
         mov_tabela.setRowCount(len(movimentos))
@@ -671,7 +703,7 @@ class PartsPage(QWidget):
                 tabela.setItem(i, 2, QTableWidgetItem(pat))
                 tabela.setItem(i, 3, QTableWidgetItem(a.from_location or "-"))
                 tabela.setItem(i, 4, QTableWidgetItem(a.to_location or "-"))
-            tabela.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            tornar_interativa(tabela)
             tabela.resizeColumnsToContents()
             return tabela
 

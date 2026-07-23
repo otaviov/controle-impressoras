@@ -110,6 +110,7 @@ class MaintenanceScheduler:
             observacao=sanitizar(observacao),
             ativo=True,
         )
+        self._recalcular_proxima(schedule)
         self.session.add(schedule)
         safe_commit(self.session)
         return schedule
@@ -319,12 +320,12 @@ class MaintenanceScheduler:
     # ── Cálculo de datas futuras ──────────────────────────────────
 
     def _recalcular_proxima(self, schedule: MaintenanceSchedule) -> None:
+        base = schedule.ultima_geracao or datetime.now()
         if schedule.tipo == "periodo":
-            if schedule.ultima_geracao:
-                base = schedule.ultima_geracao
-            else:
-                base = datetime.now()
             dias = schedule.intervalo_dias or 30
+            schedule.proxima_geracao = base + timedelta(days=dias)
+        elif schedule.tipo == "paginas":
+            dias = schedule.dias_aviso or 7
             schedule.proxima_geracao = base + timedelta(days=dias)
 
     # ── Eventos para calendário ───────────────────────────────────
@@ -361,37 +362,6 @@ class MaintenanceScheduler:
                         "schedule_id": sch.id,
                     }
                 )
-
-        # Eventos de Alertas não resolvidos com data_agendada
-        alerts = (
-            self.session.query(Alert)
-            .filter(
-                Alert.deleted_at == None,
-                Alert.resolvido == False,
-                Alert.data_agendada != None,
-                Alert.data_agendada >= inicio,
-                Alert.data_agendada <= fim,
-            )
-            .options(selectinload(Alert.printer))
-            .all()
-        )
-        for al in alerts:
-            printer = al.printer
-            eventos.append(
-                {
-                    "data": al.data_agendada,
-                    "printer_id": printer.id if printer else None,
-                    "printer_patrimonio": printer.patrimonio if printer else "—",
-                    "printer_modelo": printer.modelo if printer else "",
-                    "tipo": "revisao",
-                    "intervalo_dias": None,
-                    "intervalo_paginas": None,
-                    "dias_aviso": None,
-                    "ultima_geracao": None,
-                    "observacao": al.titulo,
-                    "schedule_id": None,
-                }
-            )
 
         return eventos
 

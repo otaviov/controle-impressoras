@@ -28,6 +28,7 @@ from app.views.styles.theme import (
     configurar_combo,
 )
 from app.views.widgets import ToastManager
+from app.views.widgets.table_widget import tornar_interativa
 
 
 class PurchaseRequisitionsPage(QWidget):
@@ -177,14 +178,12 @@ class PurchaseRequisitionsPage(QWidget):
 
             self.tabela.setCellWidget(i, 6, container)
 
-        h = self.tabela.horizontalHeader()
-        h.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        h.setSectionResizeMode(1, QHeaderView.Stretch)
-        h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        h.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        h.setSectionResizeMode(4, QHeaderView.Stretch)
-        h.setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        h.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        tornar_interativa(self.tabela)
+        self.tabela.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.tabela.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tabela.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.tabela.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        self.tabela.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
 
     def _executar_acao(self, req_id: int, acao: str) -> None:
         rotulos = {"aprovar": "aprovada", "receber": "recebida", "cancelar": "cancelada"}

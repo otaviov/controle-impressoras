@@ -280,11 +280,15 @@ class _PrinterForm(QWidget):
         id_grid.addWidget(self.serial, 1, 1)
         id_grid.addWidget(self._err_lbl(), 2, 1)
 
-        id_grid.addWidget(_input_label("Modelo"), 3, 0)
+        id_grid.addWidget(_input_label("Modelo *"), 3, 0)
         id_grid.addWidget(self.modelo, 4, 0)
+        self._err_mod = self._err_lbl()
+        id_grid.addWidget(self._err_mod, 5, 0)
 
-        id_grid.addWidget(_input_label("Marca"), 3, 1)
+        id_grid.addWidget(_input_label("Marca *"), 3, 1)
         id_grid.addWidget(self.marca, 4, 1)
+        self._err_marca = self._err_lbl()
+        id_grid.addWidget(self._err_marca, 5, 1)
 
         id_grid.setColumnStretch(0, 1)
         id_grid.setColumnStretch(1, 1)
@@ -299,15 +303,17 @@ class _PrinterForm(QWidget):
 
         self.status = QComboBox()
         configurar_combo(self.status)
-        self.status.addItems(["Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
+        self.status.addItems(["", "Operacional", "Em uso", "Em manutenção", "Parada", "Aguardando peça", "Sucata"])
         configurar_combo_colorido(self.status, STATUS_CORES)
 
         self.tipo = QComboBox()
         configurar_combo(self.tipo)
         self.tipo.addItems(["", "Laser", "Jato de tinta", "Multifuncional"])
 
-        st_grid.addWidget(_input_label("Status"), 0, 0)
+        st_grid.addWidget(_input_label("Status *"), 0, 0)
         st_grid.addWidget(self.status, 1, 0)
+        self._err_status = self._err_lbl()
+        st_grid.addWidget(self._err_status, 2, 0)
         st_grid.addWidget(_input_label("Tipo"), 0, 1)
         st_grid.addWidget(self.tipo, 1, 1)
         st_grid.setColumnStretch(0, 1)
@@ -338,8 +344,10 @@ class _PrinterForm(QWidget):
         self.ip = self._campo_texto("192.168.0.100", 45)
         self.mac = self._campo_texto("AA:BB:CC:DD:EE:FF", 17)
 
-        loc_grid.addWidget(_input_label("Local Atual"), 0, 0)
+        loc_grid.addWidget(_input_label("Local Atual *"), 0, 0)
         loc_grid.addWidget(self.local, 1, 0)
+        self._err_local = self._err_lbl()
+        loc_grid.addWidget(self._err_local, 2, 0)
         loc_grid.addWidget(_input_label("IP Rede"), 0, 1)
         loc_grid.addWidget(self.ip, 1, 1)
         loc_grid.addWidget(_input_label("MAC Address"), 2, 0)
@@ -430,6 +438,8 @@ class _PrinterForm(QWidget):
 
         # Validação
         ValidadorCampo(self.pat, obrigatorio, self._err_pat)
+        ValidadorCampo(self.modelo, obrigatorio, self._err_mod)
+        ValidadorCampo(self.marca, obrigatorio, self._err_marca)
 
     # ── helpers ─────────────────────────────────────────────
     def _campo_texto(self, placeholder: str, max_len: int) -> QLineEdit:
@@ -475,11 +485,12 @@ class _PrinterForm(QWidget):
         bloqueado = status in ("Operacional", "Em uso")
         self.urgencia_combo.setEnabled(not bloqueado)
         if bloqueado:
-            self.urgencia_combo.setToolTip("Urgência bloqueada para impressoras com status Operacional ou Em uso")
+            self.urgencia_combo.setCurrentIndex(-1)
+            self.urgencia_combo.setToolTip("Urgência bloqueada para status Operacional ou Em uso")
             self.urgencia_combo.setStyleSheet(
-                self.urgencia_combo.styleSheet()
-                + " QComboBox:disabled { background-color: #1e1e2e; color: #6b7280;"
-                " border: 1px solid #ef4444; }"
+                "QComboBox { background-color: #1a1a2a; color: #4a4a5e; border: 1px solid #2a2a3e; }"
+                " QComboBox::drop-down { border: none; }"
+                " QComboBox QAbstractItemView { color: #4a4a5e; }"
             )
         else:
             self.urgencia_combo.setToolTip("")
@@ -543,6 +554,17 @@ class _PrinterForm(QWidget):
     @property
     def patrimonio_valido(self) -> bool:
         return bool(self.pat.text().strip())
+
+    def campos_obrigatorios_validos(self) -> tuple[bool, str]:
+        if not self.pat.text().strip():
+            return False, "Patrimônio é obrigatório."
+        if not self.modelo.text().strip():
+            return False, "Modelo é obrigatório."
+        if not self.marca.text().strip():
+            return False, "Marca é obrigatória."
+        if not self.local.currentText().strip():
+            return False, "Local é obrigatório."
+        return True, ""
 
 
 # ── Dialog de Criar/Editar ────────────────────────────────────────────────────
@@ -674,8 +696,9 @@ class _PrinterDialog(QDialog):
         self._dados_salvos: dict[str, Any] | None = None
 
     def _salvar(self) -> None:
-        if not self._form.patrimonio_valido:
-            QMessageBox.warning(self, "Aviso", "Patrimônio é obrigatório.")
+        ok, msg = self._form.campos_obrigatorios_validos()
+        if not ok:
+            QMessageBox.warning(self, "Aviso", msg)
             return
 
         dados = self._form.coletar()
@@ -1080,6 +1103,7 @@ class _PrinterDetailDialog(QDialog):
         tabs.addTab(self._build_tab_geral(), "\U0001f4cb  Dados Gerais")
         tabs.addTab(self._build_tab_atividades(), "\U0001f527  Atividades")
         tabs.addTab(self._build_tab_locais(), "\U0001f4cd  Histórico de Locais")
+        self._tabs = tabs
         root.addWidget(tabs, stretch=1)
 
     def _build_header(self) -> QWidget:
@@ -1430,6 +1454,7 @@ class _PrinterDetailDialog(QDialog):
         elif a.kind == "MOVIMENTACAO":
             if hasattr(self._main_window, 'pagina_transferencias'):
                 self._main_window.pagina_transferencias._abrir_edicao(a)
+        self.recarregar()
 
     def _agendar_manutencao(self, prox_lbl: QLabel) -> None:
         dlg = _AgendarManutencaoDialog(self._printer, self)
@@ -1624,6 +1649,18 @@ class _PrinterDetailDialog(QDialog):
         t.cellDoubleClicked.connect(_abrir_transferencia)
         return tab
 
+    def recarregar(self) -> None:
+        if not hasattr(self, '_tabs'):
+            return
+        while self._tabs.count() > 1:
+            w = self._tabs.widget(1)
+            if w:
+                w.deleteLater()
+            else:
+                break
+        self._tabs.addTab(self._build_tab_atividades(), "\U0001f527  Atividades")
+        self._tabs.addTab(self._build_tab_locais(), "\U0001f4cd  Histórico de Locais")
+
 
 # ── Página Principal ──────────────────────────────────────────────────────────
 
@@ -1687,6 +1724,7 @@ class PrintersPage(QWidget):
         header.addStretch()
 
         self.search = SearchBar(placeholder="Buscar por patrimônio, modelo, serial ou local...")
+        self.search.setMinimumWidth(360)
         self.search.textChanged().connect(lambda t: self.filtrar(t))
         header.addWidget(self.search)
 
@@ -1726,8 +1764,9 @@ class PrintersPage(QWidget):
         self._carregar()
 
     def recarregar(self) -> None:
-        self._filtro_atual = None
-        self._paginacao.configurar(self.printer_service.contar_todos(), pagina_atual=1)
+        texto = self.search.texto().strip() if hasattr(self, 'search') else ""
+        self._filtro_atual = texto if texto else None
+        self._paginacao.configurar(self.printer_service.contar_todos(filtro=self._filtro_atual), pagina_atual=1)
         self._carregar()
 
     def _carregar(self) -> None:

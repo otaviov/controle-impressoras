@@ -84,7 +84,7 @@ from app.views.widgets import ToastManager
 from app.views.widgets.card_widget import CardMiniClicavel, CardMiniWidget
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.search_bar import SearchBar
-from app.views.widgets.table_widget import TabelaPadrao
+from app.views.widgets.table_widget import TabelaPadrao, tornar_interativa
 
 
 def _criar_mascara_data(le: QLineEdit) -> Callable[[str], None]:
@@ -1030,7 +1030,7 @@ class TransfersPage(QWidget):
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
             if parent_dialog is not None:
-                parent_dialog.accept()
+                parent_dialog.recarregar()
 
     def _confirmar_exclusao(self, dialog: QDialog, mov: Any) -> None:
         if ConfirmacaoDigitarDialog.confirmar(
@@ -1132,8 +1132,7 @@ class TransfersPage(QWidget):
             tabela_anexos.setCellWidget(i, 4, btn_remover)
 
         tabela_anexos.verticalHeader().setDefaultSectionSize(44)
-        for i in range(tabela_anexos.columnCount()):
-            tabela_anexos.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
+        tornar_interativa(tabela_anexos)
         layout.addWidget(tabela_anexos)
 
         botoes_anexos = QHBoxLayout()

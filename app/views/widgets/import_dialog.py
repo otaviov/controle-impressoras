@@ -42,6 +42,7 @@ from app.views.styles.theme import (
     ESTILO_TABELA_SIMPLES,
     ESTILO_TITULO_PAGINA,
 )
+from app.views.widgets.table_widget import tornar_interativa
 
 
 class ImportDialog(QDialog):
@@ -296,7 +297,7 @@ class ImportDialog(QDialog):
                     item = QTableWidgetItem(val)
                     item.setForeground(Qt.gray if not val else Qt.white)
                     self._preview_table.setItem(i, j, item)
-            self._preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            tornar_interativa(self._preview_table)
 
             # Build mapping combos
             self._construir_mapeamento(cabecalho)

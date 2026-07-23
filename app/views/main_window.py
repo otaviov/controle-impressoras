@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -215,13 +215,25 @@ class MainWindow(QMainWindow):
             ("🗓️", "Agenda", 11),
             ("🛒", "Requisições", 12),
             ("📜", "Histórico", 7),
-            ("🔔", "Alertas", 9),
-            ("📅", "Calendário", 10),
-            ("📡", "Monitoramento", 13),
+            # ("🔔", "Alertas", 9),
+            # ("📅", "Calendário", 10), 
+            # ("📡", "Monitoramento", 13),
         ]
         for icon, text, index in menus_extra:
             container = self._criar_botao_menu(icon, text, index)
             scroll_layout.addWidget(container)
+
+        # Adicionando o icone dos alertas
+        container_alertas = self._criar_botao_menu_com_imagem("anexos/alerta_icon.png", "  Alertas", 9)
+        scroll_layout.addWidget(container_alertas)
+
+        # ── Adicionando o Calendário com o ícone personalizado de arquivo ──
+        container_calendario = self._criar_botao_menu_com_imagem("anexos/calendar_icon.png", "  Calendário", 10)
+        scroll_layout.addWidget(container_calendario)
+
+        # Adicionando o icone do monitoramento
+        container_monitoramento = self._criar_botao_menu_com_imagem("anexos/monitoramento_icon.png", "  Monitoramento", 13)
+        scroll_layout.addWidget(container_monitoramento)
 
         if self.user.get('perfil') == 'admin':
             scroll_layout.addSpacing(8)
@@ -310,6 +322,7 @@ class MainWindow(QMainWindow):
             activity_service=self.activity_service,
             technician_service=self.technician_service,
             alert_service=self.alert_service,
+            printer_service=self.printer_service,
         )
         self.pagina_agenda = TechnicianAgendaPage(
             self.session, self.technician_service,
@@ -620,6 +633,50 @@ class MainWindow(QMainWindow):
             " QPushButton#menuBtn:hover { background: #1e1e2e; color: #e8e8f0; }"
             " QPushButton#menuBtn:checked { background: rgba(99, 102, 241, 0.2); color: #6366f1; font-weight: 600; }"
         )
+        container_layout.addWidget(btn)
+        btn.clicked.connect(lambda: self._trocar_pagina(indice))
+
+        self._menu_containers.append(container)
+        self._menu_indicators.append(indicador)
+        self.menu_buttons.append(btn)
+        self._menu_indices.append(indice)
+        return container
+
+    def _criar_botao_menu_com_imagem(self, caminho_icone: str, texto: str, indice: int) -> QFrame:
+        container = QFrame()
+        container.setObjectName("menuContainer")
+        container.setStyleSheet("QFrame#menuContainer { background: transparent; border: none; }")
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+
+        indicador = QFrame()
+        indicador.setFixedWidth(2)
+        indicador.setObjectName("activeIndicator")
+        indicador.setStyleSheet("QFrame#activeIndicator { background: transparent; border-radius: 0 2px 2px 0; }")
+        indicador.setAttribute(Qt.WA_TransparentForMouseEvents)
+        container_layout.addWidget(indicador)
+
+        btn = QPushButton(f"    {texto}")  # Espaço para alinhar com o ícone
+        btn.setCheckable(True)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setMinimumHeight(36)
+        btn.setObjectName("menuBtn")
+        btn.setStyleSheet(
+            "QPushButton#menuBtn { background: transparent; color: #94949f; border: none;"
+            " text-align: left; font-size: 13px; padding: 6px 12px; border-radius: 0px; font-weight: 500; }"
+            " QPushButton#menuBtn:hover { background: #1e1e2e; color: #e8e8f0; }"
+            " QPushButton#menuBtn:checked { background: rgba(99, 102, 241, 0.2); color: #6366f1; font-weight: 600; }"
+        )
+
+        # Insere o ícone gráfico em cima do botão via QLabel interno ou ícone do próprio botão
+        pixmap = QPixmap(caminho_icone)
+        if not pixmap.isNull():
+            icon_label = QLabel(btn)
+            icon_label.setPixmap(pixmap.scaled(16, 16, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            icon_label.setStyleSheet("background: transparent; border: none;")
+            icon_label.setGeometry(14, 10, 16, 16) # Posiciona o ícone à esquerda dentro do botão
+
         container_layout.addWidget(btn)
         btn.clicked.connect(lambda: self._trocar_pagina(indice))
 

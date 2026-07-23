@@ -132,7 +132,7 @@ def _valor_convertido(valor: str, campo: str) -> Any:
         return None
     if campo in ("quantidade_estoque", "estoque_minimo"):
         try:
-            return int(valor)
+            return int(float(valor))
         except ValueError:
             return 0
     if campo == "preco_unitario":
@@ -175,13 +175,23 @@ def parse_xlsx(caminho: str, sheet_name: Optional[str] = None) -> tuple[list[str
 def detectar_mapeamento(cabecalho: list[str], entity: str) -> dict[int, Optional[str]]:
     mapa: dict[int, Optional[str]] = {}
     colunas = COLUNAS_PADRAO.get(entity, {})
+    chaves_ordenadas = sorted(colunas.keys(), key=len, reverse=True)
+    usados: set[str] = set()
     for i, nome in enumerate(cabecalho):
         chave = _limpar_cabecalho(nome)
         campo = colunas.get(chave)
         if campo:
             mapa[i] = campo
+            usados.add(campo)
         else:
-            mapa[i] = None
+            melhor_campo: Optional[str] = None
+            for k in chaves_ordenadas:
+                if k in chave and colunas[k] not in usados:
+                    melhor_campo = colunas[k]
+                    break
+            mapa[i] = melhor_campo
+            if melhor_campo:
+                usados.add(melhor_campo)
     return mapa
 
 

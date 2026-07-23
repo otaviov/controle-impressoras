@@ -5,7 +5,7 @@ from datetime import datetime as dt
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -51,9 +51,17 @@ class MonitoringPage(QWidget):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
-        # ── Header ───────────────────────────────────────────
+        # Header
         header = QHBoxLayout()
         header.setSpacing(10)
+        
+        icone_label = QLabel()
+        pixmap = QPixmap("anexos/monitoramento_icon.png") 
+        if not pixmap.isNull():
+            pixmap_redimensionado = pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icone_label.setPixmap(pixmap_redimensionado)
+        icone_label.setStyleSheet("background: transparent; border: none;")
+
         titulo_col = QVBoxLayout()
         titulo_col.setSpacing(2)
         titulo = QLabel("Monitoramento de Rede")
@@ -62,6 +70,8 @@ class MonitoringPage(QWidget):
         sub = QLabel("Monitore status, toner e páginas das impressoras via rede")
         sub.setStyleSheet(ESTILO_SUBTITULO)
         titulo_col.addWidget(sub)
+        
+        header.addWidget(icone_label)
         header.addLayout(titulo_col)
         header.addStretch()
 
@@ -78,7 +88,7 @@ class MonitoringPage(QWidget):
         header.addWidget(self.btn_verificar_agora)
         layout.addLayout(header)
 
-        # ── Stats bar ────────────────────────────────────────
+        # Stats bar
         stats_bar = QHBoxLayout()
         stats_bar.setSpacing(20)
 

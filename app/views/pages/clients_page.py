@@ -54,7 +54,7 @@ from app.views.widgets import ToastManager
 from app.views.widgets.confirm_dialog import ConfirmacaoDigitarDialog
 from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
-from app.views.widgets.table_widget import TabelaPadrao
+from app.views.widgets.table_widget import TabelaPadrao, tornar_interativa
 
 
 class ClientsPage(QWidget):
@@ -274,8 +274,7 @@ class ClientsPage(QWidget):
                 imp_tabela.setItem(i, 4, QTableWidgetItem(rev_text))
 
             imp_tabela.verticalHeader().setDefaultSectionSize(44)
-            for i in range(imp_tabela.columnCount()):
-                imp_tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
+            tornar_interativa(imp_tabela)
 
             imp_tabela.cellDoubleClicked.connect(lambda r, c: self._abrir_impressora_por_patrimonio(
                 imp_tabela.item(r, 0).text(), dialog
@@ -633,8 +632,7 @@ class ClientsPage(QWidget):
                 imp_tabela.setItem(i, 4, QTableWidgetItem(rev_text))
 
             imp_tabela.verticalHeader().setDefaultSectionSize(44)
-            for i in range(imp_tabela.columnCount()):
-                imp_tabela.horizontalHeader().setSectionResizeMode(i, QHeaderView.Stretch)
+            tornar_interativa(imp_tabela)
 
             imp_tabela.cellDoubleClicked.connect(lambda r, c: self._abrir_impressora_por_patrimonio(
                 imp_tabela.item(r, 0).text(), dialog
