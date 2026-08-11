@@ -662,6 +662,7 @@ class TransfersPage(QWidget):
         layout = QVBoxLayout(dialog)
         tabs = QTabWidget()
         orig = {
+            "event_at": mov.event_at,
             "printer_id": mov.printer_id,
             "parts_used": mov.parts_used,
             "from_location": mov.from_location,
@@ -896,7 +897,9 @@ class TransfersPage(QWidget):
                     origin_notes = f"Peças para {dest_texto}" + (f" — {desc_clean}" if desc_clean else "")
             elif eh_transferencia:
                 origin_notes = f"Transferência" + (f" — {desc_clean}" if desc_clean else "")
+            data_parsed = parse_data(data_texto) if data_texto else None
             novos = {
+                "event_at": data_parsed or mov.event_at,
                 "parts_used": parts,
                 "from_location": from_loc,
                 "to_location": to_loc,
@@ -905,10 +908,6 @@ class TransfersPage(QWidget):
                 "responsavel": resp,
                 "status_atividade": status,
             }
-            if data_texto:
-                parsed = parse_data(data_texto)
-                if parsed:
-                    mov.event_at = parsed
             if novos == orig:
                 return
             try:
@@ -941,11 +940,10 @@ class TransfersPage(QWidget):
                                     existing.numero_recibo = recibo
                                     existing.responsavel = resp
                                 else:
-                                    event_at = parse_data(data_texto) if data_texto else mov.event_at
                                     activity_dest = Activity(
                                         printer_id=printer_dest.id,
                                         kind="MOVIMENTACAO",
-                                        event_at=event_at,
+                                        event_at=data_parsed or mov.event_at,
                                         parts_used=parts,
                                         from_location=from_loc,
                                         to_location=to_loc,
@@ -996,6 +994,7 @@ class TransfersPage(QWidget):
         def marcar_alterado() -> None:
             alterado[0] = True
 
+        data_input.textChanged.connect(marcar_alterado)
         pecas_text.textChanged.connect(marcar_alterado)
         origem_combo.currentTextChanged.connect(marcar_alterado)
         destino_combo.currentTextChanged.connect(marcar_alterado)
@@ -1029,7 +1028,7 @@ class TransfersPage(QWidget):
 
         if dialog.exec() == QDialog.Accepted:
             self.recarregar()
-            if parent_dialog is not None:
+            if parent_dialog is not None and hasattr(parent_dialog, 'recarregar'):
                 parent_dialog.recarregar()
 
     def _confirmar_exclusao(self, dialog: QDialog, mov: Any) -> None:

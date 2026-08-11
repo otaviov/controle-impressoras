@@ -190,3 +190,57 @@ def test_sanitizar_truncation_logs_warning(caplog):
     result = sanitizar("a" * 100, model_class="Activity", field="kind")
     assert len(result) <= 30
     assert any("Truncando" in rec.message for rec in caplog.records)
+
+
+# ── normalizar_modelos / merge_modelos ────────────────────────
+
+from app.utils.importer import merge_modelos, normalizar_modelos
+
+
+def test_normalizar_modelos_vazio():
+    assert normalizar_modelos("") == ""
+    assert normalizar_modelos(None) == ""
+
+
+def test_normalizar_modelos_um_modelo():
+    assert normalizar_modelos("HP P1102") == "HP P1102"
+
+
+def test_normalizar_modelos_separador_barra():
+    assert normalizar_modelos("HP P1102/M1132") == "HP P1102/M1132"
+
+
+def test_normalizar_modelos_separador_virgula():
+    assert normalizar_modelos("HP P1102, M1132") == "HP P1102/M1132"
+
+
+def test_normalizar_modelos_separador_ponto_virgula():
+    assert normalizar_modelos("HP P1102; M1132; HP 2035") == "HP P1102/M1132/HP 2035"
+
+
+def test_normalizar_modelos_misturado():
+    assert normalizar_modelos("HP P1102, M1132/HP 2035; L4150") == "HP P1102/M1132/HP 2035/L4150"
+
+
+def test_normalizar_modelos_duplicado():
+    assert normalizar_modelos("HP P1102/M1132/HP P1102") == "HP P1102/M1132"
+
+
+def test_normalizar_modelos_espacos_extras():
+    assert normalizar_modelos("  HP P1102 ,  M1132  ") == "HP P1102/M1132"
+
+
+def test_merge_modelos_ambos():
+    assert merge_modelos("HP P1102", "M1132") == "HP P1102/M1132"
+
+
+def test_merge_modelos_duplicado():
+    assert merge_modelos("HP P1102/M1132", "M1132/HP 2035") == "HP P1102/M1132/HP 2035"
+
+
+def test_merge_modelos_existente_vazio():
+    assert merge_modelos("", "HP P1102") == "HP P1102"
+
+
+def test_merge_modelos_novos_vazio():
+    assert merge_modelos("HP P1102", "") == "HP P1102"

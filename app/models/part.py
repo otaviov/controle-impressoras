@@ -26,6 +26,9 @@ class Part(Base, SoftDeleteMixin):
     estoque_minimo: Mapped[int] = mapped_column(Integer, default=1)
     preco_unitario: Mapped[float] = mapped_column(Float, default=0.0)
     modelo_compativel: Mapped[str] = mapped_column(String(200), default="")
+    marca: Mapped[str] = mapped_column(String(100), default="")
+    categoria: Mapped[str] = mapped_column(String(100), default="")
+    fornecedor: Mapped[str] = mapped_column(String(150), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     alerts: Mapped[list[Alert]] = relationship(back_populates="part")

@@ -9,16 +9,21 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -52,6 +57,128 @@ from app.views.widgets.import_dialog import ImportDialog
 from app.views.widgets.pagination import PaginacaoWidget
 from app.views.widgets.search_bar import SearchBar
 from app.views.widgets.table_widget import TabelaPadrao, tornar_interativa
+
+
+class MultiModelWidget(QWidget):
+    """Widget para selecionar multiplos modelos compativeis."""
+
+    def __init__(self, modelos_disponiveis: list[str] | None = None, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        add_row = QHBoxLayout()
+        add_row.setSpacing(6)
+        self._combo = QComboBox()
+        self._combo.setEditable(True)
+        self._combo.setInsertPolicy(QComboBox.NoInsert)
+        self._combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self._combo.completer().setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._combo.setMinimumWidth(200)
+        self._combo.setStyleSheet(
+            "QComboBox { background-color: #1e1e2e; color: #e8e8f0;"
+            " border: 1px solid #2a2a3e; border-radius: 6px;"
+            " padding: 4px 8px; font-size: 12px; min-height: 24px; }"
+            "QComboBox:hover { border: 1px solid #6366f1; }"
+        )
+        if modelos_disponiveis:
+            self._combo.addItems(modelos_disponiveis)
+        add_row.addWidget(self._combo, stretch=1)
+
+        btn_add = QPushButton("Adicionar")
+        btn_add.setFixedHeight(32)
+        btn_add.setCursor(Qt.PointingHandCursor)
+        btn_add.setToolTip("Adicionar modelo selecionado")
+        btn_add.setStyleSheet(
+            "QPushButton { background: #22c55e; color: white; border: none;"
+            " border-radius: 6px; font-size: 12px; font-weight: bold;"
+            " font-family: 'Segoe UI', Arial, sans-serif;"
+            " padding: 0 14px; }"
+            "QPushButton:hover { background: #16a34a; }"
+            "QPushButton:pressed { background: #15803d; }"
+        )
+        btn_add.clicked.connect(self._adicionar)
+        add_row.addWidget(btn_add)
+
+        btn_rem = QPushButton("Remover")
+        btn_rem.setFixedHeight(32)
+        btn_rem.setCursor(Qt.PointingHandCursor)
+        btn_rem.setToolTip("Remover modelo selecionado na lista")
+        btn_rem.setStyleSheet(
+            "QPushButton { background: #ef4444; color: white; border: none;"
+            " border-radius: 6px; font-size: 12px; font-weight: bold;"
+            " font-family: 'Segoe UI', Arial, sans-serif;"
+            " padding: 0 14px; }"
+            "QPushButton:hover { background: #dc2626; }"
+            "QPushButton:pressed { background: #b91c1c; }"
+        )
+        btn_rem.clicked.connect(self._remover)
+        add_row.addWidget(btn_rem)
+
+        layout.addLayout(add_row)
+
+        self._lista = QListWidget()
+        self._lista.setMaximumHeight(100)
+        self._lista.setDragDropMode(QListWidget.NoDragDrop)
+        self._lista.setStyleSheet(
+            "QListWidget { background-color: #1e1e2e; color: #e8e8f0;"
+            " border: 1px solid #2a2a3e; border-radius: 6px;"
+            " padding: 4px; font-size: 12px; }"
+            "QListWidget::item { padding: 4px 8px; border-radius: 4px; margin: 1px 0; }"
+            "QListWidget::item:selected { background-color: rgba(99,102,241,0.3); color: #c7d2fe; }"
+            "QListWidget::item:hover { background-color: rgba(99,102,241,0.15); }"
+        )
+        layout.addWidget(self._lista)
+
+        self._lbl_count = QLabel("0 modelo(s)")
+        self._lbl_count.setStyleSheet("color: #6c7086; font-size: 11px; background: transparent;")
+        layout.addWidget(self._lbl_count)
+
+        le = self._combo.lineEdit()
+        if le:
+            le.returnPressed.connect(self._adicionar)
+
+    def _adicionar(self) -> None:
+        texto = self._combo.currentText().strip()
+        if not texto:
+            return
+        existentes = [self._lista.item(i).text() for i in range(self._lista.count())]
+        if texto not in existentes:
+            self._lista.addItem(texto)
+            self._atualizar_contador()
+        self._combo.setCurrentText("")
+
+    def _remover(self) -> None:
+        row = self._lista.currentRow()
+        if row >= 0:
+            self._lista.takeItem(row)
+            self._atualizar_contador()
+
+    def _atualizar_contador(self) -> None:
+        n = self._lista.count()
+        self._lbl_count.setText(f"{n} modelo(s)")
+
+    def modelos(self) -> list[str]:
+        return [self._lista.item(i).text() for i in range(self._lista.count())]
+
+    def set_modelos(self, modelos: list[str]) -> None:
+        self._lista.clear()
+        for m in modelos:
+            if m.strip():
+                self._lista.addItem(m.strip())
+        self._atualizar_contador()
+
+    def modelo_string(self) -> str:
+        return "/".join(self.modelos())
+
+    def set_modelo_string(self, texto: str) -> None:
+        if not texto:
+            self._lista.clear()
+            self._atualizar_contador()
+            return
+        partes = [t.strip() for t in texto.split("/") if t.strip()]
+        self.set_modelos(partes)
 
 
 class PartsPage(QWidget):
@@ -129,7 +256,7 @@ class PartsPage(QWidget):
         self._filtro_atual = None
         self._card_filtro = None
         self._partes_visiveis = []
-        self.tabela = TabelaPadrao(["Código", "Nome", "Descrição", "Modelo Compatível", "Estoque", "Mín."])
+        self.tabela = TabelaPadrao(["Código", "Nome", "Marca", "Modelo Compatível", "Categoria", "Estoque", "Mín.", "Fornecedor"])
         self.tabela.cellDoubleClicked.connect(self._detalhes)
         layout.addWidget(self.tabela)
 
@@ -199,14 +326,16 @@ class PartsPage(QWidget):
             items = [
                 (p.codigo, None),
                 (p.nome, None),
-                (p.descricao, None),
+                (p.marca, None),
                 (p.modelo_compativel, None),
+                (p.categoria, None),
                 (str(p.quantidade_estoque), None),
                 (str(p.estoque_minimo), None),
+                (p.fornecedor, None),
             ]
             for j, (texto, _) in enumerate(items):
                 item = QTableWidgetItem(texto)
-                item.setTextAlignment(Qt.AlignCenter if j >= 4 else Qt.AlignLeft)
+                item.setTextAlignment(Qt.AlignCenter if j >= 5 else Qt.AlignLeft)
                 self.tabela.setItem(i, j, item)
 
             qtd = p.quantidade_estoque
@@ -218,11 +347,11 @@ class PartsPage(QWidget):
             else:
                 cor = COR["status_ruim"]
 
-            self.tabela.item(i, 4).setForeground(QColor(cor))
-            self.tabela.item(i, 4).setTextAlignment(Qt.AlignCenter)
+            self.tabela.item(i, 5).setForeground(QColor(cor))
             self.tabela.item(i, 5).setTextAlignment(Qt.AlignCenter)
+            self.tabela.item(i, 6).setTextAlignment(Qt.AlignCenter)
             if qtd < p.estoque_minimo:
-                self.tabela.item(i, 5).setForeground(QColor("#fb923c"))
+                self.tabela.item(i, 6).setForeground(QColor("#fb923c"))
 
         self.tabela.redimensionar()
 
@@ -232,199 +361,392 @@ class PartsPage(QWidget):
 
     def _nova(self) -> None:
         dialog = QDialog(self)
-        dialog.setWindowTitle("Nova Peça")
+        dialog.setWindowTitle("\U0001f4e6  Nova Peça")
         dialog.setStyleSheet(ESTILO_DIALOG)
-        dialog.setMinimumWidth(400)
+        dialog.setMinimumSize(760, 560)
 
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        root = QVBoxLayout(dialog)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── Header ────────────────────────────────────────
+        header = QFrame()
+        header.setStyleSheet(
+            "QFrame { background: rgba(14,14,22,0.8);"
+            " border-bottom: 1px solid rgba(42,42,62,0.7); }"
+        )
+        header.setFixedHeight(56)
+        h_layout = QHBoxLayout(header)
+        h_layout.setContentsMargins(20, 0, 20, 0)
+        title_lbl = QLabel("\U0001f4e6  Nova Peça")
+        title_lbl.setStyleSheet(
+            "color: #e8e8f0; font-size: 15px; font-weight: 700;"
+            " background: transparent; border: none;"
+        )
+        h_layout.addWidget(title_lbl)
+        h_layout.addStretch()
+        root.addWidget(header)
+
+        # ── Body com scroll ──────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(20, 16, 20, 12)
+        content.setSpacing(14)
 
         codigo = self.part_service.gerar_codigo()
 
+        # ── SEÇÃO: Identificação ─────────────────────────
         id_box, id_layout = group_box("Identificação")
-        form_id = QFormLayout()
-        form_id.setLabelAlignment(Qt.AlignRight)
-        form_id.setSpacing(8)
+        id_grid = QGridLayout()
+        id_grid.setSpacing(8)
+        id_grid.setHorizontalSpacing(16)
 
         edit_codigo = QLineEdit(codigo)
         edit_codigo.setStyleSheet(ESTILO_INPUT_READONLY)
         edit_codigo.setReadOnly(True)
-        form_id.addRow("Código:", edit_codigo)
 
         edit_nome = QLineEdit()
         edit_nome.setStyleSheet(ESTILO_INPUT)
         edit_nome.setMaxLength(150)
         edit_nome.setPlaceholderText("* Obrigatório")
-        form_id.addRow("Nome:", edit_nome)
 
-        edit_descricao = QLineEdit()
+        err_nome = QLabel()
+        err_nome.setStyleSheet("color: #ef4444; font-size: 9px; background: transparent; padding: 0; margin: 0; border: none;")
+        err_nome.hide()
+        ValidadorCampo(edit_nome, obrigatorio, err_nome)
+
+        edit_descricao = QTextEdit()
         edit_descricao.setStyleSheet(ESTILO_INPUT)
-        form_id.addRow("Descrição:", edit_descricao)
+        edit_descricao.setPlaceholderText("Descrição detalhada da peça...")
+        edit_descricao.setFixedHeight(80)
 
-        combo_modelo = QComboBox()
-        configurar_combo(combo_modelo)
-        cmp = combo_modelo.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        combo_modelo.setEditable(True)
-        combo_modelo.setInsertPolicy(QComboBox.NoInsert)
-        modelos = self.printer_service.modelos_distintos()
-        combo_modelo.addItems(modelos)
-        form_id.addRow("Modelo Compatível:", combo_modelo)
+        id_grid.addWidget(input_label("Código"), 0, 0)
+        id_grid.addWidget(edit_codigo, 1, 0)
+        id_grid.addWidget(input_label("Nome *"), 0, 1)
+        id_grid.addWidget(edit_nome, 1, 1)
+        id_grid.addWidget(err_nome, 2, 1)
+        id_grid.addWidget(input_label("Descrição"), 3, 0, 1, 2)
+        id_grid.addWidget(edit_descricao, 4, 0, 1, 2)
+        id_grid.setColumnStretch(0, 1)
+        id_grid.setColumnStretch(1, 1)
+        id_layout.addLayout(id_grid)
+        content.addWidget(id_box)
 
-        id_layout.addLayout(form_id)
-        layout.addWidget(id_box)
+        # ── Multi-modelo (seção inteira dedicada) ────────
+        mod_box, mod_layout = group_box("Modelo(s) Compatível(is)")
+        multi_modelo = MultiModelWidget(modelos_disponiveis=self.printer_service.modelos_distintos())
+        mod_layout.addWidget(multi_modelo)
+        content.addWidget(mod_box)
 
+        # ── SEÇÃO: Estoque ───────────────────────────────
         est_box, est_layout = group_box("Estoque")
-        form_est = QFormLayout()
-        form_est.setLabelAlignment(Qt.AlignRight)
-        form_est.setSpacing(8)
+        est_grid = QGridLayout()
+        est_grid.setSpacing(8)
+        est_grid.setHorizontalSpacing(16)
 
         edit_qtd = QLineEdit("0")
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         edit_qtd.setValidator(QIntValidator(0, 999999, edit_qtd))
-        form_est.addRow("Quantidade:", edit_qtd)
 
         edit_minimo = QLineEdit("1")
         edit_minimo.setStyleSheet(ESTILO_INPUT)
         edit_minimo.setValidator(QIntValidator(0, 999999, edit_minimo))
-        form_est.addRow("Estoque Mín.:", edit_minimo)
 
-        est_layout.addLayout(form_est)
-        layout.addWidget(est_box)
+        est_grid.addWidget(input_label("Quantidade"), 0, 0)
+        est_grid.addWidget(edit_qtd, 1, 0)
+        est_grid.addWidget(input_label("Estoque Mínimo"), 0, 1)
+        est_grid.addWidget(edit_minimo, 1, 1)
+        est_grid.setColumnStretch(0, 1)
+        est_grid.setColumnStretch(1, 1)
+        est_layout.addLayout(est_grid)
+        content.addWidget(est_box)
 
-        botoes = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        botoes.button(QDialogButtonBox.Save).setText("Salvar")
-        botoes.button(QDialogButtonBox.Save).setStyleSheet(ESTILO_BOTAO_SUCESSO)
-        botoes.button(QDialogButtonBox.Save).setToolTip("Salvar nova peça")
-        botoes.button(QDialogButtonBox.Cancel).setStyleSheet(ESTILO_BOTAO_FECHAR)
-        botoes.button(QDialogButtonBox.Cancel).setToolTip("Cancelar")
-        layout.addWidget(botoes)
+        # ── SEÇÃO: Complemento ───────────────────────────
+        ext_box, ext_layout = group_box("Complemento")
+        ext_grid = QGridLayout()
+        ext_grid.setSpacing(8)
+        ext_grid.setHorizontalSpacing(16)
 
-        botoes.accepted.connect(lambda: self._salvar_nova(dialog, codigo, edit_nome, edit_descricao, combo_modelo, edit_qtd, edit_minimo))
-        botoes.rejected.connect(dialog.reject)
+        edit_marca = QLineEdit()
+        edit_marca.setStyleSheet(ESTILO_INPUT)
+
+        edit_categoria = QLineEdit()
+        edit_categoria.setStyleSheet(ESTILO_INPUT)
+
+        edit_fornecedor = QLineEdit()
+        edit_fornecedor.setStyleSheet(ESTILO_INPUT)
+
+        ext_grid.addWidget(input_label("Marca"), 0, 0)
+        ext_grid.addWidget(edit_marca, 1, 0)
+        ext_grid.addWidget(input_label("Categoria"), 0, 1)
+        ext_grid.addWidget(edit_categoria, 1, 1)
+        ext_grid.addWidget(input_label("Fornecedor"), 2, 0)
+        ext_grid.addWidget(edit_fornecedor, 3, 0)
+        ext_grid.setColumnStretch(0, 1)
+        ext_grid.setColumnStretch(1, 1)
+        ext_layout.addLayout(ext_grid)
+        content.addWidget(ext_box)
+
+        content.addStretch()
+        scroll.setWidget(container)
+        root.addWidget(scroll, stretch=1)
+
+        # ── Footer ───────────────────────────────────────
+        footer = QFrame()
+        footer.setStyleSheet(
+            "QFrame { background: rgba(14,14,22,0.6);"
+            " border-top: 1px solid rgba(42,42,62,0.7); }"
+        )
+        footer.setFixedHeight(60)
+        f_layout = QHBoxLayout(footer)
+        f_layout.setContentsMargins(20, 0, 20, 0)
+        f_layout.setSpacing(10)
+
+        btn_salvar = QPushButton("\U0001f4be  Salvar")
+        btn_salvar.setToolTip("Salvar nova peça")
+        btn_salvar.setCursor(Qt.PointingHandCursor)
+        btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
+        btn_salvar.setMinimumWidth(120)
+
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Descartar e fechar")
+        btn_cancelar.setCursor(Qt.PointingHandCursor)
+        btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
+
+        f_layout.addStretch()
+        f_layout.addWidget(btn_cancelar)
+        f_layout.addWidget(btn_salvar)
+        root.addWidget(footer)
+
+        def salvar():
+            nome_val = edit_nome.text().strip()
+            if not nome_val:
+                QMessageBox.warning(dialog, "Aviso", "O campo Nome é obrigatório.")
+                return
+            desc_val = edit_descricao.toPlainText().strip()
+            modelo_val = multi_modelo.modelo_string()
+            try:
+                qtd_val = int(edit_qtd.text().strip())
+            except ValueError:
+                qtd_val = 0
+            try:
+                min_val = int(edit_minimo.text().strip())
+            except ValueError:
+                min_val = 1
+            with tratar_erro("criar peça"):
+                self.part_service.criar(
+                    codigo=codigo, nome=nome_val, descricao=desc_val,
+                    modelo_compativel=modelo_val, quantidade=qtd_val,
+                    estoque_minimo=min_val, marca=edit_marca.text().strip(),
+                    categoria=edit_categoria.text().strip(),
+                    fornecedor=edit_fornecedor.text().strip(),
+                )
+                dialog.accept()
+                self.recarregar()
+
+        btn_salvar.clicked.connect(salvar)
+        btn_cancelar.clicked.connect(dialog.reject)
 
         dialog.exec()
 
-    def _salvar_nova(self, dialog: QDialog, codigo: str, edit_nome: QLineEdit, edit_descricao: QLineEdit, combo_modelo: QComboBox, edit_qtd: QLineEdit, edit_minimo: QLineEdit) -> None:
-        nome = edit_nome.text().strip()
-        if not nome:
-            QMessageBox.warning(dialog, "Aviso", "O campo Nome é obrigatório.")
-            return
-        descricao = edit_descricao.text().strip()
-        modelo = combo_modelo.currentText().strip()
-        try:
-            quantidade = int(edit_qtd.text().strip())
-        except ValueError:
-            quantidade = 0
-        try:
-            estoque_minimo = int(edit_minimo.text().strip())
-        except ValueError:
-            estoque_minimo = 1
-        with tratar_erro("criar peça"):
-            self.part_service.criar(codigo=codigo, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade=quantidade, estoque_minimo=estoque_minimo)
-            dialog.accept()
-            self.recarregar()
-
     def _abrir_edicao(self, peca, parent_dialog: QDialog | None = None) -> None:
         dialog = QDialog(self)
-        dialog.setWindowTitle("Editar Peça")
+        dialog.setWindowTitle(f"\u270f\ufe0f  Editar \u2014 {peca.nome}")
         dialog.setStyleSheet(ESTILO_DIALOG)
-        dialog.setMinimumWidth(400)
+        dialog.setMinimumSize(760, 560)
 
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        root = QVBoxLayout(dialog)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
+        # ── Header ────────────────────────────────────────
+        header = QFrame()
+        header.setStyleSheet(
+            "QFrame { background: rgba(14,14,22,0.8);"
+            " border-bottom: 1px solid rgba(42,42,62,0.7); }"
+        )
+        header.setFixedHeight(56)
+        h_layout = QHBoxLayout(header)
+        h_layout.setContentsMargins(20, 0, 20, 0)
+        title_lbl = QLabel(f"\u270f\ufe0f  Editar Peça")
+        title_lbl.setStyleSheet(
+            "color: #e8e8f0; font-size: 15px; font-weight: 700;"
+            " background: transparent; border: none;"
+        )
+        h_layout.addWidget(title_lbl)
+        badge = QLabel(peca.codigo)
+        badge.setStyleSheet(
+            "color: #6366f1; font-size: 11px; font-weight: 600;"
+            " background: rgba(99,102,241,0.1);"
+            " border: 1px solid rgba(99,102,241,0.3);"
+            " border-radius: 6px; padding: 3px 10px;"
+        )
+        h_layout.addWidget(badge)
+        h_layout.addStretch()
+        root.addWidget(header)
+
+        # ── Body com scroll ──────────────────────────────
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        content = QVBoxLayout(container)
+        content.setContentsMargins(20, 16, 20, 12)
+        content.setSpacing(14)
+
+        # ── SEÇÃO: Identificação ─────────────────────────
         id_box, id_layout = group_box("Identificação")
-        form_id = QFormLayout()
-        form_id.setLabelAlignment(Qt.AlignRight)
-        form_id.setSpacing(8)
+        id_grid = QGridLayout()
+        id_grid.setSpacing(8)
+        id_grid.setHorizontalSpacing(16)
 
         edit_codigo = QLineEdit(peca.codigo)
         edit_codigo.setStyleSheet(ESTILO_INPUT_READONLY)
         edit_codigo.setReadOnly(True)
-        form_id.addRow("Código:", edit_codigo)
 
         edit_nome = QLineEdit(peca.nome)
         edit_nome.setStyleSheet(ESTILO_INPUT)
         edit_nome.setMaxLength(150)
-        form_id.addRow("Nome:", edit_nome)
 
-        erro_nome = QLabel()
-        erro_nome.setStyleSheet("color: #ef4444; font-size: 10px; background: transparent;")
-        erro_nome.hide()
-        form_id.addRow("", erro_nome)
-        ValidadorCampo(edit_nome, obrigatorio, erro_nome)
+        err_nome = QLabel()
+        err_nome.setStyleSheet("color: #ef4444; font-size: 9px; background: transparent; padding: 0; margin: 0; border: none;")
+        err_nome.hide()
+        ValidadorCampo(edit_nome, obrigatorio, err_nome)
 
-        edit_descricao = QLineEdit(peca.descricao)
+        edit_descricao = QTextEdit()
         edit_descricao.setStyleSheet(ESTILO_INPUT)
-        form_id.addRow("Descrição:", edit_descricao)
+        edit_descricao.setPlaceholderText("Descrição detalhada da peça...")
+        edit_descricao.setFixedHeight(80)
+        edit_descricao.setPlainText(peca.descricao or "")
 
-        combo_modelo = QComboBox()
-        configurar_combo(combo_modelo)
-        cmp = combo_modelo.completer()
-        if cmp:
-            cmp.setFilterMode(Qt.MatchFlag.MatchContains)
-            cmp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        combo_modelo.setEditable(True)
-        combo_modelo.setInsertPolicy(QComboBox.NoInsert)
-        modelos = self.printer_service.modelos_distintos()
-        combo_modelo.addItems(modelos)
-        if peca.modelo_compativel:
-            idx = combo_modelo.findText(peca.modelo_compativel)
-            if idx >= 0:
-                combo_modelo.setCurrentIndex(idx)
-            else:
-                combo_modelo.setCurrentText(peca.modelo_compativel)
-        form_id.addRow("Modelo Compatível:", combo_modelo)
+        id_grid.addWidget(input_label("Código"), 0, 0)
+        id_grid.addWidget(edit_codigo, 1, 0)
+        id_grid.addWidget(input_label("Nome *"), 0, 1)
+        id_grid.addWidget(edit_nome, 1, 1)
+        id_grid.addWidget(err_nome, 2, 1)
+        id_grid.addWidget(input_label("Descrição"), 3, 0, 1, 2)
+        id_grid.addWidget(edit_descricao, 4, 0, 1, 2)
+        id_grid.setColumnStretch(0, 1)
+        id_grid.setColumnStretch(1, 1)
+        id_layout.addLayout(id_grid)
+        content.addWidget(id_box)
 
-        id_layout.addLayout(form_id)
-        layout.addWidget(id_box)
+        # ── Multi-modelo ────────────────────────────────
+        mod_box, mod_layout = group_box("Modelo(s) Compatível(is)")
+        multi_modelo = MultiModelWidget(modelos_disponiveis=self.printer_service.modelos_distintos())
+        multi_modelo.set_modelo_string(peca.modelo_compativel or "")
+        mod_layout.addWidget(multi_modelo)
+        content.addWidget(mod_box)
 
+        # ── SEÇÃO: Estoque ───────────────────────────────
         est_box, est_layout = group_box("Estoque")
-        form_est = QFormLayout()
-        form_est.setLabelAlignment(Qt.AlignRight)
-        form_est.setSpacing(8)
+        est_grid = QGridLayout()
+        est_grid.setSpacing(8)
+        est_grid.setHorizontalSpacing(16)
 
         edit_qtd = QLineEdit(str(peca.quantidade_estoque))
         edit_qtd.setStyleSheet(ESTILO_INPUT)
         edit_qtd.setValidator(QIntValidator(0, 999999, edit_qtd))
-        form_est.addRow("Quantidade:", edit_qtd)
 
         edit_minimo = QLineEdit(str(peca.estoque_minimo))
         edit_minimo.setStyleSheet(ESTILO_INPUT)
         edit_minimo.setValidator(QIntValidator(0, 999999, edit_minimo))
-        form_est.addRow("Estoque Mín.:", edit_minimo)
 
-        est_layout.addLayout(form_est)
-        layout.addWidget(est_box)
+        est_grid.addWidget(input_label("Quantidade"), 0, 0)
+        est_grid.addWidget(edit_qtd, 1, 0)
+        est_grid.addWidget(input_label("Estoque Mínimo"), 0, 1)
+        est_grid.addWidget(edit_minimo, 1, 1)
+        est_grid.setColumnStretch(0, 1)
+        est_grid.setColumnStretch(1, 1)
+        est_layout.addLayout(est_grid)
+        content.addWidget(est_box)
 
-        botoes = QDialogButtonBox()
-        btn_salvar = botoes.addButton("Salvar", QDialogButtonBox.AcceptRole)
+        # ── SEÇÃO: Complemento ───────────────────────────
+        ext_box, ext_layout = group_box("Complemento")
+        ext_grid = QGridLayout()
+        ext_grid.setSpacing(8)
+        ext_grid.setHorizontalSpacing(16)
+
+        edit_marca = QLineEdit(peca.marca or "")
+        edit_marca.setStyleSheet(ESTILO_INPUT)
+
+        edit_categoria = QLineEdit(peca.categoria or "")
+        edit_categoria.setStyleSheet(ESTILO_INPUT)
+
+        edit_fornecedor = QLineEdit(peca.fornecedor or "")
+        edit_fornecedor.setStyleSheet(ESTILO_INPUT)
+
+        ext_grid.addWidget(input_label("Marca"), 0, 0)
+        ext_grid.addWidget(edit_marca, 1, 0)
+        ext_grid.addWidget(input_label("Categoria"), 0, 1)
+        ext_grid.addWidget(edit_categoria, 1, 1)
+        ext_grid.addWidget(input_label("Fornecedor"), 2, 0)
+        ext_grid.addWidget(edit_fornecedor, 3, 0)
+        ext_grid.setColumnStretch(0, 1)
+        ext_grid.setColumnStretch(1, 1)
+        ext_layout.addLayout(ext_grid)
+        content.addWidget(ext_box)
+
+        content.addStretch()
+        scroll.setWidget(container)
+        root.addWidget(scroll, stretch=1)
+
+        # ── Footer ───────────────────────────────────────
+        footer = QFrame()
+        footer.setStyleSheet(
+            "QFrame { background: rgba(14,14,22,0.6);"
+            " border-top: 1px solid rgba(42,42,62,0.7); }"
+        )
+        footer.setFixedHeight(60)
+        f_layout = QHBoxLayout(footer)
+        f_layout.setContentsMargins(20, 0, 20, 0)
+        f_layout.setSpacing(10)
+
+        btn_salvar = QPushButton("\U0001f4be  Salvar")
+        btn_salvar.setToolTip("Salvar alterações")
+        btn_salvar.setCursor(Qt.PointingHandCursor)
         btn_salvar.setStyleSheet(ESTILO_BOTAO_SUCESSO)
-        btn_salvar.setToolTip("Salvar alterações da peça")
-        btn_cancelar = botoes.addButton("Cancelar", QDialogButtonBox.RejectRole)
+        btn_salvar.setMinimumWidth(120)
+
+        btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setToolTip("Descartar e fechar")
+        btn_cancelar.setCursor(Qt.PointingHandCursor)
         btn_cancelar.setStyleSheet(ESTILO_BOTAO_FECHAR)
-        btn_cancelar.setToolTip("Descartar alterações e fechar")
-        layout.addWidget(botoes)
+
+        f_layout.addStretch()
+        f_layout.addWidget(btn_cancelar)
+        f_layout.addWidget(btn_salvar)
+        root.addWidget(footer)
 
         def salvar():
-            nome = edit_nome.text().strip()
-            descricao = edit_descricao.text().strip()
-            modelo = combo_modelo.currentText().strip()
+            nome_val = edit_nome.text().strip()
+            desc_val = edit_descricao.toPlainText().strip()
+            modelo_val = multi_modelo.modelo_string()
             try:
-                quantidade = int(edit_qtd.text().strip())
+                qtd_val = int(edit_qtd.text().strip())
             except ValueError:
-                quantidade = 0
+                qtd_val = 0
             try:
-                estoque_minimo = int(edit_minimo.text().strip())
+                min_val = int(edit_minimo.text().strip())
             except ValueError:
-                estoque_minimo = 1
+                min_val = 1
             with tratar_erro("atualizar peça"):
-                self.part_service.atualizar(peca, nome=nome, descricao=descricao, modelo_compativel=modelo, quantidade_estoque=quantidade, estoque_minimo=estoque_minimo)
+                self.part_service.atualizar(
+                    peca, nome=nome_val, descricao=desc_val,
+                    modelo_compativel=modelo_val, quantidade_estoque=qtd_val,
+                    estoque_minimo=min_val, marca=edit_marca.text().strip(),
+                    categoria=edit_categoria.text().strip(),
+                    fornecedor=edit_fornecedor.text().strip(),
+                )
                 dialog.accept()
                 if parent_dialog:
                     parent_dialog.accept()
@@ -434,8 +756,8 @@ class PartsPage(QWidget):
                 else:
                     self.recarregar()
 
-        botoes.accepted.connect(salvar)
-        botoes.rejected.connect(dialog.reject)
+        btn_salvar.clicked.connect(salvar)
+        btn_cancelar.clicked.connect(dialog.reject)
 
         dialog.exec()
 
@@ -471,7 +793,26 @@ class PartsPage(QWidget):
         id_form.addRow(campo_rotulo("Código"), campo_readonly(peca.codigo))
         id_form.addRow(campo_rotulo("Nome"), campo_readonly(peca.nome))
         id_form.addRow(campo_rotulo("Descrição"), campo_readonly(peca.descricao))
-        id_form.addRow(campo_rotulo("Modelo Compatível"), campo_readonly(peca.modelo_compativel))
+        modelos = [m.strip() for m in (peca.modelo_compativel or "").split("/") if m.strip()]
+        if modelos:
+            tags_layout = QHBoxLayout()
+            tags_layout.setSpacing(4)
+            for m in modelos:
+                tag = QLabel(m)
+                tag.setStyleSheet(
+                    "QLabel { background: rgba(99,102,241,0.2); color: #c7d2fe;"
+                    " border: 1px solid #6366f1; border-radius: 8px;"
+                    " padding: 3px 10px; font-size: 11px; }"
+                )
+                tag.setFixedHeight(24)
+                tags_layout.addWidget(tag)
+            tags_layout.addStretch()
+            id_form.addRow(campo_rotulo("Modelos"), tags_layout)
+        else:
+            id_form.addRow(campo_rotulo("Modelos"), campo_readonly(""))
+        id_form.addRow(campo_rotulo("Marca"), campo_readonly(peca.marca or ""))
+        id_form.addRow(campo_rotulo("Categoria"), campo_readonly(peca.categoria or ""))
+        id_form.addRow(campo_rotulo("Fornecedor"), campo_readonly(peca.fornecedor or ""))
         id_layout.addLayout(id_form)
         content.addWidget(id_box)
 

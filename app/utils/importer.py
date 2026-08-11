@@ -36,6 +36,34 @@ def _limpar_cabecalho(nome: str) -> str:
     return nome
 
 
+def normalizar_modelos(valor: str) -> str:
+    """Normaliza string de modelos: separa por /, ; ou , e deduplica.
+    Ex: 'HP P1102, M1132; HP 2035' → 'HP P1102/M1132/HP 2035'
+    """
+    if not valor:
+        return ""
+    partes = re.split(r"\s*[,;/]\s*", valor.strip())
+    vistos: set[str] = set()
+    resultado: list[str] = []
+    for p in partes:
+        p = p.strip()
+        if not p:
+            continue
+        chave = p.upper()
+        if chave not in vistos:
+            vistos.add(chave)
+            resultado.append(p)
+    return "/".join(resultado)
+
+
+def merge_modelos(existente: str, novos: str) -> str:
+    """Mescla string de modelos existente com novos, sem duplicar.
+    Ex: merge_modelos('HP P1102/M1132', 'M1132/HP 2035') → 'HP P1102/M1132/HP 2035'
+    """
+    todos = f"{existente}/{novos}" if existente and novos else (existente or novos)
+    return normalizar_modelos(todos)
+
+
 COLUNAS_PADRAO: dict[str, dict[str, str]] = {
     "printers": {
         "patrimonio": "patrimonio",
@@ -85,6 +113,14 @@ COLUNAS_PADRAO: dict[str, dict[str, str]] = {
         "preco_unitario": "preco_unitario",
         "modelo_compativel": "modelo_compativel",
         "modelo": "modelo_compativel",
+        "marca": "marca",
+        "fabricante": "marca",
+        "brand": "marca",
+        "categoria": "categoria",
+        "cat": "categoria",
+        "category": "categoria",
+        "fornecedor": "fornecedor",
+        "supplier": "fornecedor",
     },
     "companies": {
         "nome": "nome",
@@ -119,7 +155,7 @@ CAMPOS_EDITAVEIS: dict[str, list[str]] = {
     "printers": ["patrimonio", "modelo", "marca", "serial", "status", "local_atual",
                  "ip_rede", "mac_address", "tecnico", "tipo", "observacao"],
     "parts": ["codigo", "nome", "descricao", "quantidade_estoque", "estoque_minimo",
-              "preco_unitario", "modelo_compativel"],
+              "preco_unitario", "modelo_compativel", "marca", "categoria", "fornecedor"],
     "companies": ["nome", "cnpj", "endereco", "cidade", "uf", "telefone", "email", "tipo", "observacao"],
 }
 
@@ -261,21 +297,41 @@ class Importador:
                 self.service.criar(**dados)
         elif self.entity == "parts":
             nome = dados.get("nome", "")
+            descricao = dados.get("descricao", "")
+            if not nome and descricao:
+                dados["nome"] = descricao
+                nome = descricao
             if not nome:
                 raise ValueError("nome é obrigatório")
-            codigo = dados.pop("codigo", None) or self.service.gerar_codigo()
-            existente = self.service.buscar_por_nome(nome)
-            if existente:
-                self.service.atualizar(existente, **dados)
-            else:
-                self.service.criar(
-                    codigo=codigo,
-                    nome=dados.pop("nome", nome),
-                    descricao=dados.pop("descricao", ""),
-                    modelo_compativel=dados.pop("modelo_compativel", ""),
-                    quantidade=dados.pop("quantidade_estoque", 0),
-                    estoque_minimo=dados.pop("estoque_minimo", 1),
-                )
+            codigo = dados.pop("codigo", None) or ""
+            modelo_raw = dados.pop("modelo_compativel", "") or ""
+            modelo_norm = normalizar_modelos(modelo_raw)
+
+            # Dedup: se veio código na planilha, usa como chave; senão, cada linha é um novo registro
+            if codigo:
+                existente = self.service.buscar_por_codigo(codigo)
+                if existente:
+                    self.service.atualizar(existente, **dados)
+                    return
+            # Fallback: se já existe peça com mesmo nome + mesmo modelo, atualiza (evita duplicatas)
+            if modelo_norm:
+                existente = self.service.buscar_por_nome(nome)
+                if existente and existente.modelo_compativel:
+                    if modelo_norm.upper() == existente.modelo_compativel.upper():
+                        self.service.atualizar(existente, **dados)
+                        return
+            codigo_final = codigo or self.service.gerar_codigo()
+            self.service.criar(
+                codigo=codigo_final,
+                nome=dados.pop("nome", nome),
+                descricao=dados.pop("descricao", ""),
+                modelo_compativel=modelo_norm,
+                quantidade=dados.pop("quantidade_estoque", 0),
+                estoque_minimo=dados.pop("estoque_minimo", 1),
+                marca=dados.pop("marca", ""),
+                categoria=dados.pop("categoria", ""),
+                fornecedor=dados.pop("fornecedor", ""),
+            )
         elif self.entity == "companies":
             nome = dados.get("nome", "")
             if not nome:

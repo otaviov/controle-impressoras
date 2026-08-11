@@ -35,6 +35,7 @@ class PartService:
             f = f"%{filtro}%"
             query = query.filter(
                 Part.nome.like(f) | Part.codigo.like(f) | Part.modelo_compativel.like(f)
+                | Part.marca.like(f) | Part.categoria.like(f) | Part.fornecedor.like(f)
             )
         query = query.order_by(Part.nome)
         if limite is not None:
@@ -47,21 +48,25 @@ class PartService:
         return self.session.query(Part).filter(Part.codigo == codigo).first()
 
     def buscar_por_nome(self, nome: str) -> Optional[Part]:
-        return self.session.query(Part).filter(Part.nome == nome).first()
+        return self.session.query(Part).filter(Part.nome == nome, Part.deleted_at == None).first()
 
     @cached(ttl=15, namespace="part")
     def buscar_por_id(self, part_id: int) -> Optional[Part]:
         return self.session.query(Part).filter(Part.deleted_at == None, Part.id == part_id).first()
 
-    def criar(self, codigo: str, nome: str, descricao: str = "", modelo_compativel: str = "", quantidade: int = 0, estoque_minimo: int = 1) -> Part:
+    def criar(self, codigo: str, nome: str, descricao: str = "", modelo_compativel: str = "", quantidade: int = 0, estoque_minimo: int = 1, marca: str = "", categoria: str = "", fornecedor: str = "") -> Part:
+        from app.utils.importer import normalizar_modelos
         peca = Part(
             codigo=sanitizar(codigo, "Part", "codigo"),
             nome=sanitizar(nome, "Part", "nome"),
             descricao=sanitizar(descricao),
-            modelo_compativel=sanitizar(modelo_compativel, "Part", "modelo_compativel"),
+            modelo_compativel=sanitizar(normalizar_modelos(modelo_compativel), "Part", "modelo_compativel"),
             quantidade_estoque=quantidade,
             estoque_minimo=estoque_minimo,
-            preco_unitario=0.0
+            preco_unitario=0.0,
+            marca=sanitizar(marca, "Part", "marca"),
+            categoria=sanitizar(categoria, "Part", "categoria"),
+            fornecedor=sanitizar(fornecedor, "Part", "fornecedor"),
         )
         self.session.add(peca)
         safe_commit(self.session)
@@ -73,9 +78,12 @@ class PartService:
         return peca
 
     def atualizar(self, peca: Part, **kwargs: Any) -> None:
+        from app.utils.importer import normalizar_modelos
         quantidade_antiga = peca.quantidade_estoque
         if self.audit_service:
             dados_antes = {chave: getattr(peca, chave, None) for chave in kwargs}
+        if "modelo_compativel" in kwargs and isinstance(kwargs["modelo_compativel"], str):
+            kwargs["modelo_compativel"] = normalizar_modelos(kwargs["modelo_compativel"])
         for chave, valor in kwargs.items():
             if hasattr(peca, chave):
                 if isinstance(valor, str):
@@ -107,6 +115,7 @@ class PartService:
             f = f"%{filtro}%"
             query = query.filter(
                 Part.nome.like(f) | Part.codigo.like(f) | Part.modelo_compativel.like(f)
+                | Part.marca.like(f) | Part.categoria.like(f) | Part.fornecedor.like(f)
             )
         return query.count()
 
