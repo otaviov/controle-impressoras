@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 from datetime import datetime as dt
 
+from config import BASE_DIR
 from app.services.notification_service import NotificadorService
 from app.utils.ui_helpers import exportar_em_thread
 from app.services import (
@@ -224,15 +225,15 @@ class MainWindow(QMainWindow):
             scroll_layout.addWidget(container)
 
         # Adicionando o icone dos alertas
-        container_alertas = self._criar_botao_menu_com_imagem("anexos/alerta_icon.png", "  Alertas", 9)
+        container_alertas = self._criar_botao_menu_com_imagem(str(BASE_DIR / "anexos" / "alerta_icon.png"), "  Alertas", 9)
         scroll_layout.addWidget(container_alertas)
 
         # ── Adicionando o Calendário com o ícone personalizado de arquivo ──
-        container_calendario = self._criar_botao_menu_com_imagem("anexos/calendar_icon.png", "  Calendário", 10)
+        container_calendario = self._criar_botao_menu_com_imagem(str(BASE_DIR / "anexos" / "calendar_icon.png"), "  Calendário", 10)
         scroll_layout.addWidget(container_calendario)
 
         # Adicionando o icone do monitoramento
-        container_monitoramento = self._criar_botao_menu_com_imagem("anexos/monitoramento_icon.png", "  Monitoramento", 13)
+        container_monitoramento = self._criar_botao_menu_com_imagem(str(BASE_DIR / "anexos" / "monitoramento_icon.png"), "  Monitoramento", 13)
         scroll_layout.addWidget(container_monitoramento)
 
         if self.user.get('perfil') == 'admin':

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
+from config import BASE_DIR
 from app.models import Activity, Alert, Printer
 from app.services.maintenance_scheduler import MaintenanceScheduler
 from app.views.widgets.table_widget import tornar_interativa
@@ -151,9 +152,10 @@ class CalendarPage(QWidget):
 
         # Ícone do Flaticon carregado via arquivo
         icone_label = QLabel()
-        pixmap = QPixmap("anexos/calendar_icon.png")
-        pixmap_redimensionado = pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        icone_label.setPixmap(pixmap_redimensionado)
+        pixmap = QPixmap(str(BASE_DIR / "anexos" / "calendar_icon.png"))
+        if not pixmap.isNull():
+            pixmap_redimensionado = pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            icone_label.setPixmap(pixmap_redimensionado)
         icone_label.setStyleSheet("background: transparent; border: none;")
 
         titulo = QLabel("Calendário de Manutenções")

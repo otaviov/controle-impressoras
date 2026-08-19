@@ -53,6 +53,7 @@ $CommonArgs = @(
     "--add-data", "alembic;alembic"
     "--add-data", "logo.png;."
     "--add-data", "alembic.ini;."
+    "--add-data", "anexos;anexos"
     "--hidden-import", "app.models"
     "--hidden-import", "app.services"
     "--hidden-import", "app.views"

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 from sqlalchemy.orm import Session
 
+from config import BASE_DIR
 from app.services.snmp_service import SnmpMonitorService
 from app.views.styles.theme import (
     ESTILO_BOTAO_PRIMARIO,
@@ -56,7 +57,7 @@ class MonitoringPage(QWidget):
         header.setSpacing(10)
         
         icone_label = QLabel()
-        pixmap = QPixmap("anexos/monitoramento_icon.png") 
+        pixmap = QPixmap(str(BASE_DIR / "anexos" / "monitoramento_icon.png")) 
         if not pixmap.isNull():
             pixmap_redimensionado = pixmap.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             icone_label.setPixmap(pixmap_redimensionado)
